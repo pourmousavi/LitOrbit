@@ -5,6 +5,7 @@ import {
   Share2,
   Headphones,
   Star,
+  Shield,
   Settings,
   LogOut,
   PanelLeftClose,
@@ -20,6 +21,7 @@ const navItems = [
   { to: '/shared', icon: Share2, label: 'Shared with Me' },
   { to: '/podcasts', icon: Headphones, label: 'Podcasts' },
   { to: '/ratings', icon: Star, label: 'My Ratings' },
+  { to: '/admin', icon: Shield, label: 'Admin' },
 ];
 
 export default function Sidebar() {

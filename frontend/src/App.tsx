@@ -12,6 +12,7 @@ import Feed from '@/pages/Feed';
 import SharedWithMe from '@/pages/SharedWithMe';
 import MyRatings from '@/pages/MyRatings';
 import PodcastLibrary from '@/pages/PodcastLibrary';
+import Admin from '@/pages/Admin';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -99,7 +100,7 @@ export default function App() {
             <Route path="/podcasts" element={<PodcastLibrary />} />
             <Route path="/ratings" element={<MyRatings />} />
             <Route path="/profile" element={<Placeholder title="Profile" />} />
-            <Route path="/admin" element={<Placeholder title="Admin Panel" />} />
+            <Route path="/admin" element={<Admin />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
