@@ -4,15 +4,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { cn } from '@/lib/utils';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import ToastContainer from '@/components/ui/Toast';
 import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
 import PodcastPlayer from '@/components/layout/PodcastPlayer';
 import Login from '@/pages/Login';
 import Feed from '@/pages/Feed';
+import Categories from '@/pages/Categories';
 import SharedWithMe from '@/pages/SharedWithMe';
 import MyRatings from '@/pages/MyRatings';
 import PodcastLibrary from '@/pages/PodcastLibrary';
+import Profile from '@/pages/Profile';
 import Admin from '@/pages/Admin';
+import NotFound from '@/pages/NotFound';
+import Forbidden from '@/pages/Forbidden';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,12 +54,10 @@ function AppLayout() {
 
   return (
     <div className="flex min-h-svh bg-bg-base">
-      {/* Sidebar: hidden on mobile */}
       <div className="hidden md:block">
         <Sidebar />
       </div>
 
-      {/* Main content */}
       <main
         className={cn(
           'flex-1 transition-all duration-200',
@@ -61,22 +65,13 @@ function AppLayout() {
           sidebarExpanded ? 'md:ml-60' : 'md:ml-16',
         )}
       >
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
-      {/* Mobile bottom nav */}
       <BottomNav />
-
-      {/* Podcast player — persists across routes */}
       <PodcastPlayer />
-    </div>
-  );
-}
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="flex h-full min-h-[60vh] items-center justify-center">
-      <p className="font-mono text-text-secondary">{title} — coming soon</p>
     </div>
   );
 }
@@ -91,18 +86,20 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ToastContainer />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/forbidden" element={<Forbidden />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Feed />} />
-            <Route path="/categories" element={<Placeholder title="Categories" />} />
+            <Route path="/categories" element={<Categories />} />
             <Route path="/shared" element={<SharedWithMe />} />
             <Route path="/podcasts" element={<PodcastLibrary />} />
             <Route path="/ratings" element={<MyRatings />} />
-            <Route path="/profile" element={<Placeholder title="Profile" />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<Admin />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
