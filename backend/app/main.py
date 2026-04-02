@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import papers
+from app.routers import papers, ratings, shares, users
 
 settings = get_settings()
 
@@ -21,6 +21,9 @@ app.add_middleware(
 )
 
 app.include_router(papers.router)
+app.include_router(ratings.router)
+app.include_router(shares.router)
+app.include_router(users.router)
 
 
 @app.get("/health")

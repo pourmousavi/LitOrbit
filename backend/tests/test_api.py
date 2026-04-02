@@ -92,3 +92,229 @@ async def test_papers_sorted_by_score(test_client, db_session):
     assert scores == sorted(scores, reverse=True), f"Papers not sorted by score: {scores}"
 
     del app.dependency_overrides[get_current_user]
+
+
+# --- Phase 4: Ratings ---
+
+@pytest.mark.asyncio
+async def test_rating_submission(test_client, db_session):
+    """POST /ratings with rating=8 returns 200 with follow-up question."""
+    from app.auth import get_current_user
+    from app.main import app
+    from app.models.user_profile import UserProfile
+
+    user_id = uuid.uuid4()
+    fake_user = {"id": str(user_id), "email": "test@test.com", "role": "researcher"}
+
+    profile = UserProfile(id=user_id, full_name="Test User", email="test@test.com", role="researcher")
+    db_session.add(profile)
+    paper = Paper(id=uuid.uuid4(), title="Test Paper R", authors=["A"], journal="J", journal_source="rss", categories=["battery"])
+    db_session.add(paper)
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    resp = await test_client.post("/api/v1/ratings", json={
+        "paper_id": str(paper.id),
+        "rating": 8,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "rating_id" in data
+    assert data["follow_up_question"] is not None
+
+    del app.dependency_overrides[get_current_user]
+
+
+@pytest.mark.asyncio
+async def test_rating_1_to_3_question(test_client, db_session):
+    """Rating 2 returns 'Was this irrelevant...' question."""
+    from app.auth import get_current_user
+    from app.main import app
+    from app.models.user_profile import UserProfile
+
+    user_id = uuid.uuid4()
+    fake_user = {"id": str(user_id), "email": "test@test.com", "role": "researcher"}
+
+    profile = UserProfile(id=user_id, full_name="Test User", email="test@test.com", role="researcher")
+    db_session.add(profile)
+    paper = Paper(id=uuid.uuid4(), title="Low Paper", authors=["A"], journal="J", journal_source="rss")
+    db_session.add(paper)
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    resp = await test_client.post("/api/v1/ratings", json={
+        "paper_id": str(paper.id),
+        "rating": 2,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "irrelevant" in data["follow_up_question"].lower()
+
+    del app.dependency_overrides[get_current_user]
+
+
+@pytest.mark.asyncio
+async def test_rating_9_to_10_question(test_client, db_session):
+    """Rating 10 returns 'find related work' question."""
+    from app.auth import get_current_user
+    from app.main import app
+    from app.models.user_profile import UserProfile
+
+    user_id = uuid.uuid4()
+    fake_user = {"id": str(user_id), "email": "test@test.com", "role": "researcher"}
+
+    profile = UserProfile(id=user_id, full_name="Test User", email="test@test.com", role="researcher")
+    db_session.add(profile)
+    paper = Paper(id=uuid.uuid4(), title="Top Paper", authors=["A"], journal="J", journal_source="rss")
+    db_session.add(paper)
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    resp = await test_client.post("/api/v1/ratings", json={
+        "paper_id": str(paper.id),
+        "rating": 10,
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "related work" in data["follow_up_question"].lower()
+
+    del app.dependency_overrides[get_current_user]
+
+
+@pytest.mark.asyncio
+async def test_interest_vector_updated(test_client, db_session):
+    """After rating=9, user's interest vector for paper's categories should increase."""
+    from app.auth import get_current_user
+    from app.main import app
+    from app.models.user_profile import UserProfile
+
+    user_id = uuid.uuid4()
+    fake_user = {"id": str(user_id), "email": "test@test.com", "role": "researcher"}
+
+    profile = UserProfile(id=user_id, full_name="Test User", email="test@test.com", role="researcher", interest_vector={})
+    db_session.add(profile)
+    paper = Paper(id=uuid.uuid4(), title="Battery Paper", authors=["A"], journal="J", journal_source="rss", categories=["battery", "degradation"])
+    db_session.add(paper)
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    resp = await test_client.post("/api/v1/ratings", json={
+        "paper_id": str(paper.id),
+        "rating": 9,
+    })
+    assert resp.status_code == 200
+
+    await db_session.refresh(profile)
+    vector = profile.interest_vector
+    assert vector.get("battery", 0) > 0
+    assert vector.get("degradation", 0) > 0
+
+    del app.dependency_overrides[get_current_user]
+
+
+# --- Phase 4: Shares ---
+
+@pytest.mark.asyncio
+async def test_share_creation(test_client, db_session):
+    """POST /shares creates a share record."""
+    from app.auth import get_current_user
+    from app.main import app
+    from app.models.user_profile import UserProfile
+
+    sender_id = uuid.uuid4()
+    recipient_id = uuid.uuid4()
+    fake_user = {"id": str(sender_id), "email": "sender@test.com", "role": "admin"}
+
+    sender = UserProfile(id=sender_id, full_name="Sender", email="sender@test.com", role="admin")
+    recipient = UserProfile(id=recipient_id, full_name="Recipient", email="rec@test.com", role="researcher")
+    db_session.add_all([sender, recipient])
+    paper = Paper(id=uuid.uuid4(), title="Shared Paper", authors=["A"], journal="J", journal_source="rss")
+    db_session.add(paper)
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    resp = await test_client.post("/api/v1/shares", json={
+        "paper_id": str(paper.id),
+        "shared_with": str(recipient_id),
+        "annotation": "Check this out!",
+    })
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "shared"
+
+    del app.dependency_overrides[get_current_user]
+
+
+@pytest.mark.asyncio
+async def test_share_inbox(test_client, db_session):
+    """GET /shares/inbox returns shares addressed to user."""
+    from app.auth import get_current_user
+    from app.main import app
+    from app.models.user_profile import UserProfile
+    from app.models.share import Share
+
+    sender_id = uuid.uuid4()
+    recipient_id = uuid.uuid4()
+
+    sender = UserProfile(id=sender_id, full_name="Sender", email="s@test.com", role="admin")
+    recipient = UserProfile(id=recipient_id, full_name="Recipient", email="r@test.com", role="researcher")
+    db_session.add_all([sender, recipient])
+    paper = Paper(id=uuid.uuid4(), title="Inbox Paper", authors=["A"], journal="J", journal_source="rss")
+    db_session.add(paper)
+    await db_session.commit()
+
+    share = Share(id=uuid.uuid4(), paper_id=paper.id, shared_by=sender_id, shared_with=recipient_id, annotation="Read this")
+    db_session.add(share)
+    await db_session.commit()
+
+    fake_user = {"id": str(recipient_id), "email": "r@test.com", "role": "researcher"}
+    app.dependency_overrides[get_current_user] = lambda: fake_user
+
+    resp = await test_client.get("/api/v1/shares/inbox")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 1
+    assert data[0]["sharer_name"] == "Sender"
+    assert data[0]["annotation"] == "Read this"
+
+    del app.dependency_overrides[get_current_user]
+
+
+@pytest.mark.asyncio
+async def test_share_not_visible_to_others(test_client, db_session):
+    """User B cannot see User A's shares."""
+    from app.auth import get_current_user
+    from app.main import app
+    from app.models.user_profile import UserProfile
+    from app.models.share import Share
+
+    user_a = uuid.uuid4()
+    user_b = uuid.uuid4()
+    sender = uuid.uuid4()
+
+    db_session.add_all([
+        UserProfile(id=sender, full_name="Sender", email="s@x.com", role="admin"),
+        UserProfile(id=user_a, full_name="User A", email="a@x.com", role="researcher"),
+        UserProfile(id=user_b, full_name="User B", email="b@x.com", role="researcher"),
+    ])
+    paper = Paper(id=uuid.uuid4(), title="Private Paper", authors=["X"], journal="J", journal_source="rss")
+    db_session.add(paper)
+    await db_session.commit()
+
+    share = Share(id=uuid.uuid4(), paper_id=paper.id, shared_by=sender, shared_with=user_a)
+    db_session.add(share)
+    await db_session.commit()
+
+    fake_user_b = {"id": str(user_b), "email": "b@x.com", "role": "researcher"}
+    app.dependency_overrides[get_current_user] = lambda: fake_user_b
+
+    resp = await test_client.get("/api/v1/shares/inbox")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 0
+
+    del app.dependency_overrides[get_current_user]

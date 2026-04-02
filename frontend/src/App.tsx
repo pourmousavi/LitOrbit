@@ -9,6 +9,8 @@ import BottomNav from '@/components/layout/BottomNav';
 import PodcastPlayer from '@/components/layout/PodcastPlayer';
 import Login from '@/pages/Login';
 import Feed from '@/pages/Feed';
+import SharedWithMe from '@/pages/SharedWithMe';
+import MyRatings from '@/pages/MyRatings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -92,9 +94,9 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Feed />} />
             <Route path="/categories" element={<Placeholder title="Categories" />} />
-            <Route path="/shared" element={<Placeholder title="Shared with Me" />} />
+            <Route path="/shared" element={<SharedWithMe />} />
             <Route path="/podcasts" element={<Placeholder title="Podcast Library" />} />
-            <Route path="/ratings" element={<Placeholder title="My Ratings" />} />
+            <Route path="/ratings" element={<MyRatings />} />
             <Route path="/profile" element={<Placeholder title="Profile" />} />
             <Route path="/admin" element={<Placeholder title="Admin Panel" />} />
           </Route>
