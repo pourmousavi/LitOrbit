@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { ArrowLeft, ExternalLink, Share2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Share2, Play, Loader2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePaper } from '@/hooks/usePapers';
+import { usePodcastStatus, useGeneratePodcast } from '@/hooks/usePodcast';
 import { useUIStore } from '@/stores/uiStore';
+import { usePlayerStore } from '@/stores/playerStore';
 import { cn, getScoreColor, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
 import RatingSlider from '@/components/ratings/RatingSlider';
@@ -33,6 +35,11 @@ export default function PaperDetail() {
 
   const [feedback, setFeedback] = useState<RatingResult | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [voiceMode, setVoiceMode] = useState<'single' | 'dual'>('single');
+  const { data: podcastStatus } = usePodcastStatus(selectedPaperId, voiceMode);
+  const generatePodcast = useGeneratePodcast();
+  const setTrack = usePlayerStore((s) => s.setTrack);
+  const apiBase = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
   const ratingMutation = useMutation({
     mutationFn: async (value: number) => {
@@ -195,13 +202,68 @@ export default function PaperDetail() {
             </div>
           )}
 
-          {/* Podcast section placeholder */}
+          {/* Podcast */}
           <div className="space-y-3">
             <h3 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase">
               Podcast
             </h3>
-            <div className="rounded-lg border border-border-default bg-bg-base p-4">
-              <p className="font-mono text-sm text-text-tertiary">Podcast generation coming in Phase 5</p>
+            <div className="rounded-lg border border-border-default bg-bg-base p-4 space-y-3">
+              {/* Voice mode selector */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setVoiceMode('single')}
+                  className={cn(
+                    'rounded-lg px-3 py-1.5 font-mono text-xs transition',
+                    voiceMode === 'single' ? 'bg-accent text-white' : 'bg-bg-elevated text-text-secondary hover:text-text-primary',
+                  )}
+                >
+                  Single voice
+                </button>
+                <button
+                  onClick={() => setVoiceMode('dual')}
+                  className={cn(
+                    'rounded-lg px-3 py-1.5 font-mono text-xs transition',
+                    voiceMode === 'dual' ? 'bg-accent text-white' : 'bg-bg-elevated text-text-secondary hover:text-text-primary',
+                  )}
+                >
+                  Dual voice
+                </button>
+              </div>
+
+              {podcastStatus?.status === 'ready' && podcastStatus.podcast ? (
+                <button
+                  onClick={() => {
+                    const url = `${apiBase}${podcastStatus.podcast!.audio_url}`;
+                    setTrack(url, paper.title, paper.journal);
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-2.5 font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
+                >
+                  <Play size={14} />
+                  Play {podcastStatus.podcast.duration_seconds ? `(${Math.floor(podcastStatus.podcast.duration_seconds / 60)}m ${podcastStatus.podcast.duration_seconds % 60}s)` : ''}
+                </button>
+              ) : podcastStatus?.status === 'generating' ? (
+                <div className="flex items-center justify-center gap-2 py-3">
+                  <Loader2 size={16} className="animate-spin text-accent" />
+                  <span className="font-mono text-sm text-text-secondary">Generating podcast...</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => generatePodcast.mutate({ paperId: paper.id, voiceMode })}
+                  disabled={generatePodcast.isPending}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-default bg-bg-elevated py-2.5 font-mono text-sm text-text-secondary transition hover:border-accent hover:text-accent disabled:opacity-50"
+                >
+                  {generatePodcast.isPending ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Play size={14} />
+                  )}
+                  Generate Podcast
+                </button>
+              )}
+
+              {podcastStatus?.status === 'failed' && (
+                <p className="text-center font-mono text-xs text-danger">Generation failed. Try again.</p>
+              )}
             </div>
           </div>
 
