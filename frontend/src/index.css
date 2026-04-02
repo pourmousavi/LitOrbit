@@ -1,0 +1,59 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap');
+
+@theme {
+  --color-bg-base: #0a0a0a;
+  --color-bg-surface: #141414;
+  --color-bg-elevated: #1c1c1c;
+  --color-border-default: #2a2a2a;
+  --color-border-strong: #3a3a3a;
+  --color-text-primary: #f0f0f0;
+  --color-text-secondary: #888888;
+  --color-text-tertiary: #555555;
+  --color-accent: #0891b2;
+  --color-accent-hover: #0e7490;
+  --color-accent-subtle: #0891b218;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-score-high: #22c55e;
+  --color-score-mid: #f59e0b;
+  --color-score-low: #888888;
+
+  --font-mono: 'DM Mono', monospace;
+  --font-serif: 'Source Serif 4', serif;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 3px;
+}
