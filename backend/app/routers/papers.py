@@ -1,7 +1,10 @@
+import json
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File
+from pydantic import BaseModel
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -138,3 +141,174 @@ async def get_paper(
         "score_reasoning": reasoning,
         "created_at": paper.created_at.isoformat() if paper.created_at else None,
     }
+
+
+@router.post("/{paper_id}/upload-pdf")
+async def upload_pdf(
+    paper_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Upload a PDF for an existing paper. Extracts text and regenerates summary."""
+    from app.services.pdf_processor import validate_pdf, extract_text_from_pdf
+    from app.services.summariser import generate_summary
+
+    # Get paper
+    result = await db.execute(select(Paper).where(Paper.id == uuid.UUID(paper_id)))
+    paper = result.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    # Read and validate
+    file_bytes = await file.read()
+
+    error = validate_pdf(file_bytes, file.filename or "upload.pdf")
+    if error:
+        status = 413 if "too large" in error.lower() else 400
+        raise HTTPException(status_code=status, detail=error)
+
+    # Extract text
+    full_text = extract_text_from_pdf(file_bytes)
+    paper.full_text = full_text
+    await db.commit()
+
+    # Regenerate summary with full text in background
+    async def _regenerate_summary():
+        from app.database import init_db, async_session_factory
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            if async_session_factory is None:
+                init_db()
+            if async_session_factory is None:
+                logger.warning("Cannot regenerate summary: no database session factory")
+                return
+        except Exception:
+            return
+
+        async with async_session_factory() as bg_db:
+            paper_dict = {
+                "title": paper.title,
+                "authors": paper.authors,
+                "journal": paper.journal,
+                "abstract": paper.abstract or "",
+                "full_text": full_text,
+            }
+            summary = await generate_summary(paper_dict)
+            if summary:
+                bg_result = await bg_db.execute(select(Paper).where(Paper.id == uuid.UUID(paper_id)))
+                bg_paper = bg_result.scalar_one_or_none()
+                if bg_paper:
+                    bg_paper.summary = json.dumps(summary)
+                    bg_paper.categories = summary.get("categories", [])
+                    bg_paper.summary_generated_at = datetime.now(timezone.utc)
+                    await bg_db.commit()
+                    logger.info(f"Regenerated summary for paper {paper_id} with full text")
+
+    background_tasks.add_task(_regenerate_summary)
+
+    return {
+        "status": "uploaded",
+        "text_length": len(full_text),
+        "message": "PDF uploaded. Summary is being regenerated with full text.",
+    }
+
+
+class UploadNewPaperRequest(BaseModel):
+    title: str | None = None
+    journal: str = "Uploaded"
+    doi: str | None = None
+
+
+@router.post("/upload-new")
+async def upload_new_paper(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Upload a PDF for a paper not yet in the system."""
+    from app.services.pdf_processor import validate_pdf, extract_text_from_pdf
+
+    file_bytes = await file.read()
+    error = validate_pdf(file_bytes, file.filename or "upload.pdf")
+    if error:
+        status = 413 if "too large" in error.lower() else 400
+        raise HTTPException(status_code=status, detail=error)
+
+    full_text = extract_text_from_pdf(file_bytes)
+
+    # Extract title from first lines of text
+    lines = [l.strip() for l in full_text.split("\n") if l.strip()]
+    title = lines[0] if lines else file.filename or "Untitled Paper"
+    if len(title) > 300:
+        title = title[:300]
+
+    paper = Paper(
+        id=uuid.uuid4(),
+        title=title,
+        authors=[],
+        journal="Uploaded",
+        journal_source="upload",
+        full_text=full_text,
+    )
+    db.add(paper)
+    await db.commit()
+
+    return {
+        "status": "created",
+        "paper_id": str(paper.id),
+        "title": title,
+        "text_length": len(full_text),
+    }
+
+
+class DOILookupRequest(BaseModel):
+    doi: str
+    paper_id: str | None = None  # If provided, attach to existing paper
+
+
+@router.post("/doi-lookup")
+async def doi_lookup(
+    req: DOILookupRequest,
+    background_tasks: BackgroundTasks,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Look up a DOI via Unpaywall and auto-fetch the open access PDF."""
+    from app.services.pdf_processor import fetch_pdf_from_unpaywall, extract_text_from_pdf
+
+    pdf_bytes = await fetch_pdf_from_unpaywall(req.doi)
+    if not pdf_bytes:
+        raise HTTPException(status_code=404, detail="No open access PDF found for this DOI")
+
+    full_text = extract_text_from_pdf(pdf_bytes)
+
+    if req.paper_id:
+        # Attach to existing paper
+        result = await db.execute(select(Paper).where(Paper.id == uuid.UUID(req.paper_id)))
+        paper = result.scalar_one_or_none()
+        if not paper:
+            raise HTTPException(status_code=404, detail="Paper not found")
+        paper.full_text = full_text
+        if not paper.doi:
+            paper.doi = req.doi
+        await db.commit()
+        return {"status": "attached", "paper_id": str(paper.id), "text_length": len(full_text)}
+    else:
+        # Create new paper
+        paper = Paper(
+            id=uuid.uuid4(),
+            doi=req.doi,
+            title=f"DOI: {req.doi}",
+            authors=[],
+            journal="Unknown",
+            journal_source="doi_lookup",
+            full_text=full_text,
+        )
+        db.add(paper)
+        await db.commit()
+        return {"status": "created", "paper_id": str(paper.id), "text_length": len(full_text)}

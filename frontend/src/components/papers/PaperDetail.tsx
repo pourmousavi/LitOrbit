@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, ExternalLink, Share2, Play, Loader2 } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePaper } from '@/hooks/usePapers';
 import { usePodcastStatus, useGeneratePodcast } from '@/hooks/usePodcast';
@@ -25,6 +25,96 @@ function parseSummary(summaryStr: string | null): PaperSummary | null {
   } catch {
     return null;
   }
+}
+
+function PdfUploadZone({ paperId, hasFullText }: { paperId: string; hasFullText: boolean }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      const { data } = await api.post(`/api/v1/papers/${paperId}/upload-pdf`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data as { status: string; text_length: number; message: string };
+    },
+  });
+
+  const handleFile = (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Only PDF files are accepted.');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      alert('File too large. Maximum is 50MB.');
+      return;
+    }
+    uploadMutation.mutate(file);
+  };
+
+  if (hasFullText && !uploadMutation.isSuccess) {
+    return (
+      <div className="rounded-lg border border-border-default bg-bg-base p-4 flex items-center gap-3">
+        <FileText size={16} className="text-success" />
+        <span className="font-mono text-sm text-text-secondary">Full text available</span>
+      </div>
+    );
+  }
+
+  if (uploadMutation.isSuccess) {
+    return (
+      <div className="rounded-lg border border-success/30 bg-success/5 p-4 text-center">
+        <FileText size={20} className="mx-auto mb-2 text-success" />
+        <p className="font-mono text-sm text-success">PDF uploaded successfully</p>
+        <p className="mt-1 font-mono text-xs text-text-secondary">Summary is being regenerated with full text</p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border-2 border-dashed bg-bg-base p-6 text-center transition cursor-pointer',
+        dragging ? 'border-accent bg-accent-subtle' : 'border-border-strong hover:border-accent/50',
+      )}
+      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      }}
+      onClick={() => fileInputRef.current?.click()}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+        }}
+      />
+      {uploadMutation.isPending ? (
+        <div className="flex items-center justify-center gap-2">
+          <Loader2 size={16} className="animate-spin text-accent" />
+          <span className="font-mono text-sm text-text-secondary">Uploading...</span>
+        </div>
+      ) : (
+        <>
+          <Upload size={20} className="mx-auto mb-2 text-text-tertiary" />
+          <p className="font-mono text-sm text-text-secondary">Drop PDF here or click to upload</p>
+          <p className="mt-1 font-mono text-xs text-text-tertiary">PDF only, max 50MB</p>
+        </>
+      )}
+      {uploadMutation.isError && (
+        <p className="mt-2 font-mono text-xs text-danger">Upload failed. Try again.</p>
+      )}
+    </div>
+  );
 }
 
 export default function PaperDetail() {
@@ -286,16 +376,12 @@ export default function PaperDetail() {
             </div>
           </div>
 
-          {/* PDF upload placeholder */}
+          {/* PDF Upload */}
           <div className="space-y-3">
             <h3 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase">
               Upload Full Text
             </h3>
-            <div className="rounded-lg border border-dashed border-border-strong bg-bg-base p-6 text-center">
-              <p className="font-mono text-sm text-text-tertiary">
-                PDF upload coming in Phase 6
-              </p>
-            </div>
+            <PdfUploadZone paperId={paper.id} hasFullText={!!paper.full_text} />
           </div>
         </div>
       </div>
