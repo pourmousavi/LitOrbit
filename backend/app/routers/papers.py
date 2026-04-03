@@ -75,6 +75,19 @@ async def list_papers(
 
     results = (await db.execute(query)).all()
 
+    # Bulk fetch collection memberships for these papers
+    from app.models.collection import Collection, CollectionPaper
+    paper_ids_in_page = [row[0].id for row in results]
+    collections_map: dict[str, list[dict]] = {}
+    if paper_ids_in_page:
+        col_result = await db.execute(
+            select(CollectionPaper.paper_id, Collection.id, Collection.name, Collection.color)
+            .join(Collection, Collection.id == CollectionPaper.collection_id)
+            .where(CollectionPaper.paper_id.in_(paper_ids_in_page))
+        )
+        for pid, cid, cname, ccolor in col_result.all():
+            collections_map.setdefault(str(pid), []).append({"id": str(cid), "name": cname, "color": ccolor})
+
     papers = []
     for paper, score, reasoning in results:
         papers.append({
@@ -95,6 +108,7 @@ async def list_papers(
             "relevance_score": score,
             "score_reasoning": reasoning,
             "created_at": paper.created_at.isoformat() if paper.created_at else None,
+            "collections": collections_map.get(str(paper.id), []),
         })
 
     return {

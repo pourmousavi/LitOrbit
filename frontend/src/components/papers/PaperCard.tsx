@@ -110,6 +110,21 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
         </div>
       )}
 
+      {/* Collections */}
+      {paper.collections && paper.collections.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {paper.collections.map((col) => (
+            <span
+              key={col.id}
+              className="rounded-full font-mono text-xs text-white"
+              style={{ padding: '2px 10px', backgroundColor: col.color }}
+            >
+              {col.name}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Bottom row: categories + actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
