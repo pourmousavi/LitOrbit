@@ -4,8 +4,9 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -14,6 +15,7 @@ import app.database as _db_module
 from app.models.paper import Paper
 from app.models.podcast import Podcast
 from app.services.podcast import generate_podcast
+from app.services.storage import upload_audio
 
 router = APIRouter(prefix="/api/v1/podcasts", tags=["podcasts"])
 
@@ -29,7 +31,7 @@ async def _generate_in_background(
     summary: str,
     voice_mode: str,
 ) -> None:
-    """Background task to generate podcast audio."""
+    """Background task to generate podcast audio and upload to Supabase Storage."""
     import logging
     import time
     logger = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ async def _generate_in_background(
             os.makedirs(output_dir, exist_ok=True)
             output_path = os.path.join(output_dir, f"{podcast_id}.mp3")
 
-            logger.info(f"Podcast {podcast_id}: generating script...")
+            logger.info(f"Podcast {podcast_id}: generating script and audio...")
             script, audio_path, duration = await generate_podcast(
                 title=title,
                 summary=summary,
@@ -55,21 +57,33 @@ async def _generate_in_background(
                 output_path=output_path,
             )
 
-            gen_time = int(time.time() - start_time)
-            logger.info(f"Podcast {podcast_id}: audio generated in {gen_time}s, duration={duration}s")
+            # Upload to Supabase Storage
+            storage_key = f"{podcast_id}.mp3"
+            logger.info(f"Podcast {podcast_id}: uploading to Supabase Storage...")
+            public_url = await upload_audio(audio_path, storage_key)
 
-            # Update podcast record
+            if not public_url:
+                raise RuntimeError("Failed to upload audio to Supabase Storage")
+
+            gen_time = int(time.time() - start_time)
+            logger.info(f"Podcast {podcast_id}: complete in {gen_time}s, duration={duration}s")
+
+            # Update podcast record with the public URL
             result = await db.execute(
                 select(Podcast).where(Podcast.id == uuid.UUID(podcast_id))
             )
             podcast = result.scalar_one_or_none()
             if podcast:
                 podcast.script = script
-                podcast.audio_path = audio_path
+                podcast.audio_path = public_url  # Store the Supabase public URL
                 podcast.duration_seconds = duration
                 podcast.generation_time_seconds = gen_time
                 await db.commit()
                 logger.info(f"Podcast {podcast_id}: saved to database")
+
+            # Clean up local temp file
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
 
         except Exception as e:
             gen_time = int(time.time() - start_time)
@@ -106,7 +120,7 @@ async def get_podcast(
     if not podcast:
         return {"status": "not_generated", "podcast": None}
 
-    if podcast.audio_path and os.path.exists(podcast.audio_path):
+    if podcast.audio_path:
         return {
             "status": "ready",
             "podcast": {
@@ -190,8 +204,7 @@ async def generate_podcast_endpoint(
     db.add(podcast)
     await db.commit()
 
-    # Start background generation using asyncio.create_task
-    # (more reliable than BackgroundTasks on some hosts)
+    # Start background generation
     import asyncio
     asyncio.create_task(
         _generate_in_background(
@@ -215,22 +228,17 @@ async def serve_audio(
     podcast_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Serve the podcast MP3 file."""
-    from fastapi.responses import FileResponse
-
+    """Redirect to the Supabase Storage URL for the podcast MP3."""
     result = await db.execute(
         select(Podcast).where(Podcast.id == uuid.UUID(podcast_id))
     )
     podcast = result.scalar_one_or_none()
 
-    if not podcast or not podcast.audio_path or not os.path.exists(podcast.audio_path):
+    if not podcast or not podcast.audio_path:
         raise HTTPException(status_code=404, detail="Audio not found")
 
-    return FileResponse(
-        podcast.audio_path,
-        media_type="audio/mpeg",
-        filename=f"podcast_{podcast_id}.mp3",
-    )
+    # audio_path is now a Supabase public URL — redirect to it
+    return RedirectResponse(url=podcast.audio_path, status_code=302)
 
 
 @router.get("")
