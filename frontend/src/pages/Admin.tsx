@@ -45,21 +45,23 @@ export default function Admin() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl p-4">
-      <h1 className="mb-4 font-mono text-lg font-medium text-text-primary">Admin Panel</h1>
+    <div className="mx-auto max-w-4xl p-6">
+      <h1 className="mb-6 font-mono text-xl font-medium text-text-primary">Admin Panel</h1>
 
       {/* Tab bar */}
-      <div className="mb-6 flex gap-1 rounded-lg bg-bg-surface p-1">
+      <div className="mb-8 flex flex-wrap gap-2 rounded-xl bg-bg-surface p-1.5">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              'flex items-center gap-2 rounded-md px-4 py-2 font-mono text-sm transition',
-              tab === t.key ? 'bg-bg-elevated text-text-primary' : 'text-text-secondary hover:text-text-primary',
+              'flex items-center gap-2 rounded-lg px-4 py-2.5 font-mono text-sm transition',
+              tab === t.key
+                ? 'bg-accent text-white'
+                : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
             )}
           >
-            <t.icon size={14} />
+            <t.icon size={15} />
             {t.label}
           </button>
         ))}
@@ -75,7 +77,7 @@ export default function Admin() {
 
 function JournalConfigTab() {
   const queryClient = useQueryClient();
-  const { data: journals, isLoading } = useQuery<Journal[]>({
+  const { data: journals, isLoading, isError } = useQuery<Journal[]>({
     queryKey: ['admin', 'journals'],
     queryFn: async () => (await api.get('/api/v1/admin/journals')).data,
   });
@@ -87,21 +89,33 @@ function JournalConfigTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'journals'] }),
   });
 
-  if (isLoading) return <div className="font-mono text-sm text-text-secondary">Loading...</div>;
+  if (isLoading) return <LoadingState />;
+  if (isError) return <ErrorState message="Failed to load journals" />;
+
+  if (!journals?.length) {
+    return (
+      <EmptyState
+        title="No journals configured"
+        description="Journals will appear here once added via the API or database."
+      />
+    );
+  }
 
   return (
-    <div className="space-y-2">
-      {journals?.map((j) => (
-        <div key={j.id} className="flex items-center justify-between rounded-lg border border-border-default bg-bg-surface p-3">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {journals.map((j) => (
+        <div key={j.id} className="flex items-center justify-between rounded-xl border border-border-default bg-bg-surface p-4">
           <div>
-            <p className="font-mono text-sm text-text-primary">{j.name}</p>
-            <p className="font-mono text-xs text-text-tertiary">{j.publisher} · {j.source_type} · {j.source_identifier}</p>
+            <p className="font-mono text-sm font-medium text-text-primary">{j.name}</p>
+            <p className="mt-1 font-mono text-xs text-text-tertiary">
+              {j.publisher} &middot; {j.source_type} &middot; {j.source_identifier}
+            </p>
           </div>
           <button
             onClick={() => toggleMutation.mutate({ id: j.id, is_active: !j.is_active })}
             className={cn('transition', j.is_active ? 'text-success' : 'text-text-tertiary')}
           >
-            {j.is_active ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+            {j.is_active ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
           </button>
         </div>
       ))}
@@ -110,40 +124,41 @@ function JournalConfigTab() {
 }
 
 function UserManagementTab() {
-  const { data: users, isLoading } = useQuery<UserItem[]>({
+  const { data: users, isLoading, isError } = useQuery<UserItem[]>({
     queryKey: ['admin', 'users'],
     queryFn: async () => (await api.get('/api/v1/users')).data,
   });
 
-  if (isLoading) return <div className="font-mono text-sm text-text-secondary">Loading...</div>;
+  if (isLoading) return <LoadingState />;
+  if (isError) return <ErrorState message="Failed to load users" />;
+
+  if (!users?.length) {
+    return <EmptyState title="No users found" description="Users who sign up will appear here." />;
+  }
 
   return (
-    <div className="space-y-2">
-      {!users?.length ? (
-        <p className="py-10 text-center font-mono text-sm text-text-secondary">No users found</p>
-      ) : (
-        users.map((u) => (
-          <div key={u.id} className="flex items-center justify-between rounded-lg border border-border-default bg-bg-surface p-3">
-            <div>
-              <p className="font-mono text-sm text-text-primary">{u.full_name}</p>
-              <p className="font-mono text-xs text-text-tertiary">{u.email}</p>
-            </div>
-            <span className={cn(
-              'rounded-full px-2.5 py-0.5 font-mono text-xs',
-              u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-secondary',
-            )}>
-              {u.role}
-            </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {users.map((u) => (
+        <div key={u.id} className="flex items-center justify-between rounded-xl border border-border-default bg-bg-surface p-4">
+          <div>
+            <p className="font-mono text-sm font-medium text-text-primary">{u.full_name}</p>
+            <p className="mt-1 font-mono text-xs text-text-tertiary">{u.email}</p>
           </div>
-        ))
-      )}
+          <span className={cn(
+            'rounded-full px-3 py-1 font-mono text-xs',
+            u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-secondary',
+          )}>
+            {u.role}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
 
 function PipelineStatusTab() {
   const queryClient = useQueryClient();
-  const { data: runs, isLoading } = useQuery<PipelineRun[]>({
+  const { data: runs, isLoading, isError } = useQuery<PipelineRun[]>({
     queryKey: ['admin', 'pipeline'],
     queryFn: async () => (await api.get('/api/v1/admin/pipeline/runs')).data,
   });
@@ -158,45 +173,47 @@ function PipelineStatusTab() {
   });
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <button
         onClick={() => triggerMutation.mutate()}
         disabled={triggerMutation.isPending}
-        className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+        className="flex w-fit items-center gap-2 rounded-xl bg-accent px-5 py-3 font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
       >
-        {triggerMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+        {triggerMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
         Run Pipeline Now
       </button>
 
       {isLoading ? (
-        <div className="font-mono text-sm text-text-secondary">Loading...</div>
+        <LoadingState />
+      ) : isError ? (
+        <ErrorState message="Failed to load pipeline runs" />
       ) : !runs?.length ? (
-        <p className="py-10 text-center font-mono text-sm text-text-secondary">No pipeline runs yet</p>
+        <EmptyState title="No pipeline runs yet" description="Click 'Run Pipeline Now' to fetch papers." />
       ) : (
-        <div className="space-y-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {runs.map((run) => (
-            <div key={run.id} className="rounded-lg border border-border-default bg-bg-surface p-3">
+            <div key={run.id} className="rounded-xl border border-border-default bg-bg-surface p-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <span className={cn(
-                    'h-2 w-2 rounded-full',
+                    'h-2.5 w-2.5 rounded-full',
                     run.status === 'success' && 'bg-success',
                     run.status === 'failed' && 'bg-danger',
                     run.status === 'running' && 'bg-warning animate-pulse',
                   )} />
-                  <span className="font-mono text-sm text-text-primary">{run.status}</span>
+                  <span className="font-mono text-sm font-medium text-text-primary capitalize">{run.status}</span>
                 </div>
                 <span className="font-mono text-xs text-text-tertiary">
                   {formatDate(run.started_at)}
                 </span>
               </div>
-              <div className="mt-2 flex gap-4 font-mono text-xs text-text-secondary">
-                <span>Discovered: {run.papers_discovered}</span>
-                <span>Filtered: {run.papers_filtered}</span>
-                <span>Processed: {run.papers_processed}</span>
+              <div className="mt-3 flex gap-6 font-mono text-xs text-text-secondary">
+                <span>Discovered: <strong className="text-text-primary">{run.papers_discovered}</strong></span>
+                <span>Filtered: <strong className="text-text-primary">{run.papers_filtered}</strong></span>
+                <span>Processed: <strong className="text-text-primary">{run.papers_processed}</strong></span>
               </div>
               {run.error_message && (
-                <p className="mt-1 font-mono text-xs text-danger">{run.error_message}</p>
+                <p className="mt-2 rounded-lg bg-danger/10 p-2 font-mono text-xs text-danger">{run.error_message}</p>
               )}
             </div>
           ))}
@@ -208,7 +225,7 @@ function PipelineStatusTab() {
 
 function GlobalKeywordsTab() {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useQuery<{ keywords: string[] }>({
+  const { data, isLoading, isError } = useQuery<{ keywords: string[] }>({
     queryKey: ['admin', 'keywords'],
     queryFn: async () => (await api.get('/api/v1/admin/keywords')).data,
   });
@@ -234,41 +251,78 @@ function GlobalKeywordsTab() {
     updateMutation.mutate(data.keywords.filter((k) => k !== kw));
   };
 
-  if (isLoading) return <div className="font-mono text-sm text-text-secondary">Loading...</div>;
+  if (isLoading) return <LoadingState />;
+  if (isError) return <ErrorState message="Failed to load keywords" />;
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="flex gap-3">
         <input
           value={newKeyword}
           onChange={(e) => setNewKeyword(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && addKeyword()}
           placeholder="Add keyword..."
-          className="flex-1 rounded-lg border border-border-default bg-bg-surface px-3 py-2 text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-accent"
+          className="flex-1 rounded-xl border border-border-default bg-bg-surface px-4 py-3 text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
         />
         <button
           onClick={addKeyword}
-          className="flex items-center gap-1 rounded-lg bg-accent px-3 py-2 font-mono text-sm text-white hover:bg-accent-hover"
+          className="flex items-center gap-2 rounded-xl bg-accent px-4 py-3 font-mono text-sm text-white hover:bg-accent-hover"
         >
-          <Plus size={14} /> Add
+          <Plus size={15} /> Add
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {data?.keywords.map((kw) => (
-          <span
-            key={kw}
-            className="flex items-center gap-1 rounded-full bg-bg-surface px-3 py-1 font-mono text-xs text-text-secondary"
-          >
-            {kw}
-            <button onClick={() => removeKeyword(kw)} className="text-text-tertiary hover:text-danger">
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-      </div>
+      {!data?.keywords.length ? (
+        <EmptyState title="No keywords yet" description="Add keywords to help filter and score papers." />
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {data.keywords.map((kw) => (
+              <span
+                key={kw}
+                className="flex items-center gap-2 rounded-full border border-border-default bg-bg-surface px-3 py-1.5 font-mono text-xs text-text-secondary"
+              >
+                {kw}
+                <button onClick={() => removeKeyword(kw)} className="text-text-tertiary hover:text-danger">
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <p className="font-mono text-xs text-text-tertiary">{data.keywords.length} keywords configured</p>
+        </>
+      )}
+    </div>
+  );
+}
 
-      <p className="font-mono text-xs text-text-tertiary">{data?.keywords.length} keywords</p>
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 size={20} className="animate-spin text-text-tertiary" />
+    </div>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <p className="font-mono text-sm text-danger">{message}</p>
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-3 rounded-lg bg-bg-elevated px-4 py-2 font-mono text-sm text-text-secondary hover:text-text-primary"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <p className="font-mono text-base text-text-secondary">{title}</p>
+      <p className="mt-1 font-mono text-sm text-text-tertiary">{description}</p>
     </div>
   );
 }

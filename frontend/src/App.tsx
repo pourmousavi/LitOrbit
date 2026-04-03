@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import { cn } from '@/lib/utils';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import ToastContainer from '@/components/ui/Toast';
 import Sidebar from '@/components/layout/Sidebar';
@@ -30,6 +29,17 @@ const queryClient = new QueryClient({
   },
 });
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isDesktop;
+}
+
 function ProtectedRoute() {
   const user = useAuthStore((s) => s.user);
   const loading = useAuthStore((s) => s.loading);
@@ -51,26 +61,23 @@ function ProtectedRoute() {
 
 function AppLayout() {
   const sidebarExpanded = useUIStore((s) => s.sidebarExpanded);
+  const isDesktop = useIsDesktop();
+  const sidebarWidth = sidebarExpanded ? 240 : 64;
 
   return (
-    <div className="flex min-h-svh bg-bg-base">
-      <div className="hidden md:block">
-        <Sidebar />
-      </div>
+    <div className="min-h-svh bg-bg-base">
+      {isDesktop && <Sidebar />}
 
-      <main
-        className={cn(
-          'flex-1 min-w-0 transition-all duration-200',
-          'pb-16 md:pb-0',
-          sidebarExpanded ? 'md:ml-60' : 'md:ml-16',
-        )}
+      <div
+        className="min-h-svh transition-all duration-200"
+        style={{ marginLeft: isDesktop ? sidebarWidth : 0, paddingBottom: isDesktop ? 0 : 64 }}
       >
         <ErrorBoundary>
           <Outlet />
         </ErrorBoundary>
-      </main>
+      </div>
 
-      <BottomNav />
+      {!isDesktop && <BottomNav />}
       <PodcastPlayer />
     </div>
   );
