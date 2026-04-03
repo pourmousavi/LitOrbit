@@ -132,8 +132,9 @@ async def generate_podcast_endpoint(
             summary_data = json.loads(paper.summary)
             parts = []
             for key in ("research_gap", "methodology", "key_findings", "relevance_to_energy_group"):
-                if key in summary_data:
-                    parts.append(summary_data[key])
+                val = summary_data.get(key)
+                if val and isinstance(val, str):
+                    parts.append(val)
             summary_text = " ".join(parts)
         except json.JSONDecodeError:
             summary_text = paper.summary
