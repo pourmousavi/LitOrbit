@@ -32,6 +32,9 @@ app.include_router(podcasts.router)
 app.include_router(admin.router)
 app.include_router(collections.router)
 
+import logging
+logging.getLogger(__name__).info(f"Registered {len(app.routes)} routes")
+
 
 @app.get("/health")
 async def health_check():
