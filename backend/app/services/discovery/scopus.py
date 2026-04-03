@@ -36,7 +36,7 @@ async def fetch_scopus_papers(
         "query": f"ISSN({clean_issn}) AND PUBYEAR > {today.year - 1}",
         "sort": "coverDate",
         "count": 25,
-        "field": "dc:title,dc:creator,prism:doi,prism:publicationName,prism:coverDate,dc:description,prism:url",
+        "field": "dc:title,dc:creator,prism:doi,prism:publicationName,prism:coverDate,dc:description,prism:url,authkeywords",
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -64,6 +64,12 @@ async def fetch_scopus_papers(
     for entry in results:
         if "error" in entry:
             continue
+        # Extract author keywords
+        keywords = []
+        authkw = entry.get("authkeywords")
+        if authkw and isinstance(authkw, str):
+            keywords = [k.strip() for k in authkw.split("|") if k.strip()]
+
         papers.append({
             "doi": entry.get("prism:doi"),
             "title": entry.get("dc:title", ""),
@@ -75,6 +81,7 @@ async def fetch_scopus_papers(
             "online_date": entry.get("prism:coverDate"),
             "early_access": False,
             "url": entry.get("prism:url", ""),
+            "keywords": keywords,
         })
 
     logger.info(f"Scopus: Found {len(papers)} papers for ISSN {clean_issn}")

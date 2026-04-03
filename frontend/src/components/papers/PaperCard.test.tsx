@@ -17,6 +17,7 @@ const mockPaper: Paper = {
   early_access: false,
   url: 'https://example.com',
   pdf_path: null,
+  keywords: ['battery degradation', 'neural network', 'SOH estimation'],
   categories: ['battery', 'degradation', 'machine learning'],
   summary: null,
   relevance_score: 8.5,

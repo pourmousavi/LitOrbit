@@ -87,6 +87,7 @@ async def list_papers(
             "online_date": paper.online_date.isoformat() if paper.online_date else None,
             "early_access": paper.early_access,
             "url": paper.url,
+            "keywords": paper.keywords or [],
             "categories": paper.categories,
             "summary": paper.summary,
             "relevance_score": score,
@@ -148,7 +149,8 @@ async def get_paper(
         "early_access": paper.early_access,
         "url": paper.url,
         "pdf_path": paper.pdf_path,
-        "categories": paper.categories,
+        "keywords": paper.keywords or [],
+            "categories": paper.categories,
         "summary": paper.summary,
         "relevance_score": score,
         "score_reasoning": reasoning,
@@ -227,6 +229,7 @@ async def rescore_paper(
         "abstract": paper.abstract or "",
         "authors": paper.authors,
         "journal": paper.journal,
+        "keywords": paper.keywords or [],
     }
 
     # Score for all users

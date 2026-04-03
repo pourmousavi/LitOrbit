@@ -60,6 +60,13 @@ async def fetch_ieee_papers(
         if "authors" in article and "authors" in article["authors"]:
             authors_list = [a.get("full_name", "") for a in article["authors"]["authors"]]
 
+        # Extract keywords from index_terms
+        keywords = []
+        index_terms = article.get("index_terms", {})
+        for term_group in index_terms.values():
+            if isinstance(term_group, dict) and "terms" in term_group:
+                keywords.extend(term_group["terms"])
+
         papers.append({
             "doi": article.get("doi"),
             "title": article.get("title", ""),
@@ -71,6 +78,7 @@ async def fetch_ieee_papers(
             "online_date": _parse_ieee_date(article.get("online_date")),
             "early_access": article.get("is_early_access", False),
             "url": article.get("html_url") or article.get("pdf_url", ""),
+            "keywords": keywords,
         })
 
     logger.info(f"IEEE: Found {len(papers)} papers for pub {publication_number}")

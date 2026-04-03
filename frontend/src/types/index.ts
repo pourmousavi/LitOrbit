@@ -12,6 +12,7 @@ export interface Paper {
   early_access: boolean;
   url: string | null;
   pdf_path: string | null;
+  keywords: string[];
   categories: string[];
   summary: string | null;
   relevance_score: number | null;

@@ -84,6 +84,25 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
         </p>
       )}
 
+      {/* Keywords */}
+      {paper.keywords && paper.keywords.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+          <span className="font-mono text-text-tertiary" style={{ fontSize: 11, flexShrink: 0 }}>Keywords:</span>
+          {paper.keywords.slice(0, 6).map((kw) => (
+            <span
+              key={kw}
+              className="rounded-full bg-accent/10 font-mono text-xs text-accent"
+              style={{ padding: '2px 10px' }}
+            >
+              {kw}
+            </span>
+          ))}
+          {paper.keywords.length > 6 && (
+            <span className="font-mono text-text-tertiary" style={{ fontSize: 11 }}>+{paper.keywords.length - 6}</span>
+          )}
+        </div>
+      )}
+
       {/* Bottom row: categories + actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

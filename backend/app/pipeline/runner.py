@@ -77,6 +77,7 @@ async def save_papers(db: AsyncSession, papers: list[dict[str, Any]]) -> int:
             online_date=_parse_date(paper_data.get("online_date")),
             early_access=paper_data.get("early_access", False),
             url=paper_data.get("url"),
+            keywords=paper_data.get("keywords", []),
         )
         db.add(paper)
         saved += 1
@@ -135,6 +136,7 @@ async def score_and_summarise_papers(
             "abstract": p.abstract or "",
             "authors": p.authors,
             "journal": p.journal,
+            "keywords": p.keywords or [],
         }
         for p in unscored
     ]

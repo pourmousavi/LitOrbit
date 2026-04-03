@@ -299,6 +299,22 @@ export default function PaperDetail() {
               </a>
             )}
 
+            {/* Keywords */}
+            {paper.keywords && paper.keywords.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                <span className="font-mono text-text-tertiary" style={{ fontSize: 12, flexShrink: 0 }}>Keywords:</span>
+                {paper.keywords.map((kw) => (
+                  <span
+                    key={kw}
+                    className="rounded-full bg-accent/10 font-mono text-xs text-accent"
+                    style={{ padding: '3px 12px' }}
+                  >
+                    {kw}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Relevance Score */}
             {paper.relevance_score !== null && (
               <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>

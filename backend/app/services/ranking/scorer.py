@@ -41,8 +41,11 @@ async def score_paper_for_user(
             return {"score": 5.0, "reasoning": "API key not configured"}
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
+    paper_keywords = ', '.join(paper.get('keywords', [])) if paper.get('keywords') else 'None provided'
+
     user_message = f"""PAPER TITLE: {paper.get('title', '')}
 ABSTRACT: {paper.get('abstract', '')}
+PAPER KEYWORDS: {paper_keywords}
 
 RESEARCHER PROFILE:
 Name: {user.get('full_name', '')}
