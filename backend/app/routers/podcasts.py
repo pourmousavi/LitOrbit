@@ -167,6 +167,15 @@ async def get_podcast(
     if podcast.script and podcast.script.startswith("ERROR:"):
         return {"status": "failed", "error": podcast.script, "podcast": None}
 
+    # If generating for more than 10 minutes, treat as stuck and auto-clean
+    from datetime import datetime, timezone, timedelta
+    if podcast.generated_at:
+        age = datetime.now(timezone.utc) - podcast.generated_at.replace(tzinfo=timezone.utc)
+        if age > timedelta(minutes=10):
+            await db.delete(podcast)
+            await db.commit()
+            return {"status": "not_generated", "podcast": None}
+
     return {"status": "generating", "podcast": None}
 
 
