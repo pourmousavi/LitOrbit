@@ -427,9 +427,18 @@ export default function PaperDetail() {
                     Play {podcastStatus.podcast.duration_seconds ? `(${Math.floor(podcastStatus.podcast.duration_seconds / 60)}m ${podcastStatus.podcast.duration_seconds % 60}s)` : ''}
                   </button>
                 ) : podcastStatus?.status === 'generating' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0' }}>
-                    <Loader2 size={16} className="animate-spin text-accent" />
-                    <span className="font-mono text-sm text-text-secondary">Generating podcast...</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Loader2 size={16} className="animate-spin text-accent" />
+                      <span className="font-mono text-sm text-text-secondary">Generating podcast...</span>
+                    </div>
+                    <span className="font-mono text-text-tertiary" style={{ fontSize: 11 }}>
+                      Estimated time: ~{podcastStatus.estimated_seconds
+                        ? podcastStatus.estimated_seconds < 60
+                          ? `${podcastStatus.estimated_seconds}s`
+                          : `${Math.floor(podcastStatus.estimated_seconds / 60)}m ${podcastStatus.estimated_seconds % 60}s`
+                        : '45s'}. You can navigate away — it runs in the background.
+                    </span>
                   </div>
                 ) : !paper.summary && !paper.abstract ? (
                   <div className="rounded-xl bg-bg-base border border-border-default" style={{ padding: '12px 16px' }}>

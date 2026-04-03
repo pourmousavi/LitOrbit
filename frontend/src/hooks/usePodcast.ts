@@ -14,6 +14,7 @@ interface PodcastStatus {
   status: 'not_generated' | 'generating' | 'ready' | 'failed';
   podcast: PodcastInfo | null;
   error?: string;
+  estimated_seconds?: number;
 }
 
 export function usePodcastStatus(paperId: string | null, voiceMode: string) {
@@ -42,11 +43,11 @@ export function useGeneratePodcast() {
       });
       return data;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       // Immediately set status to generating so the UI shows the spinner
       queryClient.setQueryData(
         ['podcast', variables.paperId, variables.voiceMode],
-        { status: 'generating', podcast: null },
+        { status: 'generating', podcast: null, estimated_seconds: data.estimated_seconds },
       );
       // Also invalidate to start polling
       queryClient.invalidateQueries({ queryKey: ['podcast', variables.paperId] });
