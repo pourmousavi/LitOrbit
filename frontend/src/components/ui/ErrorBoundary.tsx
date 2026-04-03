@@ -22,14 +22,15 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return this.props.fallback ?? (
-        <div className="flex min-h-[40vh] flex-col items-center justify-center">
-          <p className="font-mono text-lg text-text-secondary">Something went wrong</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}>
+          <p className="font-mono text-text-secondary" style={{ fontSize: 18 }}>Something went wrong</p>
           <button
             onClick={() => {
               this.setState({ hasError: false });
               window.location.reload();
             }}
-            className="mt-3 rounded-lg bg-bg-elevated px-4 py-2 font-mono text-sm text-text-secondary hover:text-text-primary"
+            className="rounded-xl bg-bg-elevated font-mono text-sm text-text-secondary hover:text-text-primary"
+            style={{ marginTop: 14, padding: '10px 20px' }}
           >
             Try again
           </button>

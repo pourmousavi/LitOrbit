@@ -47,22 +47,23 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed right-4 top-4 z-[100] flex flex-col gap-2">
+    <div style={{ position: 'fixed', right: 16, top: 16, zIndex: 100, display: 'flex', flexDirection: 'column', gap: 8 }}>
       {toasts.map((t) => {
         const Icon = icons[t.type];
         return (
           <div
             key={t.id}
             className={cn(
-              'flex items-center gap-2 rounded-lg border px-4 py-3 shadow-lg animate-in fade-in slide-in-from-right duration-200',
+              'flex items-center rounded-2xl border shadow-lg',
               t.type === 'success' && 'border-success/30 bg-success/10 text-success',
               t.type === 'error' && 'border-danger/30 bg-danger/10 text-danger',
               t.type === 'info' && 'border-accent/30 bg-accent/10 text-accent',
             )}
+            style={{ gap: 10, padding: '12px 16px' }}
           >
             <Icon size={16} />
             <span className="font-mono text-sm">{t.message}</span>
-            <button onClick={() => remove(t.id)} className="ml-2 opacity-60 hover:opacity-100">
+            <button onClick={() => remove(t.id)} className="opacity-60 hover:opacity-100" style={{ marginLeft: 4 }}>
               <X size={14} />
             </button>
           </div>

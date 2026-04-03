@@ -11,10 +11,10 @@ export default function RatingSlider({ initialValue = 5, onSubmit, loading }: Ra
   const [value, setValue] = useState(initialValue);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <label className="font-mono text-xs text-text-secondary">Your Rating</label>
-        <span className="font-mono text-lg font-medium text-text-primary">{value}/10</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <label className="font-mono text-text-secondary" style={{ fontSize: 12 }}>Your Rating</label>
+        <span className="font-mono font-semibold text-text-primary" style={{ fontSize: 20 }}>{value}/10</span>
       </div>
 
       <input
@@ -25,22 +25,24 @@ export default function RatingSlider({ initialValue = 5, onSubmit, loading }: Ra
         value={value}
         onChange={(e) => setValue(Number(e.target.value))}
         className={cn(
-          'w-full cursor-pointer appearance-none rounded-full bg-border-default h-1.5',
-          '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4',
+          'w-full cursor-pointer appearance-none rounded-full bg-border-default',
+          '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5',
           '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent',
-          '[&::-webkit-slider-thumb]:cursor-pointer',
+          '[&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md',
         )}
+        style={{ height: 6 }}
       />
 
-      <div className="flex justify-between font-mono text-xs text-text-tertiary">
-        <span>Not relevant</span>
-        <span>Highly relevant</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span className="font-mono text-text-tertiary" style={{ fontSize: 11 }}>Not relevant</span>
+        <span className="font-mono text-text-tertiary" style={{ fontSize: 11 }}>Highly relevant</span>
       </div>
 
       <button
         onClick={() => onSubmit(value)}
         disabled={loading}
-        className="w-full rounded-lg bg-accent py-2 font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+        className="rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+        style={{ width: '100%', padding: '12px 0' }}
       >
         {loading ? 'Submitting...' : 'Submit Rating'}
       </button>
