@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, case, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models.collection import Collection, CollectionPaper
 from app.models.paper import Paper
 from app.models.paper_score import PaperScore
+from app.models.podcast import Podcast
 
 router = APIRouter(prefix="/api/v1/collections", tags=["collections"])
 
@@ -36,7 +37,10 @@ async def list_collections(
     user: dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-    """List all collections with paper counts."""
+    """List all collections with paper counts, podcast counts, and stats."""
+    user_id = user["id"]
+
+    # Base query: collection + paper count
     result = await db.execute(
         select(
             Collection,
@@ -47,6 +51,86 @@ async def list_collections(
         .order_by(Collection.name)
     )
     rows = result.all()
+
+    if not rows:
+        return []
+
+    col_ids = [col.id for col, _ in rows]
+
+    # Podcast counts per collection (single vs dual)
+    podcast_result = await db.execute(
+        select(
+            CollectionPaper.collection_id,
+            func.count(case((Podcast.voice_mode == "single", 1))).label("single_count"),
+            func.count(case((Podcast.voice_mode == "dual", 1))).label("dual_count"),
+        )
+        .join(Podcast, Podcast.paper_id == CollectionPaper.paper_id)
+        .where(CollectionPaper.collection_id.in_(col_ids), Podcast.audio_path.isnot(None))
+        .group_by(CollectionPaper.collection_id)
+    )
+    podcast_map: dict[str, dict] = {}
+    for cid, single, dual in podcast_result.all():
+        podcast_map[str(cid)] = {"single": single, "dual": dual}
+
+    # Last updated (most recent paper added_at) per collection
+    last_updated_result = await db.execute(
+        select(
+            CollectionPaper.collection_id,
+            func.max(CollectionPaper.added_at).label("last_updated"),
+        )
+        .where(CollectionPaper.collection_id.in_(col_ids))
+        .group_by(CollectionPaper.collection_id)
+    )
+    last_updated_map: dict[str, str | None] = {}
+    for cid, last_dt in last_updated_result.all():
+        last_updated_map[str(cid)] = last_dt.isoformat() if last_dt else None
+
+    # Top categories per collection (unnest paper categories, count, take top 3)
+    cat_result = await db.execute(text("""
+        SELECT cp.collection_id, cat, COUNT(*) as cnt
+        FROM collection_papers cp
+        JOIN papers p ON p.id = cp.paper_id
+        CROSS JOIN LATERAL unnest(p.categories) AS cat
+        WHERE cp.collection_id = ANY(:col_ids)
+        GROUP BY cp.collection_id, cat
+        ORDER BY cp.collection_id, cnt DESC
+    """), {"col_ids": [str(c) for c in col_ids]})
+    top_cats_map: dict[str, list[str]] = {}
+    for cid, cat, cnt in cat_result.all():
+        key = str(cid)
+        if key not in top_cats_map:
+            top_cats_map[key] = []
+        if len(top_cats_map[key]) < 3:
+            top_cats_map[key].append(cat)
+
+    # Avg relevance score per collection
+    score_result = await db.execute(
+        select(
+            CollectionPaper.collection_id,
+            func.avg(PaperScore.relevance_score).label("avg_score"),
+        )
+        .join(PaperScore, (PaperScore.paper_id == CollectionPaper.paper_id) & (PaperScore.user_id == user_id))
+        .where(CollectionPaper.collection_id.in_(col_ids))
+        .group_by(CollectionPaper.collection_id)
+    )
+    score_map: dict[str, float | None] = {}
+    for cid, avg_score in score_result.all():
+        score_map[str(cid)] = round(float(avg_score), 1) if avg_score else None
+
+    # Summarized paper count per collection
+    summary_result = await db.execute(
+        select(
+            CollectionPaper.collection_id,
+            func.count(Paper.id).label("summarized_count"),
+        )
+        .join(Paper, Paper.id == CollectionPaper.paper_id)
+        .where(CollectionPaper.collection_id.in_(col_ids), Paper.summary.isnot(None))
+        .group_by(CollectionPaper.collection_id)
+    )
+    summary_map: dict[str, int] = {}
+    for cid, cnt in summary_result.all():
+        summary_map[str(cid)] = cnt
+
     return [
         {
             "id": str(col.id),
@@ -54,6 +138,12 @@ async def list_collections(
             "description": col.description,
             "color": col.color,
             "paper_count": count,
+            "podcast_count_single": podcast_map.get(str(col.id), {}).get("single", 0),
+            "podcast_count_dual": podcast_map.get(str(col.id), {}).get("dual", 0),
+            "last_updated": last_updated_map.get(str(col.id)),
+            "top_categories": top_cats_map.get(str(col.id), []),
+            "avg_relevance_score": score_map.get(str(col.id)),
+            "summarized_count": summary_map.get(str(col.id), 0),
             "created_at": col.created_at.isoformat() if col.created_at else None,
         }
         for col, count in rows

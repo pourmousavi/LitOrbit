@@ -64,6 +64,7 @@ interface PodcastListItem {
   audio_url: string;
   duration_seconds: number | null;
   generated_at: string;
+  collections: { id: string; name: string; color: string }[];
 }
 
 export function usePodcastList() {

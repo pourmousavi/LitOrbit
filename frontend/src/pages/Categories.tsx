@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { FolderOpen, Plus, X, Trash2, Edit2, Check } from 'lucide-react';
 import api from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import PaperCard from '@/components/papers/PaperCard';
 import PaperDetail from '@/components/papers/PaperDetail';
 import { useUIStore } from '@/stores/uiStore';
@@ -14,6 +14,12 @@ interface Collection {
   description: string | null;
   color: string;
   paper_count: number;
+  podcast_count_single: number;
+  podcast_count_dual: number;
+  last_updated: string | null;
+  top_categories: string[];
+  avg_relevance_score: number | null;
+  summarized_count: number;
 }
 
 const COLORS = ['#0891b2', '#8b5cf6', '#ec4899', '#f59e0b', '#22c55e', '#ef4444', '#6366f1', '#14b8a6'];
@@ -215,26 +221,74 @@ export default function Categories() {
                 </p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginTop: 16 }}>
-                {collections.map((col) => (
-                  <button
-                    key={col.id}
-                    onClick={() => setSelectedCollection(col.id)}
-                    className="rounded-2xl border border-border-default bg-bg-surface text-left transition hover:border-border-strong"
-                    style={{ padding: 20 }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <div className="rounded-full" style={{ width: 12, height: 12, backgroundColor: col.color, flexShrink: 0 }} />
-                      <span className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{col.name}</span>
-                    </div>
-                    <p className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
-                      {col.paper_count} {col.paper_count === 1 ? 'paper' : 'papers'}
-                    </p>
-                    {col.description && (
-                      <p className="text-text-secondary" style={{ fontSize: 13, marginTop: 6 }}>{col.description}</p>
-                    )}
-                  </button>
-                ))}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, marginTop: 16 }}>
+                {collections.map((col) => {
+                  const totalPodcasts = col.podcast_count_single + col.podcast_count_dual;
+                  return (
+                    <button
+                      key={col.id}
+                      onClick={() => setSelectedCollection(col.id)}
+                      className="rounded-2xl border border-border-default bg-bg-surface text-left transition hover:border-border-strong"
+                      style={{ padding: 20 }}
+                    >
+                      {/* Header: color dot + name */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                        <div className="rounded-full" style={{ width: 12, height: 12, backgroundColor: col.color, flexShrink: 0 }} />
+                        <span className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{col.name}</span>
+                      </div>
+
+                      {/* Stats row */}
+                      <div className="font-mono text-text-tertiary" style={{ fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+                        <span>{col.paper_count} {col.paper_count === 1 ? 'paper' : 'papers'}</span>
+                        {totalPodcasts > 0 && (
+                          <span>
+                            {totalPodcasts} {totalPodcasts === 1 ? 'podcast' : 'podcasts'}
+                            {col.podcast_count_single > 0 && col.podcast_count_dual > 0
+                              ? ` (${col.podcast_count_single}S / ${col.podcast_count_dual}D)`
+                              : col.podcast_count_dual > 0 ? ' (dual)' : ' (single)'}
+                          </span>
+                        )}
+                        {col.summarized_count > 0 && (
+                          <span>{col.summarized_count}/{col.paper_count} summarized</span>
+                        )}
+                      </div>
+
+                      {/* Avg relevance score */}
+                      {col.avg_relevance_score != null && (
+                        <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 4 }}>
+                          Avg relevance: {col.avg_relevance_score}/10
+                        </p>
+                      )}
+
+                      {/* Top categories */}
+                      {col.top_categories && col.top_categories.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                          {col.top_categories.map((cat) => (
+                            <span
+                              key={cat}
+                              className="rounded-full bg-bg-elevated font-mono text-xs text-text-secondary"
+                              style={{ padding: '2px 8px' }}
+                            >
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Description */}
+                      {col.description && (
+                        <p className="text-text-secondary" style={{ fontSize: 13, marginTop: 6 }}>{col.description}</p>
+                      )}
+
+                      {/* Last updated */}
+                      {col.last_updated && (
+                        <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginTop: 8, opacity: 0.7 }}>
+                          Updated {formatDate(col.last_updated)}
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )
           ) : (

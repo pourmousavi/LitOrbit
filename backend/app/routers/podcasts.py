@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.database import get_db, init_db
 import app.database as _db_module
+from app.models.collection import Collection, CollectionPaper
 from app.models.paper import Paper
 from app.models.podcast import Podcast
 from app.services.podcast import generate_podcast
@@ -277,7 +278,7 @@ async def list_podcasts(
     user: dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-    """List all generated podcasts."""
+    """List all generated podcasts with collection info."""
     result = await db.execute(
         select(Podcast, Paper.title, Paper.journal)
         .join(Paper, Podcast.paper_id == Paper.id)
@@ -285,6 +286,19 @@ async def list_podcasts(
         .order_by(Podcast.generated_at.desc())
     )
     rows = result.all()
+
+    # Bulk fetch collections for all podcast papers
+    paper_ids = list({podcast.paper_id for podcast, _, _ in rows})
+    collections_map: dict[str, list[dict]] = {}
+    if paper_ids:
+        col_result = await db.execute(
+            select(CollectionPaper.paper_id, Collection.id, Collection.name, Collection.color)
+            .join(Collection, Collection.id == CollectionPaper.collection_id)
+            .where(CollectionPaper.paper_id.in_(paper_ids))
+        )
+        for pid, cid, cname, ccolor in col_result.all():
+            collections_map.setdefault(str(pid), []).append({"id": str(cid), "name": cname, "color": ccolor})
+
     return [
         {
             "id": str(podcast.id),
@@ -295,6 +309,7 @@ async def list_podcasts(
             "audio_url": f"/api/v1/podcasts/audio/{podcast.id}",
             "duration_seconds": podcast.duration_seconds,
             "generated_at": podcast.generated_at.isoformat() if podcast.generated_at else None,
+            "collections": collections_map.get(str(podcast.paper_id), []),
         }
         for podcast, title, journal in rows
     ]

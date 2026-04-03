@@ -77,6 +77,20 @@ export default function PodcastLibrary() {
                     {podcast.paper_title}
                   </h3>
 
+                  {podcast.collections && podcast.collections.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                      {podcast.collections.map((col) => (
+                        <span
+                          key={col.id}
+                          className="rounded-full font-mono text-xs text-white"
+                          style={{ padding: '2px 8px', backgroundColor: col.color, fontSize: 11 }}
+                        >
+                          {col.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   <p className="font-mono text-xs text-text-secondary" style={{ marginTop: 8 }}>
                     {podcast.paper_journal}
                     {podcast.duration_seconds && ` · ${Math.floor(podcast.duration_seconds / 60)}m ${podcast.duration_seconds % 60}s`}
