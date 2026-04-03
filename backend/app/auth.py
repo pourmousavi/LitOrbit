@@ -2,10 +2,13 @@ import logging
 from typing import Any
 
 import httpx
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -14,11 +17,9 @@ security = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Validate Supabase JWT and return user info.
-
-    Returns a dict with 'id' (UUID string) and user metadata.
-    """
+    """Validate Supabase JWT and return user info including role from user_profiles."""
     settings = get_settings()
     token = credentials.credentials
 
@@ -43,10 +44,26 @@ async def get_current_user(
         )
 
     user_data = resp.json()
+    user_id = user_data.get("id")
+    email = user_data.get("email")
+
+    # Get role from user_profiles table
+    role = "researcher"
+    try:
+        result = await db.execute(
+            text("SELECT role FROM user_profiles WHERE id = :uid"),
+            {"uid": user_id},
+        )
+        row = result.first()
+        if row:
+            role = row[0]
+    except Exception as e:
+        logger.warning(f"Failed to fetch user profile role: {e}")
+
     return {
-        "id": user_data.get("id"),
-        "email": user_data.get("email"),
-        "role": user_data.get("user_metadata", {}).get("role", "researcher"),
+        "id": user_id,
+        "email": email,
+        "role": role,
     }
 
 
