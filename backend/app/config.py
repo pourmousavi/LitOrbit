@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
 
     # Claude models (update these when new versions release)
-    claude_model_fast: str = "claude-haiku-4-5-latest"
-    claude_model_smart: str = "claude-sonnet-4-5-latest"
+    claude_model_fast: str = "claude-haiku-4-5"
+    claude_model_smart: str = "claude-sonnet-4-6"
 
     # App
     secret_key: str = ""
