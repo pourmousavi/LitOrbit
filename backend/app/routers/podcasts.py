@@ -9,7 +9,8 @@ from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
-from app.database import get_db, init_db, async_session_factory
+from app.database import get_db, init_db
+import app.database as _db_module
 from app.models.paper import Paper
 from app.models.podcast import Podcast
 from app.services.podcast import generate_podcast
@@ -35,12 +36,12 @@ async def _generate_in_background(
 
     logger.info(f"Podcast generation started for {podcast_id} (paper={paper_id}, mode={voice_mode})")
 
-    if async_session_factory is None:
+    if _db_module.async_session_factory is None:
         init_db()
 
     start_time = time.time()
 
-    async with async_session_factory() as db:
+    async with _db_module.async_session_factory() as db:
         try:
             output_dir = os.path.join("/tmp", "litorbit_podcasts")
             os.makedirs(output_dir, exist_ok=True)
