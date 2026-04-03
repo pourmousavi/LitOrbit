@@ -74,6 +74,7 @@ async def save_papers(db: AsyncSession, papers: list[dict[str, Any]]) -> int:
             journal=paper_data.get("journal", ""),
             journal_source=paper_data.get("journal_source", ""),
             published_date=_parse_date(paper_data.get("published_date")),
+            online_date=_parse_date(paper_data.get("online_date")),
             early_access=paper_data.get("early_access", False),
             url=paper_data.get("url"),
         )

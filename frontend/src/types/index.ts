@@ -8,6 +8,7 @@ export interface Paper {
   journal: string;
   journal_source: string;
   published_date: string | null;
+  online_date: string | null;
   early_access: boolean;
   url: string | null;
   pdf_path: string | null;

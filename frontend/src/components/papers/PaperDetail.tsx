@@ -218,8 +218,6 @@ export default function PaperDetail() {
             {/* Meta line */}
             <div className="font-mono text-text-secondary" style={{ fontSize: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
               <span>{paper.journal}</span>
-              <span className="text-text-tertiary">&middot;</span>
-              <span>{formatDate(paper.published_date)}</span>
               {paper.early_access && (
                 <>
                   <span className="text-text-tertiary">&middot;</span>
@@ -235,8 +233,15 @@ export default function PaperDetail() {
 
             {/* Authors */}
             <p className="font-mono text-text-secondary" style={{ fontSize: 12, lineHeight: 1.5 }}>
-              {paper.authors.join(', ')}
+              {paper.authors.slice(0, 10).join(', ')}
+              {paper.authors.length > 10 && ` +${paper.authors.length - 10} more`}
             </p>
+
+            {/* Dates */}
+            <div className="font-mono text-text-tertiary" style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {paper.online_date && <span>Online: {formatDate(paper.online_date)}</span>}
+              {paper.published_date && <span>Published: {formatDate(paper.published_date)}</span>}
+            </div>
 
             {/* DOI */}
             {paper.doi && (

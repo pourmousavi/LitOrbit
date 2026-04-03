@@ -20,6 +20,7 @@ class Paper(Base):
     journal: Mapped[str] = mapped_column(String, nullable=False)
     journal_source: Mapped[str] = mapped_column(String, nullable=False)
     published_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    online_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     early_access: Mapped[bool] = mapped_column(Boolean, default=False)
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
     pdf_path: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -68,6 +68,7 @@ async def fetch_ieee_papers(
             "journal": article.get("publication_title", ""),
             "journal_source": "ieee",
             "published_date": _parse_ieee_date(article.get("publication_date")),
+            "online_date": _parse_ieee_date(article.get("online_date")),
             "early_access": article.get("is_early_access", False),
             "url": article.get("html_url") or article.get("pdf_url", ""),
         })

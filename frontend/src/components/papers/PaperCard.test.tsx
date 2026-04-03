@@ -13,6 +13,7 @@ const mockPaper: Paper = {
   journal: 'Applied Energy',
   journal_source: 'scopus',
   published_date: '2024-03-15',
+  online_date: '2024-03-10',
   early_access: false,
   url: 'https://example.com',
   pdf_path: null,

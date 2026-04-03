@@ -49,11 +49,18 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
         {paper.title}
       </h3>
 
-      {/* Authors + Date */}
-      <p className="font-mono text-xs text-text-secondary" style={{ marginBottom: 12 }}>
-        {paper.authors.slice(0, 3).join(', ')}
-        {paper.authors.length > 3 && ` +${paper.authors.length - 3}`}
-        {paper.published_date && ` · ${formatDate(paper.published_date)}`}
+      {/* Authors */}
+      <p className="font-mono text-xs text-text-secondary" style={{ marginBottom: 8, lineHeight: 1.5 }}>
+        {paper.authors.slice(0, 10).join(', ')}
+        {paper.authors.length > 10 && ` +${paper.authors.length - 10} more`}
+      </p>
+
+      {/* Dates + DOI */}
+      <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 12 }}>
+        {paper.online_date && <>Online: {formatDate(paper.online_date)}</>}
+        {paper.online_date && paper.published_date && ' · '}
+        {paper.published_date && <>Published: {formatDate(paper.published_date)}</>}
+        {!paper.online_date && !paper.published_date && 'Date not available'}
         {paper.doi && (
           <>
             {' · '}
