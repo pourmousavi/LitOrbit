@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, cast, ARRAY, String, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -47,7 +47,9 @@ async def list_papers(
     if journal:
         query = query.where(Paper.journal == journal)
     if category:
-        query = query.where(Paper.categories.contains([category]))
+        query = query.where(
+            func.array_to_string(Paper.categories, '||').ilike(f"%{category}%")
+        )
     if search:
         term = f"%{search}%"
         query = query.where(
