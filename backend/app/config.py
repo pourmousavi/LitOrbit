@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
 
+    # Claude models (update these when new versions release)
+    claude_model_fast: str = "claude-haiku-4-5-20251001"
+    claude_model_smart: str = "claude-sonnet-4-6-20250514"
+
     # App
     secret_key: str = ""
     environment: str = "development"

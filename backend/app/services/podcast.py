@@ -57,7 +57,7 @@ async def generate_script(
     user_message = prompt.format(title=title, summary=summary)
 
     response = await client.messages.create(
-        model="claude-sonnet-4-6-20250514",
+        model=get_settings().claude_model_smart,
         max_tokens=2000,
         messages=[{"role": "user", "content": user_message}],
     )
