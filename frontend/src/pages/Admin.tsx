@@ -311,12 +311,63 @@ function UserManagementTab() {
   );
 }
 
+function formatElapsed(start: string | null, end: string | null): string {
+  if (!start) return '';
+  const s = new Date(start).getTime();
+  const e = end ? new Date(end).getTime() : Date.now();
+  const sec = Math.floor((e - s) / 1000);
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}m ${sec % 60}s`;
+}
+
+const STEP_LABELS: Record<string, string> = {
+  discovery: 'Connecting to journal sources',
+  raw_papers: 'Papers discovered',
+  dedup: 'Removing duplicates',
+  saved: 'Saving new papers',
+  prefilter: 'Filtering by relevance keywords',
+  scoring: 'AI scoring for your interests',
+  summarisation: 'Generating AI summaries',
+};
+
+function RunLogSteps({ log }: { log: Record<string, unknown>[] }) {
+  if (!log?.length) return null;
+  return (
+    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {log.map((entry, i) => {
+        const step = entry.step as string;
+        const label = STEP_LABELS[step] || step;
+        const details = Object.entries(entry)
+          .filter(([k]) => k !== 'step')
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(', ');
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="text-success" style={{ fontSize: 14, flexShrink: 0 }}>✓</span>
+            <span className="font-mono text-text-secondary" style={{ fontSize: 12 }}>
+              {label}
+              {details && <span className="text-text-tertiary"> — {details}</span>}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PipelineStatusTab() {
   const queryClient = useQueryClient();
   const { data: runs, isLoading, isError } = useQuery<PipelineRun[]>({
     queryKey: ['admin', 'pipeline'],
     queryFn: async () => (await api.get('/api/v1/admin/pipeline/runs')).data,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasRunning = data?.some((r) => r.status === 'running');
+      return hasRunning ? 3000 : false;
+    },
   });
+
+  const isRunning = runs?.some((r) => r.status === 'running');
 
   const triggerMutation = useMutation({
     mutationFn: async () => {
@@ -329,15 +380,22 @@ function PipelineStatusTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <button
-        onClick={() => triggerMutation.mutate()}
-        disabled={triggerMutation.isPending}
-        className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
-        style={{ gap: 10, padding: '14px 24px', width: 'fit-content' }}
-      >
-        {triggerMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-        Fetch Papers Now
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <button
+          onClick={() => triggerMutation.mutate()}
+          disabled={triggerMutation.isPending || !!isRunning}
+          className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+          style={{ gap: 10, padding: '14px 24px' }}
+        >
+          {triggerMutation.isPending || isRunning ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+          {isRunning ? 'Fetching...' : 'Fetch Papers Now'}
+        </button>
+        {isRunning && (
+          <span className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
+            Auto-refreshing every 3s
+          </span>
+        )}
+      </div>
 
       {isLoading ? (
         <LoadingState />
@@ -350,9 +408,13 @@ function PipelineStatusTab() {
           {runs.map((run) => (
             <div
               key={run.id}
-              className="rounded-2xl border border-border-default bg-bg-surface"
+              className={cn(
+                'rounded-2xl border bg-bg-surface',
+                run.status === 'running' ? 'border-warning/40' : 'border-border-default',
+              )}
               style={{ padding: 20 }}
             >
+              {/* Header row */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span
@@ -365,18 +427,50 @@ function PipelineStatusTab() {
                     style={{ width: 10, height: 10 }}
                   />
                   <span className="font-mono font-medium text-text-primary capitalize" style={{ fontSize: 14 }}>
-                    {run.status}
+                    {run.status === 'running' ? 'Fetching papers...' : run.status}
                   </span>
                 </div>
-                <span className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
-                  {formatDate(run.started_at)}
-                </span>
+                <div className="font-mono text-text-tertiary" style={{ fontSize: 12, textAlign: 'right' }}>
+                  <div>{formatDate(run.started_at)}</div>
+                  {run.started_at && (
+                    <div style={{ marginTop: 2 }}>
+                      {run.status === 'running' ? 'Elapsed' : 'Duration'}: {formatElapsed(run.started_at, run.completed_at)}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="font-mono text-text-secondary" style={{ display: 'flex', gap: 24, marginTop: 14, fontSize: 13 }}>
-                <span>Discovered: <strong className="text-text-primary">{run.papers_discovered}</strong></span>
-                <span>Filtered: <strong className="text-text-primary">{run.papers_filtered}</strong></span>
-                <span>Processed: <strong className="text-text-primary">{run.papers_processed}</strong></span>
-              </div>
+
+              {/* Running progress indicator */}
+              {run.status === 'running' && (
+                <div style={{ marginTop: 16 }}>
+                  <div className="rounded-full bg-border-default" style={{ height: 4, overflow: 'hidden' }}>
+                    <div
+                      className="bg-warning animate-pulse rounded-full"
+                      style={{ height: '100%', width: '60%', transition: 'width 0.5s' }}
+                    />
+                  </div>
+                  <div className="font-mono text-text-secondary" style={{ marginTop: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Loader2 size={13} className="animate-spin text-warning" />
+                    {run.papers_discovered > 0
+                      ? `Found ${run.papers_discovered} papers so far, processing...`
+                      : 'Connecting to journal sources and fetching papers...'}
+                  </div>
+                </div>
+              )}
+
+              {/* Stats row */}
+              {run.status !== 'running' && (
+                <div className="font-mono text-text-secondary" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 14, fontSize: 13 }}>
+                  <span>Discovered: <strong className="text-text-primary">{run.papers_discovered}</strong></span>
+                  <span>New: <strong className="text-text-primary">{run.papers_filtered}</strong></span>
+                  <span>Processed: <strong className="text-text-primary">{run.papers_processed}</strong></span>
+                </div>
+              )}
+
+              {/* Step-by-step log */}
+              {run.run_log && run.run_log.length > 0 && <RunLogSteps log={run.run_log} />}
+
+              {/* Error message */}
               {run.error_message && (
                 <p
                   className="rounded-xl bg-danger/10 font-mono text-danger"
