@@ -58,6 +58,9 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}"""
         )
 
         text = response.content[0].text.strip()
+        # Strip markdown code blocks if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         result = json.loads(text)
 
         score = float(result.get("score", 5.0))
