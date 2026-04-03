@@ -3,7 +3,7 @@ import os
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,7 +129,6 @@ async def get_podcast(
 async def generate_podcast_endpoint(
     paper_id: str,
     req: GenerateRequest,
-    background_tasks: BackgroundTasks,
     user: dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -190,14 +189,17 @@ async def generate_podcast_endpoint(
     db.add(podcast)
     await db.commit()
 
-    # Start background generation
-    background_tasks.add_task(
-        _generate_in_background,
-        paper_id=paper_id,
-        podcast_id=str(podcast.id),
-        title=paper.title,
-        summary=summary_text,
-        voice_mode=req.voice_mode,
+    # Start background generation using asyncio.create_task
+    # (more reliable than BackgroundTasks on some hosts)
+    import asyncio
+    asyncio.create_task(
+        _generate_in_background(
+            paper_id=paper_id,
+            podcast_id=str(podcast.id),
+            title=paper.title,
+            summary=summary_text,
+            voice_mode=req.voice_mode,
+        )
     )
 
     return {
