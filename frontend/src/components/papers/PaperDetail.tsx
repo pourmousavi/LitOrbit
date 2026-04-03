@@ -400,6 +400,12 @@ export default function PaperDetail() {
                     <Loader2 size={16} className="animate-spin text-accent" />
                     <span className="font-mono text-sm text-text-secondary">Generating podcast...</span>
                   </div>
+                ) : !paper.summary && !paper.abstract ? (
+                  <div className="rounded-xl bg-bg-base border border-border-default" style={{ padding: '12px 16px' }}>
+                    <p className="font-mono text-xs text-text-tertiary">
+                      This paper needs an AI summary or abstract before a podcast can be generated. Try re-scoring first (refresh icon above).
+                    </p>
+                  </div>
                 ) : (
                   <button
                     onClick={() => generatePodcast.mutate({ paperId: paper.id, voiceMode })}
