@@ -35,11 +35,10 @@ async def score_paper_for_user(
         Dict with 'score' (float) and 'reasoning' (str).
     """
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        logger.warning("ANTHROPIC_API_KEY not set, returning default score")
-        return {"score": 5.0, "reasoning": "API key not configured"}
-
     if client is None:
+        if not settings.anthropic_api_key:
+            logger.warning("ANTHROPIC_API_KEY not set, returning default score")
+            return {"score": 5.0, "reasoning": "API key not configured"}
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     user_message = f"""PAPER TITLE: {paper.get('title', '')}

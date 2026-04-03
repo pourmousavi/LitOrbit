@@ -53,11 +53,10 @@ async def generate_summary(
         Dict with summary fields and categories, or None on failure.
     """
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        logger.warning("ANTHROPIC_API_KEY not set, skipping summary generation")
-        return None
-
     if client is None:
+        if not settings.anthropic_api_key:
+            logger.warning("ANTHROPIC_API_KEY not set, skipping summary generation")
+            return None
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     full_text = paper.get("full_text", "")
