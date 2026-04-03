@@ -7,7 +7,7 @@ export default function Feed() {
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
 
   return (
-    <div className="flex h-svh">
+    <div className="flex h-full min-h-svh">
       {/* Feed column */}
       <div
         className={cn(

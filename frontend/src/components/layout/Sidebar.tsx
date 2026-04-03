@@ -44,7 +44,10 @@ export default function Sidebar() {
       )}
     >
       {/* Header */}
-      <div className="flex h-14 items-center justify-between border-b border-border-default px-4">
+      <div className={cn(
+        'flex h-14 items-center border-b border-border-default px-4 shrink-0',
+        expanded ? 'justify-between' : 'justify-center',
+      )}>
         {expanded && (
           <span className="font-mono text-lg font-medium text-text-primary">LitOrbit</span>
         )}
@@ -57,18 +60,18 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-2 py-3">
+      <nav className="flex-1 space-y-1.5 px-2 py-3 overflow-y-auto">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 font-mono text-sm transition',
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-sm transition',
                 isActive
                   ? 'bg-accent-subtle text-accent'
                   : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
-                !expanded && 'justify-center px-0',
+                !expanded && 'justify-center !px-2',
               )
             }
           >
@@ -79,16 +82,16 @@ export default function Sidebar() {
       </nav>
 
       {/* User section */}
-      <div className="border-t border-border-default p-2 space-y-1">
+      <div className="border-t border-border-default p-2 space-y-1.5 shrink-0">
         <NavLink
           to="/profile"
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 font-mono text-sm transition',
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-sm transition',
               isActive
                 ? 'bg-accent-subtle text-accent'
                 : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
-              !expanded && 'justify-center px-0',
+              !expanded && 'justify-center !px-2',
             )
           }
         >
@@ -98,8 +101,8 @@ export default function Sidebar() {
         <button
           onClick={handleLogout}
           className={cn(
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2 font-mono text-sm text-text-secondary transition hover:bg-bg-elevated hover:text-danger',
-            !expanded && 'justify-center px-0',
+            'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 font-mono text-sm text-text-secondary transition hover:bg-bg-elevated hover:text-danger',
+            !expanded && 'justify-center !px-2',
           )}
         >
           <LogOut size={18} />
