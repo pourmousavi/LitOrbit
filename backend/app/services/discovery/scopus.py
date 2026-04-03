@@ -73,9 +73,11 @@ async def fetch_scopus_papers(
         # Extract all authors
         authors = []
         author_list = entry.get("author", [])
+        if isinstance(author_list, dict):
+            author_list = [author_list]
         if isinstance(author_list, list):
             for a in author_list:
-                name = a.get("authname") or a.get("given-name", "") + " " + a.get("surname", "")
+                name = a.get("authname") or ((a.get("given-name", "") + " " + a.get("surname", "")).strip())
                 if name and name.strip():
                     authors.append(name.strip())
         if not authors and entry.get("dc:creator"):

@@ -204,6 +204,20 @@ async def generate_podcast_endpoint(
     if not summary_text:
         raise HTTPException(status_code=400, detail="Paper has no summary or abstract to generate podcast from")
 
+    # Check if a completed podcast of this type already exists
+    existing = await db.execute(
+        select(Podcast).where(
+            Podcast.paper_id == uuid.UUID(paper_id),
+            Podcast.voice_mode == req.voice_mode,
+            Podcast.audio_path.isnot(None),
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail=f"A {req.voice_mode} podcast already exists for this paper. Delete it first to regenerate.",
+        )
+
     # Clean up old failed/stuck records for this paper+voice_mode
     old_result = await db.execute(
         select(Podcast).where(

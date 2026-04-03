@@ -58,7 +58,10 @@ async def fetch_ieee_papers(
     for article in articles:
         authors_list = []
         if "authors" in article and "authors" in article["authors"]:
-            authors_list = [a.get("full_name", "") for a in article["authors"]["authors"]]
+            raw = article["authors"]["authors"]
+            if isinstance(raw, dict):
+                raw = [raw]
+            authors_list = [a.get("full_name", "") for a in raw if a.get("full_name")]
 
         # Extract keywords from index_terms
         keywords = []

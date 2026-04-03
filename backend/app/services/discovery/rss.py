@@ -38,10 +38,13 @@ async def fetch_rss_papers(
             doi = link.split("doi.org/")[-1]
 
         authors = []
-        if hasattr(entry, "authors"):
-            authors = [a.get("name", "") for a in entry.authors if a.get("name")]
-        elif hasattr(entry, "author"):
-            authors = [entry.author]
+        if hasattr(entry, "authors") and entry.authors:
+            raw = entry.authors
+            if isinstance(raw, dict):
+                raw = [raw]
+            authors = [a.get("name", "") for a in raw if a.get("name")]
+        if not authors and hasattr(entry, "author") and entry.author:
+            authors = [entry.author] if isinstance(entry.author, str) else []
 
         papers.append({
             "doi": doi,
