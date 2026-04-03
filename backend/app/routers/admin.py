@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_admin
@@ -160,6 +160,42 @@ async def trigger_pipeline(
 
     background_tasks.add_task(_run)
     return {"status": "triggered"}
+
+
+# --- Re-score ---
+
+@router.post("/rescore")
+async def rescore_all_papers(
+    background_tasks: BackgroundTasks,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete all existing scores and re-run scoring + summarisation."""
+    from sqlalchemy import delete
+    from app.models.paper_score import PaperScore
+
+    count = (await db.execute(select(func.count()).select_from(PaperScore))).scalar() or 0
+    await db.execute(delete(PaperScore))
+    await db.commit()
+
+    async def _run():
+        from app.database import init_db, async_session_factory
+        from app.pipeline.runner import score_and_summarise_papers
+        from app.models.pipeline_run import PipelineRun as PR
+        import logging
+        logger = logging.getLogger(__name__)
+        try:
+            if async_session_factory is None:
+                init_db()
+            async with async_session_factory() as session:
+                dummy_run = PR(id=uuid.uuid4(), started_at=__import__('datetime').datetime.now(__import__('datetime').timezone.utc), status="running")
+                result = await score_and_summarise_papers(session, dummy_run)
+                logger.info(f"Re-score complete: {result}")
+        except Exception as e:
+            logger.exception(f"Re-score failed: {e}")
+
+    background_tasks.add_task(_run)
+    return {"status": "triggered", "scores_deleted": count}
 
 
 # --- Global Keywords ---

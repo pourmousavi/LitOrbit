@@ -27,8 +27,7 @@ export function usePodcastStatus(paperId: string | null, voiceMode: string) {
     },
     enabled: !!paperId,
     refetchInterval: (query) => {
-      // Poll every 5s while generating
-      if (query.state.data?.status === 'generating') return 5000;
+      if (query.state.data?.status === 'generating') return 3000;
       return false;
     },
   });
@@ -44,6 +43,12 @@ export function useGeneratePodcast() {
       return data;
     },
     onSuccess: (_data, variables) => {
+      // Immediately set status to generating so the UI shows the spinner
+      queryClient.setQueryData(
+        ['podcast', variables.paperId, variables.voiceMode],
+        { status: 'generating', podcast: null },
+      );
+      // Also invalidate to start polling
       queryClient.invalidateQueries({ queryKey: ['podcast', variables.paperId] });
     },
   });
