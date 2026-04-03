@@ -191,6 +191,9 @@ async def delete_run_papers(
     count = len(papers)
     for p in papers:
         await db.delete(p)
+    # Mark run as deleted
+    run.status = "deleted"
+    run.error_message = f"{count} papers deleted"
     await db.commit()
     return {"status": "deleted", "papers_deleted": count}
 

@@ -427,8 +427,10 @@ function PipelineStatusTab() {
             <div
               key={run.id}
               className={cn(
-                'rounded-2xl border bg-bg-surface',
-                run.status === 'running' ? 'border-warning/40' : 'border-border-default',
+                'rounded-2xl border',
+                run.status === 'running' ? 'border-warning/40 bg-bg-surface' :
+                run.status === 'deleted' ? 'border-border-default bg-bg-base opacity-60' :
+                'border-border-default bg-bg-surface',
               )}
               style={{ padding: 20 }}
             >
@@ -440,12 +442,13 @@ function PipelineStatusTab() {
                       'rounded-full',
                       run.status === 'success' && 'bg-success',
                       run.status === 'failed' && 'bg-danger',
+                      run.status === 'deleted' && 'bg-text-tertiary',
                       run.status === 'running' && 'bg-warning animate-pulse',
                     )}
                     style={{ width: 10, height: 10 }}
                   />
-                  <span className="font-mono font-medium text-text-primary capitalize" style={{ fontSize: 14 }}>
-                    {run.status === 'running' ? 'Fetching papers...' : run.status}
+                  <span className={cn('font-mono font-medium capitalize', run.status === 'deleted' ? 'text-text-tertiary' : 'text-text-primary')} style={{ fontSize: 14 }}>
+                    {run.status === 'running' ? 'Fetching papers...' : run.status === 'deleted' ? 'Deleted' : run.status}
                   </span>
                 </div>
                 <div className="font-mono text-text-tertiary" style={{ fontSize: 12, textAlign: 'right' }}>
@@ -498,7 +501,7 @@ function PipelineStatusTab() {
                 </p>
               )}
 
-              {/* Per-run actions */}
+              {/* Per-run actions — hidden for deleted runs */}
               {run.status === 'success' && run.papers_processed > 0 && (
                 <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <button

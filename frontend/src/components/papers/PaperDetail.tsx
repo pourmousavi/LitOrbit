@@ -316,7 +316,7 @@ export default function PaperDetail() {
             )}
 
             {/* Relevance Score */}
-            {paper.relevance_score !== null && (
+            {paper.relevance_score !== null ? (
               <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <span className="font-mono text-text-secondary" style={{ fontSize: 12 }}>Relevance Score</span>
@@ -334,6 +334,21 @@ export default function PaperDetail() {
                 {paper.score_reasoning && (
                   <p className="text-text-secondary" style={{ fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>{paper.score_reasoning}</p>
                 )}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
+                <p className="font-mono text-text-secondary" style={{ fontSize: 13, marginBottom: 12 }}>
+                  This paper was not scored by the pre-filter. You can manually score it using AI.
+                </p>
+                <button
+                  onClick={() => rescoreMutation.mutate()}
+                  disabled={rescoreMutation.isPending}
+                  className="flex items-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                  style={{ gap: 8, padding: '10px 20px' }}
+                >
+                  {rescoreMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                  Score this paper
+                </button>
               </div>
             )}
 

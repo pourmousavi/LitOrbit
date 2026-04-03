@@ -34,12 +34,19 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
             </span>
           )}
         </div>
-        {paper.relevance_score !== null && (
+        {paper.relevance_score !== null ? (
           <span
             className={cn('rounded-xl font-mono text-sm font-semibold', scoreBg, scoreColor)}
             style={{ padding: '6px 12px', flexShrink: 0 }}
           >
             {paper.relevance_score.toFixed(1)}
+          </span>
+        ) : (
+          <span
+            className="rounded-xl font-mono text-xs text-text-tertiary bg-bg-elevated"
+            style={{ padding: '6px 12px', flexShrink: 0 }}
+          >
+            Not scored
           </span>
         )}
       </div>
