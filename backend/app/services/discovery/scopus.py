@@ -36,7 +36,7 @@ async def fetch_scopus_papers(
         "query": f"ISSN({clean_issn}) AND PUBYEAR > {today.year - 1}",
         "sort": "coverDate",
         "count": 25,
-        "field": "dc:title,dc:creator,prism:doi,prism:publicationName,prism:coverDate,dc:description,prism:url,authkeywords",
+        "field": "dc:title,dc:creator,prism:doi,prism:publicationName,prism:coverDate,dc:description,prism:url,authkeywords,author",
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -70,10 +70,21 @@ async def fetch_scopus_papers(
         if authkw and isinstance(authkw, str):
             keywords = [k.strip() for k in authkw.split("|") if k.strip()]
 
+        # Extract all authors
+        authors = []
+        author_list = entry.get("author", [])
+        if isinstance(author_list, list):
+            for a in author_list:
+                name = a.get("authname") or a.get("given-name", "") + " " + a.get("surname", "")
+                if name and name.strip():
+                    authors.append(name.strip())
+        if not authors and entry.get("dc:creator"):
+            authors = [entry.get("dc:creator")]
+
         papers.append({
             "doi": entry.get("prism:doi"),
             "title": entry.get("dc:title", ""),
-            "authors": [entry.get("dc:creator", "")] if entry.get("dc:creator") else [],
+            "authors": authors[:10],
             "abstract": entry.get("dc:description", ""),
             "journal": entry.get("prism:publicationName", ""),
             "journal_source": "scopus",
