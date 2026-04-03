@@ -261,6 +261,44 @@ async def rescore_run(
     return {"status": "triggered", "papers_count": len(paper_ids), "scores_deleted": count}
 
 
+# --- Storage usage ---
+
+@router.get("/storage-usage")
+async def get_storage_usage(
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> dict:
+    """Get Supabase Storage usage for the podcasts bucket."""
+    import httpx
+    from app.config import get_settings
+    settings = get_settings()
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{settings.supabase_url}/storage/v1/object/list/podcasts",
+                headers={
+                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                    "apikey": settings.supabase_service_role_key,
+                    "Content-Type": "application/json",
+                },
+                json={"prefix": "", "limit": 1000},
+            )
+        if resp.status_code != 200:
+            return {"used_bytes": 0, "used_mb": 0, "limit_mb": 1000, "file_count": 0}
+
+        files = resp.json()
+        total_bytes = sum(f.get("metadata", {}).get("size", 0) for f in files if isinstance(f, dict))
+        return {
+            "used_bytes": total_bytes,
+            "used_mb": round(total_bytes / (1024 * 1024), 1),
+            "limit_mb": 1000,
+            "file_count": len(files),
+            "warning": total_bytes > 800 * 1024 * 1024,  # Warn at 80%
+        }
+    except Exception:
+        return {"used_bytes": 0, "used_mb": 0, "limit_mb": 1000, "file_count": 0}
+
+
 # --- Global Keywords ---
 
 class KeywordsUpdate(BaseModel):

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown } from 'lucide-react';
+import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
@@ -34,8 +34,20 @@ interface UserItem {
   email: string;
 }
 
+interface StorageUsage {
+  used_mb: number;
+  limit_mb: number;
+  file_count: number;
+  warning: boolean;
+}
+
 export default function Admin() {
   const [tab, setTab] = useState<Tab>('journals');
+  const { data: storage } = useQuery<StorageUsage>({
+    queryKey: ['admin', 'storage'],
+    queryFn: async () => (await api.get('/api/v1/admin/storage-usage')).data,
+    staleTime: 60000,
+  });
 
   const tabs: { key: Tab; label: string; icon: typeof Settings }[] = [
     { key: 'journals', label: 'Journals', icon: Settings },
@@ -73,6 +85,37 @@ export default function Admin() {
             </button>
           ))}
         </div>
+
+        {/* Storage usage */}
+        {storage && storage.used_mb > 0 && (
+          <div
+            className={cn(
+              'rounded-2xl border font-mono',
+              storage.warning ? 'border-warning/40 bg-warning/5' : 'border-border-default bg-bg-surface',
+            )}
+            style={{ padding: '12px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}
+          >
+            <HardDrive size={16} className={storage.warning ? 'text-warning' : 'text-text-tertiary'} />
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className={cn('text-xs', storage.warning ? 'text-warning' : 'text-text-secondary')}>
+                  Podcast storage: {storage.used_mb} MB / {storage.limit_mb} MB ({storage.file_count} files)
+                </span>
+                {storage.warning && (
+                  <span className="text-xs text-warning font-medium">
+                    — Approaching limit! Consider deleting old podcasts.
+                  </span>
+                )}
+              </div>
+              <div className="rounded-full bg-border-default" style={{ height: 3, marginTop: 6, overflow: 'hidden' }}>
+                <div
+                  className={cn('rounded-full', storage.warning ? 'bg-warning' : 'bg-accent')}
+                  style={{ height: '100%', width: `${Math.min(100, (storage.used_mb / storage.limit_mb) * 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {tab === 'journals' && <JournalConfigTab />}
         {tab === 'users' && <UserManagementTab />}

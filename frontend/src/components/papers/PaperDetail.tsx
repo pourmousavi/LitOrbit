@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw, Download } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePaper } from '@/hooks/usePapers';
 import { usePodcastStatus, useGeneratePodcast } from '@/hooks/usePodcast';
@@ -415,17 +415,28 @@ export default function PaperDetail() {
                 </div>
 
                 {podcastStatus?.status === 'ready' && podcastStatus.podcast ? (
-                  <button
-                    onClick={() => {
-                      const url = `${apiBase}${podcastStatus.podcast!.audio_url}`;
-                      setTrack(url, paper.title, paper.journal);
-                    }}
-                    className="flex items-center justify-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
-                    style={{ gap: 8, padding: '12px 0', width: '100%' }}
-                  >
-                    <Play size={15} />
-                    Play {podcastStatus.podcast.duration_seconds ? `(${Math.floor(podcastStatus.podcast.duration_seconds / 60)}m ${podcastStatus.podcast.duration_seconds % 60}s)` : ''}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => {
+                        const url = `${apiBase}${podcastStatus.podcast!.audio_url}`;
+                        setTrack(url, paper.title, paper.journal);
+                      }}
+                      className="flex items-center justify-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
+                      style={{ gap: 8, padding: '12px 0', flex: 1 }}
+                    >
+                      <Play size={15} />
+                      Play {podcastStatus.podcast.duration_seconds ? `(${Math.floor(podcastStatus.podcast.duration_seconds / 60)}m ${podcastStatus.podcast.duration_seconds % 60}s)` : ''}
+                    </button>
+                    <a
+                      href={`${apiBase}${podcastStatus.podcast.audio_url}`}
+                      download={`${paper.title.slice(0, 50).replace(/[^a-zA-Z0-9 ]/g, '')}.mp3`}
+                      className="flex items-center justify-center rounded-xl border border-border-default bg-bg-elevated text-text-secondary transition hover:border-accent hover:text-accent"
+                      style={{ padding: '12px 14px' }}
+                      title="Download MP3"
+                    >
+                      <Download size={16} />
+                    </a>
+                  </div>
                 ) : podcastStatus?.status === 'generating' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
