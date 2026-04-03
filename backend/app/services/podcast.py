@@ -1,10 +1,8 @@
 import asyncio
-import io
-import json
 import logging
 import os
+import struct
 import tempfile
-import uuid
 from typing import Any
 
 import anthropic
@@ -110,34 +108,43 @@ def _parse_dual_script(script: str) -> list[tuple[str, str]]:
 
 
 async def generate_audio_dual(script: str, output_path: str) -> None:
-    """Generate dual-voice MP3 by generating segments and concatenating."""
-    from pydub import AudioSegment
-
+    """Generate dual-voice MP3 by generating segments and concatenating with raw bytes."""
     segments = _parse_dual_script(script)
     if not segments:
-        # Fallback to single voice if parsing fails
         await generate_audio_single(script, output_path)
         return
 
-    combined = AudioSegment.empty()
+    segment_files: list[str] = []
 
-    for speaker, text in segments:
-        voice = DUAL_VOICE_ALEX if speaker == "alex" else DUAL_VOICE_SAM
-
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            tmp_path = tmp.name
-
-        try:
+    try:
+        for speaker, text in segments:
+            voice = DUAL_VOICE_ALEX if speaker == "alex" else DUAL_VOICE_SAM
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                tmp_path = tmp.name
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(tmp_path)
-            segment = AudioSegment.from_mp3(tmp_path)
-            combined += segment + AudioSegment.silent(duration=300)  # 300ms pause between speakers
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+            segment_files.append(tmp_path)
 
-    combined.export(output_path, format="mp3")
-    logger.info(f"Generated dual-voice audio: {output_path} ({len(segments)} segments)")
+        # Concatenate MP3 files (MP3 frames are self-contained, so raw concat works)
+        with open(output_path, 'wb') as outfile:
+            for seg_path in segment_files:
+                with open(seg_path, 'rb') as infile:
+                    outfile.write(infile.read())
+
+        logger.info(f"Generated dual-voice audio: {output_path} ({len(segments)} segments)")
+    finally:
+        for f in segment_files:
+            if os.path.exists(f):
+                os.unlink(f)
+
+
+def _get_mp3_duration(filepath: str) -> int:
+    """Estimate MP3 duration from file size. ~16KB per second at 128kbps."""
+    try:
+        size = os.path.getsize(filepath)
+        return max(1, size // 16000)
+    except Exception:
+        return 0
 
 
 async def generate_podcast(
@@ -161,18 +168,5 @@ async def generate_podcast(
     else:
         await generate_audio_single(script, output_path)
 
-    # Get duration
-    duration_seconds = 0
-    try:
-        from pydub import AudioSegment
-        audio = AudioSegment.from_mp3(output_path)
-        duration_seconds = int(len(audio) / 1000)
-    except Exception:
-        # Estimate from file size (~16kB per second for MP3 at 128kbps)
-        try:
-            file_size = os.path.getsize(output_path)
-            duration_seconds = max(1, file_size // 16000)
-        except Exception:
-            duration_seconds = len(script) // 15  # ~15 chars per second of speech
-
+    duration_seconds = _get_mp3_duration(output_path)
     return script, output_path, duration_seconds
