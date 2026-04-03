@@ -162,8 +162,17 @@ async def generate_podcast(
         await generate_audio_single(script, output_path)
 
     # Get duration
-    from pydub import AudioSegment
-    audio = AudioSegment.from_mp3(output_path)
-    duration_seconds = int(len(audio) / 1000)
+    duration_seconds = 0
+    try:
+        from pydub import AudioSegment
+        audio = AudioSegment.from_mp3(output_path)
+        duration_seconds = int(len(audio) / 1000)
+    except Exception:
+        # Estimate from file size (~16kB per second for MP3 at 128kbps)
+        try:
+            file_size = os.path.getsize(output_path)
+            duration_seconds = max(1, file_size // 16000)
+        except Exception:
+            duration_seconds = len(script) // 15  # ~15 chars per second of speech
 
     return script, output_path, duration_seconds
