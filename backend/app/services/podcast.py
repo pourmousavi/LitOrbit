@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import struct
 import tempfile
 from typing import Any
 
@@ -16,8 +15,8 @@ SINGLE_VOICE = "en-AU-WilliamNeural"
 DUAL_VOICE_ALEX = "en-US-AndrewNeural"
 DUAL_VOICE_SAM = "en-GB-SoniaNeural"
 
-# Silence between speaker turns (milliseconds worth of silent MP3 frames)
-INTER_TURN_SILENCE_MS = 600
+# Silence between speaker turns
+SILENCE_PAUSE_TEXT = "..."  # Edge TTS renders ellipsis as a natural brief pause
 
 SINGLE_VOICE_PROMPT = """Write a 3-4 minute spoken summary of this research paper in a clear, engaging \
 academic podcast style. The listener is a researcher in energy systems. Avoid \
@@ -136,20 +135,16 @@ def _parse_dual_script(script: str) -> list[tuple[str, str]]:
     return segments
 
 
-def _generate_silence_mp3(duration_ms: int = 600) -> bytes:
-    """Generate a short silent MP3 frame sequence.
+async def _generate_silence_mp3(voice: str) -> str:
+    """Generate a short silence MP3 using Edge TTS with a pause text.
 
-    Creates minimal valid MP3 frames (MPEG1, Layer3, 128kbps, 44100Hz, mono)
-    filled with silence. Each frame is 417 bytes covering ~26ms.
+    Returns the path to the temporary MP3 file.
     """
-    # MPEG1 Layer3 128kbps 44100Hz mono frame header
-    header = b'\xff\xfb\x90\x00'
-    frame_size = 417  # bytes per frame at 128kbps/44100Hz
-    padding = b'\x00' * (frame_size - len(header))
-    silent_frame = header + padding
-
-    frames_needed = max(1, duration_ms // 26)
-    return silent_frame * frames_needed
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        tmp_path = tmp.name
+    communicate = edge_tts.Communicate(SILENCE_PAUSE_TEXT, voice)
+    await communicate.save(tmp_path)
+    return tmp_path
 
 
 async def generate_audio_dual(
@@ -158,7 +153,7 @@ async def generate_audio_dual(
     alex_voice_id: str | None = None,
     sam_voice_id: str | None = None,
 ) -> None:
-    """Generate dual-voice MP3 by generating segments with silence between turns."""
+    """Generate dual-voice MP3 by generating segments with pauses between turns."""
     segments = _parse_dual_script(script)
     if not segments:
         await generate_audio_single(script, output_path)
@@ -166,10 +161,13 @@ async def generate_audio_dual(
 
     voice_alex = alex_voice_id or DUAL_VOICE_ALEX
     voice_sam = sam_voice_id or DUAL_VOICE_SAM
-    silence_bytes = _generate_silence_mp3(INTER_TURN_SILENCE_MS)
     segment_files: list[str] = []
+    silence_file: str | None = None
 
     try:
+        # Pre-generate a single silence segment (reused between turns)
+        silence_file = await _generate_silence_mp3(voice_alex)
+
         for speaker, text in segments:
             voice = voice_alex if speaker == "alex" else voice_sam
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
@@ -185,7 +183,8 @@ async def generate_audio_dual(
                 curr_speaker = segments[i][0]
                 # Add silence on speaker change
                 if prev_speaker is not None and curr_speaker != prev_speaker:
-                    outfile.write(silence_bytes)
+                    with open(silence_file, 'rb') as sf:
+                        outfile.write(sf.read())
                 with open(seg_path, 'rb') as infile:
                     outfile.write(infile.read())
                 prev_speaker = curr_speaker
@@ -195,6 +194,8 @@ async def generate_audio_dual(
         for f in segment_files:
             if os.path.exists(f):
                 os.unlink(f)
+        if silence_file and os.path.exists(silence_file):
+            os.unlink(silence_file)
 
 
 def _get_mp3_duration(filepath: str) -> int:

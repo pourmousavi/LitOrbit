@@ -74,8 +74,35 @@ export function useDeletePodcast() {
       const { data } = await api.delete(`/api/v1/podcasts/${podcastId}`);
       return data as { status: string; paper_id: string; voice_mode: string };
     },
-    onSuccess: (data) => {
+    onMutate: async (podcastId: string) => {
+      // Cancel in-flight refetches
+      await queryClient.cancelQueries({ queryKey: ['podcasts', 'list'] });
+
+      // Snapshot previous list
+      const previousList = queryClient.getQueryData<PodcastListItem[]>(['podcasts', 'list']);
+
+      // Optimistically remove from the list
+      if (previousList) {
+        queryClient.setQueryData<PodcastListItem[]>(
+          ['podcasts', 'list'],
+          previousList.filter((p) => p.id !== podcastId),
+        );
+      }
+
+      return { previousList };
+    },
+    onError: (_err, _podcastId, context) => {
+      // Rollback on error
+      if (context?.previousList) {
+        queryClient.setQueryData(['podcasts', 'list'], context.previousList);
+      }
+    },
+    onSettled: (_data, _error, _podcastId, _context) => {
+      // Refetch to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['podcasts', 'list'] });
+    },
+    onSuccess: (data) => {
+      // Also refresh the paper's podcast status so the generate button reappears
       queryClient.invalidateQueries({ queryKey: ['podcast', data.paper_id] });
     },
   });
