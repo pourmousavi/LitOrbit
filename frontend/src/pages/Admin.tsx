@@ -40,7 +40,7 @@ export default function Admin() {
   const tabs: { key: Tab; label: string; icon: typeof Settings }[] = [
     { key: 'journals', label: 'Journals', icon: Settings },
     { key: 'users', label: 'Users', icon: Users },
-    { key: 'pipeline', label: 'Pipeline', icon: Activity },
+    { key: 'pipeline', label: 'Fetch Papers', icon: Activity },
     { key: 'keywords', label: 'Keywords', icon: Tags },
   ];
 
@@ -336,15 +336,15 @@ function PipelineStatusTab() {
         style={{ gap: 10, padding: '14px 24px', width: 'fit-content' }}
       >
         {triggerMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-        Run Pipeline Now
+        Fetch Papers Now
       </button>
 
       {isLoading ? (
         <LoadingState />
       ) : isError ? (
-        <ErrorState message="Failed to load pipeline runs" />
+        <ErrorState message="Failed to load fetch history" />
       ) : !runs?.length ? (
-        <EmptyState title="No pipeline runs yet" description="Click 'Run Pipeline Now' to fetch papers." />
+        <EmptyState title="No fetch runs yet" description="Click 'Fetch Papers Now' to discover new papers from your journals." />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {runs.map((run) => (
