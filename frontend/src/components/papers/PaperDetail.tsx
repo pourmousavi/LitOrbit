@@ -413,7 +413,20 @@ export default function PaperDetail() {
                 )}
 
                 {podcastStatus?.status === 'failed' && (
-                  <p className="font-mono text-xs text-danger" style={{ textAlign: 'center' }}>Generation failed. Try again.</p>
+                  <div className="rounded-xl bg-danger/10" style={{ padding: '10px 14px' }}>
+                    <p className="font-mono text-xs text-danger">Generation failed.</p>
+                    {podcastStatus.error && (
+                      <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginTop: 4 }}>
+                        {podcastStatus.error.replace('ERROR: ', '')}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {generatePodcast.isError && (
+                  <p className="font-mono text-xs text-danger" style={{ textAlign: 'center' }}>
+                    Failed to start generation. Try again.
+                  </p>
                 )}
               </div>
             </Section>

@@ -51,20 +51,25 @@ async def generate_script(
     """Generate a podcast script using Claude Sonnet."""
     settings = get_settings()
     if client is None:
+        if not settings.anthropic_api_key:
+            raise ValueError("ANTHROPIC_API_KEY not set")
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     prompt = SINGLE_VOICE_PROMPT if voice_mode == "single" else DUAL_VOICE_PROMPT
     user_message = prompt.format(title=title, summary=summary)
 
-    response = await client.messages.create(
-        model=get_settings().claude_model_smart,
-        max_tokens=2000,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    script = response.content[0].text.strip()
-    logger.info(f"Generated {voice_mode} script for '{title[:50]}...' ({len(script)} chars)")
-    return script
+    try:
+        response = await client.messages.create(
+            model=settings.claude_model_smart,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        script = response.content[0].text.strip()
+        logger.info(f"Generated {voice_mode} script for '{title[:50]}...' ({len(script)} chars)")
+        return script
+    except anthropic.APIError as e:
+        logger.error(f"Anthropic API error during podcast script generation: {e}")
+        raise
 
 
 async def generate_audio_single(script: str, output_path: str) -> None:

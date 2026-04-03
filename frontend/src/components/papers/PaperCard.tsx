@@ -100,15 +100,15 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button
             className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
-            onClick={(e) => { e.stopPropagation(); }}
-            title="Play podcast"
+            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+            title="Podcast & details"
             style={{ padding: 8 }}
           >
             <Headphones size={16} />
           </button>
           <button
             className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
-            onClick={(e) => { e.stopPropagation(); }}
+            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
             title="Share"
             style={{ padding: 8 }}
           >
@@ -116,7 +116,7 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
           </button>
           <button
             className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-warning"
-            onClick={(e) => { e.stopPropagation(); }}
+            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
             title="Rate"
             style={{ padding: 8 }}
           >

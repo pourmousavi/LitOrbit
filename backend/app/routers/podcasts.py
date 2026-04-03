@@ -37,7 +37,7 @@ async def _generate_in_background(
 
     async with async_session_factory() as db:
         try:
-            output_dir = os.path.join(os.path.dirname(__file__), "..", "..", "podcasts_output")
+            output_dir = os.path.join("/tmp", "litorbit_podcasts")
             os.makedirs(output_dir, exist_ok=True)
             output_path = os.path.join(output_dir, f"{podcast_id}.mp3")
 
