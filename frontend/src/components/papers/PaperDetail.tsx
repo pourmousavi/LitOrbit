@@ -428,8 +428,7 @@ export default function PaperDetail() {
                       Play {podcastStatus.podcast.duration_seconds ? `(${Math.floor(podcastStatus.podcast.duration_seconds / 60)}m ${podcastStatus.podcast.duration_seconds % 60}s)` : ''}
                     </button>
                     <a
-                      href={`${apiBase}${podcastStatus.podcast.audio_url}`}
-                      download={`${paper.title.slice(0, 50).replace(/[^a-zA-Z0-9 ]/g, '')}.mp3`}
+                      href={`${apiBase}/api/v1/podcasts/download/${podcastStatus.podcast.id}`}
                       className="flex items-center justify-center rounded-xl border border-border-default bg-bg-elevated text-text-secondary transition hover:border-accent hover:text-accent"
                       style={{ padding: '12px 14px' }}
                       title="Download MP3"

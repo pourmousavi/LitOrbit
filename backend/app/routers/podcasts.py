@@ -241,6 +241,37 @@ async def serve_audio(
     return RedirectResponse(url=podcast.audio_path, status_code=302)
 
 
+@router.get("/download/{podcast_id}")
+async def download_audio(
+    podcast_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Proxy the podcast MP3 with Content-Disposition: attachment to force download."""
+    import httpx
+    from fastapi.responses import Response
+
+    result = await db.execute(
+        select(Podcast).where(Podcast.id == uuid.UUID(podcast_id))
+    )
+    podcast = result.scalar_one_or_none()
+
+    if not podcast or not podcast.audio_path:
+        raise HTTPException(status_code=404, detail="Audio not found")
+
+    # Fetch from Supabase and proxy with download headers
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.get(podcast.audio_path)
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=404, detail="Audio file not found in storage")
+
+    return Response(
+        content=resp.content,
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": f'attachment; filename="podcast_{podcast_id}.mp3"'},
+    )
+
+
 @router.get("")
 async def list_podcasts(
     user: dict[str, Any] = Depends(get_current_user),
