@@ -55,7 +55,10 @@ function PdfUploadZone({ paperId, hasFullText }: { paperId: string; hasFullText:
 
   if (hasFullText && !uploadMutation.isSuccess) {
     return (
-      <div className="rounded-lg border border-border-default bg-bg-base p-4 flex items-center gap-3">
+      <div
+        className="rounded-xl border border-border-default bg-bg-base"
+        style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}
+      >
         <FileText size={16} className="text-success" />
         <span className="font-mono text-sm text-text-secondary">Full text available</span>
       </div>
@@ -64,10 +67,13 @@ function PdfUploadZone({ paperId, hasFullText }: { paperId: string; hasFullText:
 
   if (uploadMutation.isSuccess) {
     return (
-      <div className="rounded-lg border border-success/30 bg-success/5 p-4 text-center">
-        <FileText size={20} className="mx-auto mb-2 text-success" />
+      <div
+        className="rounded-xl border border-success/30 bg-success/5"
+        style={{ padding: 16, textAlign: 'center' }}
+      >
+        <FileText size={20} className="text-success" style={{ margin: '0 auto 8px' }} />
         <p className="font-mono text-sm text-success">PDF uploaded successfully</p>
-        <p className="mt-1 font-mono text-xs text-text-secondary">Summary is being regenerated with full text</p>
+        <p className="font-mono text-xs text-text-secondary" style={{ marginTop: 4 }}>Summary is being regenerated with full text</p>
       </div>
     );
   }
@@ -75,9 +81,10 @@ function PdfUploadZone({ paperId, hasFullText }: { paperId: string; hasFullText:
   return (
     <div
       className={cn(
-        'rounded-lg border-2 border-dashed bg-bg-base p-6 text-center transition cursor-pointer',
+        'rounded-xl border-2 border-dashed bg-bg-base transition cursor-pointer',
         dragging ? 'border-accent bg-accent-subtle' : 'border-border-strong hover:border-accent/50',
       )}
+      style={{ padding: 24, textAlign: 'center' }}
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
       onDrop={(e) => {
@@ -99,19 +106,19 @@ function PdfUploadZone({ paperId, hasFullText }: { paperId: string; hasFullText:
         }}
       />
       {uploadMutation.isPending ? (
-        <div className="flex items-center justify-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <Loader2 size={16} className="animate-spin text-accent" />
           <span className="font-mono text-sm text-text-secondary">Uploading...</span>
         </div>
       ) : (
         <>
-          <Upload size={20} className="mx-auto mb-2 text-text-tertiary" />
+          <Upload size={22} className="text-text-tertiary" style={{ margin: '0 auto 8px' }} />
           <p className="font-mono text-sm text-text-secondary">Drop PDF here or click to upload</p>
-          <p className="mt-1 font-mono text-xs text-text-tertiary">PDF only, max 50MB</p>
+          <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 4 }}>PDF only, max 50MB</p>
         </>
       )}
       {uploadMutation.isError && (
-        <p className="mt-2 font-mono text-xs text-danger">Upload failed. Try again.</p>
+        <p className="font-mono text-xs text-danger" style={{ marginTop: 8 }}>Upload failed. Try again.</p>
       )}
     </div>
   );
@@ -159,12 +166,12 @@ export default function PaperDetail() {
 
   if (isLoading) {
     return (
-      <div className="animate-pulse space-y-4 p-6">
-        <div className="h-4 w-16 rounded bg-bg-elevated" />
+      <div className="animate-pulse" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="h-4 rounded bg-bg-elevated" style={{ width: 60 }} />
         <div className="h-6 w-full rounded bg-bg-elevated" />
-        <div className="h-6 w-3/4 rounded bg-bg-elevated" />
-        <div className="h-3 w-1/2 rounded bg-bg-elevated" />
-        <div className="h-40 w-full rounded bg-bg-elevated" />
+        <div className="h-6 rounded bg-bg-elevated" style={{ width: '75%' }} />
+        <div className="h-3 rounded bg-bg-elevated" style={{ width: '50%' }} />
+        <div className="h-40 w-full rounded-xl bg-bg-elevated" />
       </div>
     );
   }
@@ -176,212 +183,198 @@ export default function PaperDetail() {
 
   return (
     <>
-      <div className="flex h-full flex-col overflow-y-auto bg-bg-surface">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border-default bg-bg-surface px-4 py-3">
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Sticky header */}
+        <div
+          className="border-b border-border-default bg-bg-surface"
+          style={{
+            position: 'sticky', top: 0, zIndex: 10,
+            padding: '12px 20px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexShrink: 0,
+          }}
+        >
           <button
             onClick={() => selectPaper(null)}
-            className="flex items-center gap-1.5 rounded-md px-2 py-1 font-mono text-sm text-text-secondary transition hover:bg-bg-elevated hover:text-text-primary"
+            className="flex items-center rounded-lg font-mono text-sm text-text-secondary transition hover:bg-bg-elevated hover:text-text-primary"
+            style={{ gap: 6, padding: '6px 10px' }}
           >
             <ArrowLeft size={16} />
             <span className="md:hidden">Back</span>
           </button>
           <button
             onClick={() => setShowShareModal(true)}
-            className="rounded-md p-1.5 text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
+            className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
+            style={{ padding: 8 }}
           >
             <Share2 size={16} />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="space-y-6 p-5">
-          {/* Meta */}
-          <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-text-secondary">
-            <span>{paper.journal}</span>
-            <span>·</span>
-            <span>{formatDate(paper.published_date)}</span>
-            {paper.early_access && (
-              <>
-                <span>·</span>
-                <span className="text-warning">Early Access</span>
-              </>
-            )}
-          </div>
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {/* Title */}
-          <h2 className="font-serif text-xl leading-tight font-semibold text-text-primary">
-            {paper.title}
-          </h2>
-
-          {/* Authors */}
-          <p className="font-mono text-xs text-text-secondary">
-            {paper.authors.join(', ')}
-          </p>
-
-          {/* DOI */}
-          {paper.doi && (
-            <a
-              href={`https://doi.org/${paper.doi}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-mono text-xs text-accent hover:underline"
-            >
-              {paper.doi}
-              <ExternalLink size={11} />
-            </a>
-          )}
-
-          {/* Relevance Score */}
-          {paper.relevance_score !== null && (
-            <div className="rounded-lg border border-border-default bg-bg-base p-4">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="font-mono text-xs text-text-secondary">Relevance Score</span>
-                <span className={cn('font-mono text-2xl font-medium', scoreColor)}>
-                  {paper.relevance_score.toFixed(1)}
-                  <span className="text-sm text-text-tertiary">/10</span>
-                </span>
-              </div>
-              <div className="mt-2 h-1.5 w-full rounded-full bg-border-default">
-                <div
-                  className={cn('h-full rounded-full', scoreColor.replace('text-', 'bg-'))}
-                  style={{ width: `${(paper.relevance_score / 10) * 100}%` }}
-                />
-              </div>
-              {paper.score_reasoning && (
-                <p className="mt-2 text-sm text-text-secondary">{paper.score_reasoning}</p>
+            {/* Meta line */}
+            <div className="font-mono text-text-secondary" style={{ fontSize: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+              <span>{paper.journal}</span>
+              <span className="text-text-tertiary">&middot;</span>
+              <span>{formatDate(paper.published_date)}</span>
+              {paper.early_access && (
+                <>
+                  <span className="text-text-tertiary">&middot;</span>
+                  <span className="text-warning">Early Access</span>
+                </>
               )}
             </div>
-          )}
 
-          {/* AI Summary */}
-          {summary && (
-            <div className="space-y-3">
-              <h3 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase">
-                AI Summary
-              </h3>
-              <div className="space-y-3 rounded-lg border border-border-default bg-bg-base p-4">
-                <div>
-                  <p className="mb-1 font-mono text-xs text-accent">Research Gap</p>
-                  <p className="text-sm text-text-primary">{summary.research_gap}</p>
-                </div>
-                <div>
-                  <p className="mb-1 font-mono text-xs text-accent">Methodology</p>
-                  <p className="text-sm text-text-primary">{summary.methodology}</p>
-                </div>
-                <div>
-                  <p className="mb-1 font-mono text-xs text-accent">Key Findings</p>
-                  <p className="text-sm text-text-primary">{summary.key_findings}</p>
-                </div>
-                <div>
-                  <p className="mb-1 font-mono text-xs text-accent">Relevance</p>
-                  <p className="text-sm text-text-primary">{summary.relevance_to_energy_group}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-text-tertiary">Suggested:</span>
-                  <span className={cn(
-                    'rounded-full px-2.5 py-0.5 font-mono text-xs',
-                    summary.suggested_action === 'read_fully' && 'bg-success/15 text-success',
-                    summary.suggested_action === 'skim' && 'bg-warning/15 text-warning',
-                    summary.suggested_action === 'monitor' && 'bg-bg-elevated text-text-secondary',
-                  )}>
-                    {summary.suggested_action.replace('_', ' ')}
+            {/* Title */}
+            <h2 className="font-serif font-semibold text-text-primary" style={{ fontSize: 20, lineHeight: 1.35 }}>
+              {paper.title}
+            </h2>
+
+            {/* Authors */}
+            <p className="font-mono text-text-secondary" style={{ fontSize: 12, lineHeight: 1.5 }}>
+              {paper.authors.join(', ')}
+            </p>
+
+            {/* DOI */}
+            {paper.doi && (
+              <a
+                href={`https://doi.org/${paper.doi}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center font-mono text-accent hover:underline"
+                style={{ gap: 4, fontSize: 12 }}
+              >
+                {paper.doi}
+                <ExternalLink size={11} />
+              </a>
+            )}
+
+            {/* Relevance Score */}
+            {paper.relevance_score !== null && (
+              <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <span className="font-mono text-text-secondary" style={{ fontSize: 12 }}>Relevance Score</span>
+                  <span className={cn('font-mono font-semibold', scoreColor)} style={{ fontSize: 28 }}>
+                    {paper.relevance_score.toFixed(1)}
+                    <span className="text-text-tertiary" style={{ fontSize: 14 }}>/10</span>
                   </span>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Podcast */}
-          <div className="space-y-3">
-            <h3 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase">
-              Podcast
-            </h3>
-            <div className="rounded-lg border border-border-default bg-bg-base p-4 space-y-3">
-              {/* Voice mode selector */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setVoiceMode('single')}
-                  className={cn(
-                    'rounded-lg px-3 py-1.5 font-mono text-xs transition',
-                    voiceMode === 'single' ? 'bg-accent text-white' : 'bg-bg-elevated text-text-secondary hover:text-text-primary',
-                  )}
-                >
-                  Single voice
-                </button>
-                <button
-                  onClick={() => setVoiceMode('dual')}
-                  className={cn(
-                    'rounded-lg px-3 py-1.5 font-mono text-xs transition',
-                    voiceMode === 'dual' ? 'bg-accent text-white' : 'bg-bg-elevated text-text-secondary hover:text-text-primary',
-                  )}
-                >
-                  Dual voice
-                </button>
-              </div>
-
-              {podcastStatus?.status === 'ready' && podcastStatus.podcast ? (
-                <button
-                  onClick={() => {
-                    const url = `${apiBase}${podcastStatus.podcast!.audio_url}`;
-                    setTrack(url, paper.title, paper.journal);
-                  }}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-2.5 font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
-                >
-                  <Play size={14} />
-                  Play {podcastStatus.podcast.duration_seconds ? `(${Math.floor(podcastStatus.podcast.duration_seconds / 60)}m ${podcastStatus.podcast.duration_seconds % 60}s)` : ''}
-                </button>
-              ) : podcastStatus?.status === 'generating' ? (
-                <div className="flex items-center justify-center gap-2 py-3">
-                  <Loader2 size={16} className="animate-spin text-accent" />
-                  <span className="font-mono text-sm text-text-secondary">Generating podcast...</span>
+                <div className="rounded-full bg-border-default" style={{ height: 6, overflow: 'hidden' }}>
+                  <div
+                    className={cn('rounded-full', scoreColor.replace('text-', 'bg-'))}
+                    style={{ height: '100%', width: `${(paper.relevance_score / 10) * 100}%`, transition: 'width 0.3s' }}
+                  />
                 </div>
-              ) : (
-                <button
-                  onClick={() => generatePodcast.mutate({ paperId: paper.id, voiceMode })}
-                  disabled={generatePodcast.isPending}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-default bg-bg-elevated py-2.5 font-mono text-sm text-text-secondary transition hover:border-accent hover:text-accent disabled:opacity-50"
-                >
-                  {generatePodcast.isPending ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Play size={14} />
-                  )}
-                  Generate Podcast
-                </button>
-              )}
+                {paper.score_reasoning && (
+                  <p className="text-text-secondary" style={{ fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>{paper.score_reasoning}</p>
+                )}
+              </div>
+            )}
 
-              {podcastStatus?.status === 'failed' && (
-                <p className="text-center font-mono text-xs text-danger">Generation failed. Try again.</p>
-              )}
-            </div>
-          </div>
+            {/* AI Summary */}
+            {summary && (
+              <Section title="AI Summary">
+                <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <SummaryBlock label="Research Gap" text={summary.research_gap} />
+                  <SummaryBlock label="Methodology" text={summary.methodology} />
+                  <SummaryBlock label="Key Findings" text={summary.key_findings} />
+                  <SummaryBlock label="Relevance" text={summary.relevance_to_energy_group} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>Suggested:</span>
+                    <span className={cn(
+                      'rounded-full font-mono',
+                      summary.suggested_action === 'read_fully' && 'bg-success/15 text-success',
+                      summary.suggested_action === 'skim' && 'bg-warning/15 text-warning',
+                      summary.suggested_action === 'monitor' && 'bg-bg-elevated text-text-secondary',
+                    )} style={{ fontSize: 12, padding: '4px 12px' }}>
+                      {summary.suggested_action.replace('_', ' ')}
+                    </span>
+                  </div>
+                </div>
+              </Section>
+            )}
 
-          {/* Rating */}
-          <div className="space-y-3">
-            <h3 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase">
-              Your Rating
-            </h3>
-            <div className="rounded-lg border border-border-default bg-bg-base p-4">
-              <RatingSlider
-                onSubmit={(value) => ratingMutation.mutate(value)}
-                loading={ratingMutation.isPending}
-              />
-              {ratingMutation.isSuccess && !feedback && (
-                <p className="mt-2 text-center font-mono text-xs text-success">Rating submitted</p>
-              )}
-              {ratingMutation.isError && (
-                <p className="mt-2 text-center font-mono text-xs text-danger">Failed to submit</p>
-              )}
-            </div>
-          </div>
+            {/* Podcast */}
+            <Section title="Podcast">
+              <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Voice mode selector */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(['single', 'dual'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setVoiceMode(mode)}
+                      className={cn(
+                        'rounded-xl font-mono text-xs transition',
+                        voiceMode === mode ? 'bg-accent text-white' : 'bg-bg-elevated text-text-secondary hover:text-text-primary',
+                      )}
+                      style={{ padding: '8px 16px' }}
+                    >
+                      {mode === 'single' ? 'Single voice' : 'Dual voice'}
+                    </button>
+                  ))}
+                </div>
 
-          {/* PDF Upload */}
-          <div className="space-y-3">
-            <h3 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase">
-              Upload Full Text
-            </h3>
-            <PdfUploadZone paperId={paper.id} hasFullText={!!paper.full_text} />
+                {podcastStatus?.status === 'ready' && podcastStatus.podcast ? (
+                  <button
+                    onClick={() => {
+                      const url = `${apiBase}${podcastStatus.podcast!.audio_url}`;
+                      setTrack(url, paper.title, paper.journal);
+                    }}
+                    className="flex items-center justify-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
+                    style={{ gap: 8, padding: '12px 0', width: '100%' }}
+                  >
+                    <Play size={15} />
+                    Play {podcastStatus.podcast.duration_seconds ? `(${Math.floor(podcastStatus.podcast.duration_seconds / 60)}m ${podcastStatus.podcast.duration_seconds % 60}s)` : ''}
+                  </button>
+                ) : podcastStatus?.status === 'generating' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0' }}>
+                    <Loader2 size={16} className="animate-spin text-accent" />
+                    <span className="font-mono text-sm text-text-secondary">Generating podcast...</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => generatePodcast.mutate({ paperId: paper.id, voiceMode })}
+                    disabled={generatePodcast.isPending}
+                    className="flex items-center justify-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-accent hover:text-accent disabled:opacity-50"
+                    style={{ gap: 8, padding: '12px 0', width: '100%' }}
+                  >
+                    {generatePodcast.isPending ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
+                    Generate Podcast
+                  </button>
+                )}
+
+                {podcastStatus?.status === 'failed' && (
+                  <p className="font-mono text-xs text-danger" style={{ textAlign: 'center' }}>Generation failed. Try again.</p>
+                )}
+              </div>
+            </Section>
+
+            {/* Rating */}
+            <Section title="Your Rating">
+              <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
+                <RatingSlider
+                  onSubmit={(value) => ratingMutation.mutate(value)}
+                  loading={ratingMutation.isPending}
+                />
+                {ratingMutation.isSuccess && !feedback && (
+                  <p className="font-mono text-xs text-success" style={{ textAlign: 'center', marginTop: 10 }}>Rating submitted</p>
+                )}
+                {ratingMutation.isError && (
+                  <p className="font-mono text-xs text-danger" style={{ textAlign: 'center', marginTop: 10 }}>Failed to submit</p>
+                )}
+              </div>
+            </Section>
+
+            {/* PDF Upload */}
+            <Section title="Upload Full Text">
+              <PdfUploadZone paperId={paper.id} hasFullText={!!paper.full_text} />
+            </Section>
+
+            {/* Bottom spacer */}
+            <div style={{ height: 24 }} />
           </div>
         </div>
       </div>
@@ -403,5 +396,28 @@ export default function PaperDetail() {
         <ShareModal paper={paper} onClose={() => setShowShareModal(false)} />
       )}
     </>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3
+        className="font-mono font-medium tracking-widest text-text-tertiary uppercase"
+        style={{ fontSize: 11, marginBottom: 12 }}
+      >
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+function SummaryBlock({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <p className="font-mono text-accent" style={{ fontSize: 12, marginBottom: 6 }}>{label}</p>
+      <p className="text-text-primary" style={{ fontSize: 13, lineHeight: 1.6 }}>{text}</p>
+    </div>
   );
 }

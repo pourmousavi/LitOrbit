@@ -6,8 +6,8 @@ export default function Feed() {
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      {/* Feed column */}
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      {/* Feed column — independently scrollable */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
@@ -17,11 +17,11 @@ export default function Feed() {
         </div>
       </div>
 
-      {/* Detail panel */}
+      {/* Detail panel — independently scrollable */}
       {selectedPaperId && (
         <div
           className="hidden border-l border-border-default bg-bg-surface md:block"
-          style={{ width: 420, flexShrink: 0, overflowY: 'auto' }}
+          style={{ width: 420, flexShrink: 0, overflowY: 'auto', height: '100vh' }}
         >
           <PaperDetail />
         </div>
