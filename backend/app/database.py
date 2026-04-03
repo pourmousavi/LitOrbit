@@ -20,7 +20,15 @@ def get_engine():
     else:
         # Fallback for testing with SQLite
         url = "sqlite+aiosqlite:///./test.db"
-    return create_async_engine(url, echo=settings.environment == "development")
+    connect_args = {}
+    if "pooler.supabase.com" in url:
+        connect_args["statement_cache_size"] = 0
+        connect_args["prepared_statement_cache_size"] = 0
+    return create_async_engine(
+        url,
+        echo=settings.environment == "development",
+        connect_args=connect_args,
+    )
 
 
 engine = None
