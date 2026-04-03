@@ -20,6 +20,11 @@ class ProfileUpdate(BaseModel):
     email_digest_enabled: bool | None = None
     digest_frequency: str | None = None
     scoring_prompt: str | None = None
+    single_voice_prompt: str | None = None
+    dual_voice_prompt: str | None = None
+    single_voice_id: str | None = None
+    dual_voice_alex_id: str | None = None
+    dual_voice_sam_id: str | None = None
 
 
 @router.get("/me")
@@ -47,6 +52,11 @@ async def get_my_profile(
         "email_digest_enabled": profile.email_digest_enabled,
         "digest_frequency": profile.digest_frequency,
         "scoring_prompt": profile.scoring_prompt,
+        "single_voice_prompt": profile.single_voice_prompt,
+        "dual_voice_prompt": profile.dual_voice_prompt,
+        "single_voice_id": profile.single_voice_id,
+        "dual_voice_alex_id": profile.dual_voice_alex_id,
+        "dual_voice_sam_id": profile.dual_voice_sam_id,
     }
 
 
@@ -76,6 +86,16 @@ async def update_my_profile(
         profile.digest_frequency = req.digest_frequency
     if req.scoring_prompt is not None:
         profile.scoring_prompt = req.scoring_prompt if req.scoring_prompt.strip() else None
+    if req.single_voice_prompt is not None:
+        profile.single_voice_prompt = req.single_voice_prompt if req.single_voice_prompt.strip() else None
+    if req.dual_voice_prompt is not None:
+        profile.dual_voice_prompt = req.dual_voice_prompt if req.dual_voice_prompt.strip() else None
+    if req.single_voice_id is not None:
+        profile.single_voice_id = req.single_voice_id if req.single_voice_id.strip() else None
+    if req.dual_voice_alex_id is not None:
+        profile.dual_voice_alex_id = req.dual_voice_alex_id if req.dual_voice_alex_id.strip() else None
+    if req.dual_voice_sam_id is not None:
+        profile.dual_voice_sam_id = req.dual_voice_sam_id if req.dual_voice_sam_id.strip() else None
 
     await db.commit()
     return {"status": "updated"}

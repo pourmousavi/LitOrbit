@@ -49,6 +49,11 @@ export interface UserProfile {
   email_digest_enabled: boolean;
   digest_frequency: 'daily' | 'weekly';
   scoring_prompt: string | null;
+  single_voice_prompt: string | null;
+  dual_voice_prompt: string | null;
+  single_voice_id: string | null;
+  dual_voice_alex_id: string | null;
+  dual_voice_sam_id: string | null;
 }
 
 export interface Rating {

@@ -15,10 +15,35 @@ import app.database as _db_module
 from app.models.collection import Collection, CollectionPaper
 from app.models.paper import Paper
 from app.models.podcast import Podcast
+from app.models.user_profile import UserProfile
 from app.services.podcast import generate_podcast
 from app.services.storage import upload_audio
 
 router = APIRouter(prefix="/api/v1/podcasts", tags=["podcasts"])
+
+# Cache voices list (fetched once per process)
+_voices_cache: list[dict] | None = None
+
+
+@router.get("/voices")
+async def list_voices() -> list[dict]:
+    """List available English TTS voices."""
+    global _voices_cache
+    if _voices_cache is None:
+        import edge_tts
+        all_voices = await edge_tts.list_voices()
+        _voices_cache = [
+            {
+                "id": v["ShortName"],
+                "name": v["ShortName"].split("-")[2].replace("Neural", "").replace("Multilingual", ""),
+                "gender": v["Gender"],
+                "locale": v["Locale"],
+                "locale_name": v["Locale"].replace("en-", "").replace("AU", "Australia").replace("US", "United States").replace("GB", "United Kingdom").replace("CA", "Canada").replace("IN", "India").replace("IE", "Ireland").replace("NZ", "New Zealand").replace("SG", "Singapore").replace("ZA", "South Africa").replace("HK", "Hong Kong").replace("KE", "Kenya").replace("NG", "Nigeria").replace("PH", "Philippines").replace("TZ", "Tanzania"),
+            }
+            for v in all_voices
+            if v["Locale"].startswith("en-")
+        ]
+    return _voices_cache
 
 
 class GenerateRequest(BaseModel):
@@ -31,6 +56,8 @@ async def _generate_in_background(
     title: str,
     summary: str,
     voice_mode: str,
+    custom_prompt: str | None = None,
+    custom_voices: dict[str, str] | None = None,
 ) -> None:
     """Background task to generate podcast audio and upload to Supabase Storage."""
     import logging
@@ -56,6 +83,8 @@ async def _generate_in_background(
                 summary=summary,
                 voice_mode=voice_mode,
                 output_path=output_path,
+                custom_prompt=custom_prompt,
+                custom_voices=custom_voices,
             )
 
             # Upload to Supabase Storage
@@ -205,6 +234,30 @@ async def generate_podcast_endpoint(
     db.add(podcast)
     await db.commit()
 
+    # Fetch user's custom podcast settings
+    user_profile = (await db.execute(
+        select(UserProfile).where(UserProfile.id == uuid.UUID(user["id"]))
+    )).scalar_one_or_none()
+
+    custom_prompt = None
+    custom_voices = None
+    if user_profile:
+        if req.voice_mode == "single" and user_profile.single_voice_prompt:
+            custom_prompt = user_profile.single_voice_prompt
+        elif req.voice_mode == "dual" and user_profile.dual_voice_prompt:
+            custom_prompt = user_profile.dual_voice_prompt
+
+        voices: dict[str, str] = {}
+        if req.voice_mode == "single" and user_profile.single_voice_id:
+            voices["single"] = user_profile.single_voice_id
+        elif req.voice_mode == "dual":
+            if user_profile.dual_voice_alex_id:
+                voices["alex"] = user_profile.dual_voice_alex_id
+            if user_profile.dual_voice_sam_id:
+                voices["sam"] = user_profile.dual_voice_sam_id
+        if voices:
+            custom_voices = voices
+
     # Start background generation
     import asyncio
     asyncio.create_task(
@@ -214,6 +267,8 @@ async def generate_podcast_endpoint(
             title=paper.title,
             summary=summary_text,
             voice_mode=req.voice_mode,
+            custom_prompt=custom_prompt,
+            custom_voices=custom_voices,
         )
     )
 

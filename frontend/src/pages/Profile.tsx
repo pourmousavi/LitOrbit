@@ -1,7 +1,17 @@
 import { useState, useEffect, type KeyboardEvent } from 'react';
 import { Plus, X, Loader2, RotateCcw } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
+import api from '@/lib/api';
 import { cn } from '@/lib/utils';
+
+interface TTSVoice {
+  id: string;
+  name: string;
+  gender: string;
+  locale: string;
+  locale_name: string;
+}
 
 function InterestChart({ vector }: { vector: Record<string, number> }) {
   const entries = Object.entries(vector)
@@ -55,18 +65,48 @@ export default function Profile() {
   const [newKeyword, setNewKeyword] = useState('');
   const [scoringPrompt, setScoringPrompt] = useState('');
   const [promptDirty, setPromptDirty] = useState(false);
+  const [singlePrompt, setSinglePrompt] = useState('');
+  const [singlePromptDirty, setSinglePromptDirty] = useState(false);
+  const [dualPrompt, setDualPrompt] = useState('');
+  const [dualPromptDirty, setDualPromptDirty] = useState(false);
+
+  const { data: voices } = useQuery<TTSVoice[]>({
+    queryKey: ['tts-voices'],
+    queryFn: async () => (await api.get('/api/v1/podcasts/voices')).data,
+  });
 
   const defaultPrompt = `You are a research relevance scoring assistant. You will be given a paper's title, abstract, and keywords, along with a researcher's interest profile. Score the paper's relevance to this specific researcher on a scale of 0.0 to 10.0. Consider how well the paper's topic, methods, and findings align with the researcher's stated interests.
 
 Return ONLY valid JSON in this exact format:
 {"score": 7.5, "reasoning": "One sentence explanation of why this score was given."}`;
 
+  const defaultSinglePrompt = `Write a 3-4 minute spoken summary of this research paper in a clear, engaging academic podcast style. The listener is a researcher in energy systems. Avoid jargon without explanation. Cover: what problem it solves, how they solved it, what they found, and why it matters. Do not include music cues or sound effects. Write only the spoken words.`;
+
+  const defaultDualPrompt = `Write a conversational podcast script between two hosts discussing this research paper.
+
+Host A (Alex) is the curious interviewer — sets context, asks sharp follow-up questions, plays devil's advocate.
+Host B (Sam) is the domain expert — explains methodology, results, and implications clearly and enthusiastically.
+
+Rules:
+- Write natural conversational dialogue with contractions and reactions.
+- Each turn should be 2-4 sentences. Avoid monologues.
+- Never use filler, sound effects, or stage directions.
+- Target 5-6 minutes of spoken content.
+
+Format each line exactly as:
+ALEX: <dialogue>
+SAM: <dialogue>`;
+
   useEffect(() => {
     if (profile) {
       setScoringPrompt(profile.scoring_prompt || defaultPrompt);
       setPromptDirty(false);
+      setSinglePrompt(profile.single_voice_prompt || defaultSinglePrompt);
+      setSinglePromptDirty(false);
+      setDualPrompt(profile.dual_voice_prompt || defaultDualPrompt);
+      setDualPromptDirty(false);
     }
-  }, [profile?.scoring_prompt]);
+  }, [profile?.scoring_prompt, profile?.single_voice_prompt, profile?.dual_voice_prompt]);
 
   if (isLoading || !profile) {
     return (
@@ -271,6 +311,150 @@ Return ONLY valid JSON in this exact format:
               >
                 <RotateCcw size={13} /> Reset to default
               </button>
+            </div>
+          </section>
+
+          {/* Podcast Settings */}
+          <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+            <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 8 }}>
+              Podcast Settings
+            </h2>
+            <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 20 }}>
+              Customise the prompts and voices used when generating podcasts from papers.
+            </p>
+
+            {/* Voice selection */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24 }}>
+              {/* Single voice */}
+              <div>
+                <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                  Single voice
+                </label>
+                <select
+                  value={profile.single_voice_id || 'en-AU-WilliamNeural'}
+                  onChange={(e) => updateProfile.mutate({ single_voice_id: e.target.value })}
+                  className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent"
+                  style={{ width: '100%', padding: '10px 16px' }}
+                >
+                  {voices?.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} — {v.gender}, {v.locale_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Dual voices */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                    Dual voice — Alex (interviewer)
+                  </label>
+                  <select
+                    value={profile.dual_voice_alex_id || 'en-US-AndrewNeural'}
+                    onChange={(e) => updateProfile.mutate({ dual_voice_alex_id: e.target.value })}
+                    className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent"
+                    style={{ width: '100%', padding: '10px 16px' }}
+                  >
+                    {voices?.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} — {v.gender}, {v.locale_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                    Dual voice — Sam (expert)
+                  </label>
+                  <select
+                    value={profile.dual_voice_sam_id || 'en-GB-SoniaNeural'}
+                    onChange={(e) => updateProfile.mutate({ dual_voice_sam_id: e.target.value })}
+                    className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent"
+                    style={{ width: '100%', padding: '10px 16px' }}
+                  >
+                    {voices?.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} — {v.gender}, {v.locale_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Single voice prompt */}
+            <div style={{ marginBottom: 24 }}>
+              <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                Single voice prompt
+              </label>
+              <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginBottom: 8 }}>
+                Instructions for generating single-voice podcast scripts. Paper title and summary are appended automatically.
+              </p>
+              <textarea
+                value={singlePrompt}
+                onChange={(e) => { setSinglePrompt(e.target.value); setSinglePromptDirty(true); }}
+                rows={6}
+                className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
+                style={{ width: '100%', padding: '12px 16px', resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                <button
+                  onClick={() => {
+                    updateProfile.mutate({ single_voice_prompt: singlePrompt });
+                    setSinglePromptDirty(false);
+                  }}
+                  disabled={!singlePromptDirty || updateProfile.isPending}
+                  className="rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                  style={{ padding: '8px 16px' }}
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => { setSinglePrompt(defaultSinglePrompt); setSinglePromptDirty(true); }}
+                  className="flex items-center rounded-xl font-mono text-xs text-text-tertiary transition hover:text-text-secondary"
+                  style={{ gap: 6, padding: '8px 12px' }}
+                >
+                  <RotateCcw size={13} /> Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Dual voice prompt */}
+            <div>
+              <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                Dual voice prompt
+              </label>
+              <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginBottom: 8 }}>
+                Instructions for generating dual-voice (conversation) scripts. Use ALEX: and SAM: prefixes. Paper info is appended automatically.
+              </p>
+              <textarea
+                value={dualPrompt}
+                onChange={(e) => { setDualPrompt(e.target.value); setDualPromptDirty(true); }}
+                rows={10}
+                className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
+                style={{ width: '100%', padding: '12px 16px', resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)' }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                <button
+                  onClick={() => {
+                    updateProfile.mutate({ dual_voice_prompt: dualPrompt });
+                    setDualPromptDirty(false);
+                  }}
+                  disabled={!dualPromptDirty || updateProfile.isPending}
+                  className="rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                  style={{ padding: '8px 16px' }}
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => { setDualPrompt(defaultDualPrompt); setDualPromptDirty(true); }}
+                  className="flex items-center rounded-xl font-mono text-xs text-text-tertiary transition hover:text-text-secondary"
+                  style={{ gap: 6, padding: '8px 12px' }}
+                >
+                  <RotateCcw size={13} /> Reset
+                </button>
+              </div>
             </div>
           </section>
 
