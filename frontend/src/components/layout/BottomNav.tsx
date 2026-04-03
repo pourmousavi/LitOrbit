@@ -1,10 +1,10 @@
 import { NavLink } from 'react-router-dom';
-import { Newspaper, LayoutGrid, Share2, Headphones, User } from 'lucide-react';
+import { Newspaper, FolderOpen, Share2, Headphones, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const tabs = [
   { to: '/', icon: Newspaper, label: 'Feed' },
-  { to: '/categories', icon: LayoutGrid, label: 'Categories' },
+  { to: '/categories', icon: FolderOpen, label: 'Collections' },
   { to: '/shared', icon: Share2, label: 'Shared' },
   { to: '/podcasts', icon: Headphones, label: 'Podcasts' },
   { to: '/profile', icon: User, label: 'Profile' },

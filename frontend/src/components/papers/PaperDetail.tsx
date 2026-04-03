@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw, Download } from 'lucide-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw, Download, Plus, X } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePaper } from '@/hooks/usePapers';
 import { usePodcastStatus, useGeneratePodcast } from '@/hooks/usePodcast';
 import { useUIStore } from '@/stores/uiStore';
@@ -503,6 +503,11 @@ export default function PaperDetail() {
               </div>
             </Section>
 
+            {/* Collections */}
+            <Section title="Collections">
+              <CollectionAssigner paperId={paper.id} />
+            </Section>
+
             {/* PDF Upload */}
             <Section title="Upload Full Text">
               <PdfUploadZone paperId={paper.id} hasFullText={!!paper.full_text} />
@@ -553,6 +558,94 @@ function SummaryBlock({ label, text }: { label: string; text: string }) {
     <div>
       <p className="font-mono text-accent" style={{ fontSize: 12, marginBottom: 6 }}>{label}</p>
       <p className="text-text-primary" style={{ fontSize: 13, lineHeight: 1.6 }}>{text}</p>
+    </div>
+  );
+}
+
+function CollectionAssigner({ paperId }: { paperId: string }) {
+  const queryClient = useQueryClient();
+
+  const { data: allCollections } = useQuery({
+    queryKey: ['collections'],
+    queryFn: async () => (await api.get('/api/v1/collections')).data as { id: string; name: string; color: string }[],
+  });
+
+  const { data: paperCollections } = useQuery({
+    queryKey: ['paper-collections', paperId],
+    queryFn: async () => (await api.get(`/api/v1/collections/paper/${paperId}`)).data as { id: string; name: string; color: string }[],
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (collectionId: string) => {
+      await api.post(`/api/v1/collections/${collectionId}/papers`, { paper_id: paperId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['paper-collections', paperId] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (collectionId: string) => {
+      await api.delete(`/api/v1/collections/${collectionId}/papers/${paperId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['paper-collections', paperId] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+    },
+  });
+
+  const assignedIds = new Set(paperCollections?.map((c) => c.id) || []);
+  const unassigned = allCollections?.filter((c) => !assignedIds.has(c.id)) || [];
+
+  return (
+    <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 16 }}>
+      {/* Current collections */}
+      {paperCollections && paperCollections.length > 0 ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: unassigned.length ? 12 : 0 }}>
+          {paperCollections.map((col) => (
+            <span
+              key={col.id}
+              className="flex items-center rounded-full font-mono text-xs text-white"
+              style={{ gap: 6, padding: '4px 12px', backgroundColor: col.color }}
+            >
+              {col.name}
+              <button
+                onClick={() => removeMutation.mutate(col.id)}
+                className="opacity-70 hover:opacity-100"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: unassigned.length ? 12 : 0 }}>
+          Not in any collection
+        </p>
+      )}
+
+      {/* Add to collection */}
+      {unassigned.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {unassigned.map((col) => (
+            <button
+              key={col.id}
+              onClick={() => addMutation.mutate(col.id)}
+              className="flex items-center rounded-full border border-dashed border-border-strong font-mono text-xs text-text-tertiary transition hover:border-accent hover:text-accent"
+              style={{ gap: 4, padding: '4px 12px' }}
+            >
+              <Plus size={11} /> {col.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!allCollections?.length && (
+        <p className="font-mono text-xs text-text-tertiary">
+          No collections yet. Create one from the Collections page.
+        </p>
+      )}
     </div>
   );
 }

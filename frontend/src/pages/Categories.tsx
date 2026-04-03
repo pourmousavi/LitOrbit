@@ -1,76 +1,275 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { LayoutGrid } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { FolderOpen, Plus, X, Trash2, Edit2, Check } from 'lucide-react';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
-import PaperFeed from '@/components/papers/PaperFeed';
-import type { PapersResponse } from '@/types';
+import PaperCard from '@/components/papers/PaperCard';
+import PaperDetail from '@/components/papers/PaperDetail';
+import { useUIStore } from '@/stores/uiStore';
+import type { Paper } from '@/types';
+
+interface Collection {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  paper_count: number;
+}
+
+const COLORS = ['#0891b2', '#8b5cf6', '#ec4899', '#f59e0b', '#22c55e', '#ef4444', '#6366f1', '#14b8a6'];
 
 export default function Categories() {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const selectedPaperId = useUIStore((s) => s.selectedPaperId);
+  const selectPaper = useUIStore((s) => s.selectPaper);
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState(COLORS[0]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
-  const { data } = useQuery<PapersResponse>({
-    queryKey: ['papers', 'categories-extract'],
-    queryFn: async () => {
-      const { data } = await api.get('/api/v1/papers', { params: { per_page: 100 } });
-      return data;
+  const { data: collections } = useQuery<Collection[]>({
+    queryKey: ['collections'],
+    queryFn: async () => (await api.get('/api/v1/collections')).data,
+  });
+
+  const { data: collectionPapers } = useQuery<{ papers: Paper[] }>({
+    queryKey: ['collection-papers', selectedCollection],
+    queryFn: async () => (await api.get(`/api/v1/collections/${selectedCollection}/papers`)).data,
+    enabled: !!selectedCollection,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      await api.post('/api/v1/collections', { name: newName.trim(), color: newColor });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      setNewName('');
+      setShowCreate(false);
     },
   });
 
-  const categories = new Set<string>();
-  data?.papers.forEach((p) => p.categories.forEach((c) => categories.add(c)));
-  const sortedCategories = Array.from(categories).sort();
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/api/v1/collections/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      if (selectedCollection) setSelectedCollection(null);
+    },
+  });
+
+  const renameMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      await api.patch(`/api/v1/collections/${id}`, { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      setEditingId(null);
+    },
+  });
 
   return (
-    <div style={{ padding: '32px 24px' }}>
-      <div style={{ maxWidth: 680, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
-          Categories
-        </h1>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      {/* Main column */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+            Collections
+          </h1>
 
-        {/* Category chips */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={cn(
-              'rounded-full font-mono text-sm transition',
-              !selectedCategory
-                ? 'bg-accent text-white'
-                : 'bg-bg-surface text-text-secondary hover:text-text-primary border border-border-default',
-            )}
-            style={{ padding: '8px 16px' }}
-          >
-            All
-          </button>
-          {sortedCategories.map((cat) => (
+          {/* Collection chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
             <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => setSelectedCollection(null)}
               className={cn(
                 'rounded-full font-mono text-sm transition',
-                selectedCategory === cat
+                !selectedCollection
                   ? 'bg-accent text-white'
                   : 'bg-bg-surface text-text-secondary hover:text-text-primary border border-border-default',
               )}
               style={{ padding: '8px 16px' }}
             >
-              {cat}
+              All
             </button>
-          ))}
-        </div>
-
-        {sortedCategories.length === 0 && !data ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
-            <LayoutGrid className="text-text-tertiary" size={40} />
-            <p style={{ marginTop: 16, fontSize: 18 }} className="font-mono text-text-secondary">No categories yet</p>
-            <p style={{ marginTop: 6 }} className="font-mono text-sm text-text-tertiary">
-              Categories are assigned when papers are summarised
-            </p>
+            {collections?.map((col) => (
+              <div key={col.id} style={{ display: 'flex', alignItems: 'center' }}>
+                {editingId === col.id ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') renameMutation.mutate({ id: col.id, name: editName }); }}
+                      className="rounded-full border border-accent bg-bg-surface font-mono text-sm text-text-primary outline-none"
+                      style={{ padding: '7px 14px', width: 140 }}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => renameMutation.mutate({ id: col.id, name: editName })}
+                      className="text-success"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button onClick={() => setEditingId(null)} className="text-text-tertiary">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setSelectedCollection(col.id)}
+                    className={cn(
+                      'rounded-full font-mono text-sm transition',
+                      selectedCollection === col.id
+                        ? 'text-white'
+                        : 'bg-bg-surface text-text-secondary hover:text-text-primary border border-border-default',
+                    )}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: selectedCollection === col.id ? col.color : undefined,
+                      borderColor: selectedCollection === col.id ? col.color : undefined,
+                    }}
+                  >
+                    {col.name}
+                    <span className="text-xs opacity-70" style={{ marginLeft: 6 }}>{col.paper_count}</span>
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center rounded-full border border-dashed border-border-strong font-mono text-xs text-text-tertiary transition hover:border-accent hover:text-accent"
+              style={{ gap: 4, padding: '8px 14px' }}
+            >
+              <Plus size={13} /> New
+            </button>
           </div>
-        ) : (
-          <PaperFeed category={selectedCategory ?? undefined} />
-        )}
+
+          {/* Selected collection actions */}
+          {selectedCollection && collections && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20, marginTop: 8 }}>
+              <button
+                onClick={() => { const col = collections.find(c => c.id === selectedCollection); if (col) { setEditName(col.name); setEditingId(col.id); } }}
+                className="flex items-center rounded-lg font-mono text-xs text-text-tertiary transition hover:text-text-secondary"
+                style={{ gap: 4, padding: '4px 8px' }}
+              >
+                <Edit2 size={12} /> Rename
+              </button>
+              <button
+                onClick={() => { if (confirm('Delete this collection? Papers will NOT be deleted.')) deleteMutation.mutate(selectedCollection); }}
+                className="flex items-center rounded-lg font-mono text-xs text-text-tertiary transition hover:text-danger"
+                style={{ gap: 4, padding: '4px 8px' }}
+              >
+                <Trash2 size={12} /> Delete
+              </button>
+            </div>
+          )}
+
+          {/* Create form */}
+          {showCreate && (
+            <div className="rounded-2xl border border-accent/30 bg-bg-surface" style={{ padding: 20, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && newName.trim()) createMutation.mutate(); }}
+                  placeholder="Collection name..."
+                  className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-accent"
+                  style={{ flex: 1, padding: '10px 16px' }}
+                  autoFocus
+                />
+                <button
+                  onClick={() => createMutation.mutate()}
+                  disabled={!newName.trim()}
+                  className="rounded-xl bg-accent font-mono text-sm text-white hover:bg-accent-hover disabled:opacity-50"
+                  style={{ padding: '10px 20px' }}
+                >
+                  Create
+                </button>
+                <button onClick={() => setShowCreate(false)} className="text-text-tertiary hover:text-text-primary" style={{ padding: 8 }}>
+                  <X size={16} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setNewColor(c)}
+                    className={cn('rounded-full transition', newColor === c ? 'ring-2 ring-white ring-offset-2 ring-offset-bg-surface' : '')}
+                    style={{ width: 24, height: 24, backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Papers */}
+          {!selectedCollection ? (
+            !collections?.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
+                <FolderOpen className="text-text-tertiary" size={40} />
+                <p style={{ marginTop: 16, fontSize: 18 }} className="font-mono text-text-secondary">No collections yet</p>
+                <p style={{ marginTop: 6 }} className="font-mono text-sm text-text-tertiary">
+                  Create a collection to organize your papers
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginTop: 16 }}>
+                {collections.map((col) => (
+                  <button
+                    key={col.id}
+                    onClick={() => setSelectedCollection(col.id)}
+                    className="rounded-2xl border border-border-default bg-bg-surface text-left transition hover:border-border-strong"
+                    style={{ padding: 20 }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <div className="rounded-full" style={{ width: 12, height: 12, backgroundColor: col.color, flexShrink: 0 }} />
+                      <span className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{col.name}</span>
+                    </div>
+                    <p className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
+                      {col.paper_count} {col.paper_count === 1 ? 'paper' : 'papers'}
+                    </p>
+                    {col.description && (
+                      <p className="text-text-secondary" style={{ fontSize: 13, marginTop: 6 }}>{col.description}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
+              {!collectionPapers?.papers.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60 }}>
+                  <p className="font-mono text-text-secondary" style={{ fontSize: 16 }}>No papers in this collection</p>
+                  <p className="font-mono text-text-tertiary" style={{ marginTop: 6, fontSize: 13 }}>
+                    Add papers from the Feed using the detail panel
+                  </p>
+                </div>
+              ) : (
+                collectionPapers.papers.map((paper) => (
+                  <PaperCard
+                    key={paper.id}
+                    paper={paper}
+                    isSelected={selectedPaperId === paper.id}
+                    onClick={() => selectPaper(paper.id)}
+                  />
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Detail panel */}
+      {selectedPaperId && (
+        <div
+          className="hidden border-l border-border-default bg-bg-surface md:block"
+          style={{ width: 420, flexShrink: 0, overflowY: 'auto', height: '100vh' }}
+        >
+          <PaperDetail />
+        </div>
+      )}
     </div>
   );
 }
