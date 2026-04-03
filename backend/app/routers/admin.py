@@ -92,6 +92,21 @@ async def update_journal(
     return {"status": "updated"}
 
 
+@router.delete("/journals/{journal_id}")
+async def delete_journal(
+    journal_id: str,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    result = await db.execute(select(JournalConfig).where(JournalConfig.id == uuid.UUID(journal_id)))
+    journal = result.scalar_one_or_none()
+    if not journal:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    await db.delete(journal)
+    await db.commit()
+    return {"status": "deleted"}
+
+
 # --- Pipeline ---
 
 @router.get("/pipeline/runs")

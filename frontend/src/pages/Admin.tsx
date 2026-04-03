@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X } from 'lucide-react';
+import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
@@ -85,6 +85,9 @@ export default function Admin() {
 
 function JournalConfigTab() {
   const queryClient = useQueryClient();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [form, setForm] = useState({ name: '', publisher: '', source_type: 'scopus_api', source_identifier: '' });
+
   const { data: journals, isLoading, isError } = useQuery<Journal[]>({
     queryKey: ['admin', 'journals'],
     queryFn: async () => (await api.get('/api/v1/admin/journals')).data,
@@ -97,41 +100,173 @@ function JournalConfigTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'journals'] }),
   });
 
+  const addMutation = useMutation({
+    mutationFn: async (data: typeof form) => {
+      await api.post('/api/v1/admin/journals', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'journals'] });
+      setForm({ name: '', publisher: '', source_type: 'scopus_api', source_identifier: '' });
+      setShowAddForm(false);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/api/v1/admin/journals/${id}`);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'journals'] }),
+  });
+
   if (isLoading) return <LoadingState />;
   if (isError) return <ErrorState message="Failed to load journals" />;
 
-  if (!journals?.length) {
-    return (
-      <EmptyState
-        title="No journals configured"
-        description="Journals will appear here once added via the API or database."
-      />
-    );
-  }
+  const sourceTypes = [
+    { value: 'ieee_api', label: 'IEEE Xplore', hint: 'Publication number (e.g. 61)' },
+    { value: 'scopus_api', label: 'Scopus', hint: 'ISSN (e.g. ISSN:0306-2619)' },
+    { value: 'rss', label: 'RSS Feed', hint: 'Full RSS URL' },
+  ];
+  const activeHint = sourceTypes.find((s) => s.value === form.source_type)?.hint || '';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {journals.map((j) => (
-        <div
-          key={j.id}
-          className="rounded-2xl border border-border-default bg-bg-surface"
-          style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Add button / form */}
+      {!showAddForm ? (
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
+          style={{ gap: 10, padding: '14px 24px', width: 'fit-content' }}
         >
-          <div>
-            <p className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{j.name}</p>
-            <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 6 }}>
-              {j.publisher} &middot; {j.source_type} &middot; {j.source_identifier}
-            </p>
+          <Plus size={16} /> Add Journal
+        </button>
+      ) : (
+        <div className="rounded-2xl border border-accent/30 bg-bg-surface" style={{ padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h3 className="font-mono font-medium text-text-primary" style={{ fontSize: 15 }}>Add New Journal</h3>
+            <button onClick={() => setShowAddForm(false)} className="text-text-tertiary hover:text-text-primary">
+              <X size={18} />
+            </button>
           </div>
-          <button
-            onClick={() => toggleMutation.mutate({ id: j.id, is_active: !j.is_active })}
-            className={cn('transition', j.is_active ? 'text-success' : 'text-text-tertiary')}
-            style={{ flexShrink: 0, marginLeft: 16 }}
-          >
-            {j.is_active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
-          </button>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Journal Name</label>
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Applied Energy"
+                className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+                style={{ width: '100%', padding: '10px 16px' }}
+              />
+            </div>
+
+            <div>
+              <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Publisher</label>
+              <input
+                value={form.publisher}
+                onChange={(e) => setForm({ ...form, publisher: e.target.value })}
+                placeholder="e.g. elsevier, ieee, nature"
+                className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+                style={{ width: '100%', padding: '10px 16px' }}
+              />
+            </div>
+
+            <div>
+              <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Source Type</label>
+              <div className="relative">
+                <select
+                  value={form.source_type}
+                  onChange={(e) => setForm({ ...form, source_type: e.target.value })}
+                  className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent appearance-none"
+                  style={{ width: '100%', padding: '10px 16px', paddingRight: 40 }}
+                >
+                  {sourceTypes.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className="text-text-tertiary" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              </div>
+            </div>
+
+            <div>
+              <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Source Identifier</label>
+              <input
+                value={form.source_identifier}
+                onChange={(e) => setForm({ ...form, source_identifier: e.target.value })}
+                placeholder={activeHint}
+                className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+                style={{ width: '100%', padding: '10px 16px' }}
+              />
+              <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginTop: 6 }}>{activeHint}</p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button
+                onClick={() => addMutation.mutate(form)}
+                disabled={!form.name || !form.publisher || !form.source_identifier || addMutation.isPending}
+                className="flex items-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                style={{ gap: 8, padding: '10px 20px' }}
+              >
+                {addMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                Add Journal
+              </button>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="rounded-xl font-mono text-sm text-text-secondary hover:text-text-primary"
+                style={{ padding: '10px 20px' }}
+              >
+                Cancel
+              </button>
+            </div>
+
+            {addMutation.isError && (
+              <p className="font-mono text-danger" style={{ fontSize: 12 }}>Failed to add journal. Try again.</p>
+            )}
+          </div>
         </div>
-      ))}
+      )}
+
+      {/* Journal list */}
+      {!journals?.length && !showAddForm ? (
+        <EmptyState
+          title="No journals configured"
+          description="Add journals to start discovering papers."
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {journals?.map((j) => (
+            <div
+              key={j.id}
+              className="rounded-2xl border border-border-default bg-bg-surface"
+              style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{j.name}</p>
+                <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 6 }}>
+                  {j.publisher} &middot; {j.source_type.replace('_', ' ')} &middot; {j.source_identifier}
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={() => toggleMutation.mutate({ id: j.id, is_active: !j.is_active })}
+                  className={cn('transition', j.is_active ? 'text-success' : 'text-text-tertiary')}
+                  title={j.is_active ? 'Active — click to disable' : 'Disabled — click to enable'}
+                >
+                  {j.is_active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                </button>
+                <button
+                  onClick={() => { if (confirm(`Remove "${j.name}"?`)) deleteMutation.mutate(j.id); }}
+                  className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-danger"
+                  title="Remove journal"
+                  style={{ padding: 6 }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
