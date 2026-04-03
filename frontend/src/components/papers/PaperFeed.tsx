@@ -5,18 +5,18 @@ import PaperCard from './PaperCard';
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse rounded-xl border border-border-default bg-bg-surface p-4">
-      <div className="mb-3 flex justify-between">
-        <div className="h-5 w-24 rounded bg-bg-elevated" />
-        <div className="h-7 w-10 rounded-lg bg-bg-elevated" />
+    <div className="animate-pulse rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div className="h-6 rounded-lg bg-bg-elevated" style={{ width: 100 }} />
+        <div className="h-8 rounded-xl bg-bg-elevated" style={{ width: 48 }} />
       </div>
-      <div className="mb-2 h-5 w-full rounded bg-bg-elevated" />
-      <div className="mb-3 h-5 w-3/4 rounded bg-bg-elevated" />
-      <div className="mb-2 h-3 w-1/2 rounded bg-bg-elevated" />
-      <div className="space-y-1.5">
+      <div className="h-5 w-full rounded bg-bg-elevated" style={{ marginBottom: 8 }} />
+      <div className="h-5 rounded bg-bg-elevated" style={{ width: '75%', marginBottom: 12 }} />
+      <div className="h-3 rounded bg-bg-elevated" style={{ width: '50%', marginBottom: 16 }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div className="h-3 w-full rounded bg-bg-elevated" />
         <div className="h-3 w-full rounded bg-bg-elevated" />
-        <div className="h-3 w-2/3 rounded bg-bg-elevated" />
+        <div className="h-3 rounded bg-bg-elevated" style={{ width: '66%' }} />
       </div>
     </div>
   );
@@ -34,7 +34,6 @@ export default function PaperFeed({ journal, category }: PaperFeedProps) {
   const selectPaper = useUIStore((s) => s.selectPaper);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Infinite scroll observer
   useEffect(() => {
     if (!sentinelRef.current) return;
     const observer = new IntersectionObserver(
@@ -51,7 +50,7 @@ export default function PaperFeed({ journal, category }: PaperFeedProps) {
 
   if (isLoading) {
     return (
-      <div className="space-y-3">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {Array.from({ length: 5 }).map((_, i) => (
           <SkeletonCard key={i} />
         ))}
@@ -61,11 +60,12 @@ export default function PaperFeed({ journal, category }: PaperFeedProps) {
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
         <p className="font-mono text-sm text-danger">Failed to load papers</p>
         <button
           onClick={() => window.location.reload()}
-          className="mt-3 rounded-lg bg-bg-elevated px-4 py-2 font-mono text-sm text-text-secondary hover:text-text-primary"
+          className="rounded-xl bg-bg-elevated font-mono text-sm text-text-secondary hover:text-text-primary"
+          style={{ marginTop: 12, padding: '10px 20px' }}
         >
           Retry
         </button>
@@ -77,9 +77,9 @@ export default function PaperFeed({ journal, category }: PaperFeedProps) {
 
   if (allPapers.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <p className="font-mono text-lg text-text-secondary">No papers yet</p>
-        <p className="mt-1 font-mono text-sm text-text-tertiary">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
+        <p style={{ fontSize: 18 }} className="font-mono text-text-secondary">No papers yet</p>
+        <p style={{ marginTop: 6 }} className="font-mono text-sm text-text-tertiary">
           Papers will appear here after the pipeline runs
         </p>
       </div>
@@ -87,7 +87,7 @@ export default function PaperFeed({ journal, category }: PaperFeedProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {allPapers.map((paper) => (
         <PaperCard
           key={paper.id}
@@ -97,12 +97,11 @@ export default function PaperFeed({ journal, category }: PaperFeedProps) {
         />
       ))}
 
-      {/* Infinite scroll sentinel */}
-      <div ref={sentinelRef} className="h-4" />
+      <div ref={sentinelRef} style={{ height: 16 }} />
 
       {isFetchingNextPage && (
-        <div className="flex justify-center py-4">
-          <div className="font-mono text-xs text-text-tertiary">Loading more...</div>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+          <span className="font-mono text-xs text-text-tertiary">Loading more...</span>
         </div>
       )}
     </div>

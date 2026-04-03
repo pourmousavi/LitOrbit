@@ -16,30 +16,28 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
     <article
       onClick={onClick}
       className={cn(
-        'group cursor-pointer rounded-xl border border-border-default bg-bg-surface p-4 transition-all',
-        'hover:border-border-strong hover:border-l-accent hover:border-l-2',
-        isSelected && 'border-accent border-l-accent border-l-2 bg-bg-elevated',
+        'group cursor-pointer rounded-2xl border border-border-default bg-bg-surface transition-all',
+        'hover:border-border-strong',
+        isSelected && 'border-accent bg-bg-elevated',
       )}
+      style={{ padding: 20 }}
     >
       {/* Top row: journal badge + score */}
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-md bg-bg-elevated px-2 py-0.5 font-mono text-xs text-text-secondary">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+          <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary" style={{ padding: '4px 10px' }}>
             {paper.journal}
           </span>
           {paper.early_access && (
-            <span className="rounded-md bg-warning/15 px-2 py-0.5 font-mono text-xs text-warning">
+            <span className="rounded-lg bg-warning/15 font-mono text-xs text-warning" style={{ padding: '4px 10px' }}>
               Early Access
             </span>
           )}
         </div>
         {paper.relevance_score !== null && (
           <span
-            className={cn(
-              'shrink-0 rounded-lg px-2.5 py-1 font-mono text-sm font-medium',
-              scoreBg,
-              scoreColor,
-            )}
+            className={cn('rounded-xl font-mono text-sm font-semibold', scoreBg, scoreColor)}
+            style={{ padding: '6px 12px', flexShrink: 0 }}
           >
             {paper.relevance_score.toFixed(1)}
           </span>
@@ -47,12 +45,12 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
       </div>
 
       {/* Title */}
-      <h3 className="mb-1.5 font-serif text-base leading-snug font-semibold text-text-primary line-clamp-2">
+      <h3 className="font-serif font-semibold text-text-primary line-clamp-2" style={{ fontSize: 16, lineHeight: 1.45, marginBottom: 8 }}>
         {paper.title}
       </h3>
 
       {/* Authors + Date */}
-      <p className="mb-2 font-mono text-xs text-text-secondary">
+      <p className="font-mono text-xs text-text-secondary" style={{ marginBottom: 12 }}>
         {paper.authors.slice(0, 3).join(', ')}
         {paper.authors.length > 3 && ` +${paper.authors.length - 3}`}
         {paper.published_date && ` · ${formatDate(paper.published_date)}`}
@@ -74,44 +72,48 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
 
       {/* Abstract preview */}
       {paper.abstract && (
-        <p className="mb-3 text-sm leading-relaxed text-text-secondary line-clamp-3">
+        <p className="text-sm leading-relaxed text-text-secondary line-clamp-3" style={{ marginBottom: 16 }}>
           {paper.abstract}
         </p>
       )}
 
       {/* Bottom row: categories + actions */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {paper.categories.slice(0, 3).map((cat) => (
             <span
               key={cat}
-              className="rounded-full bg-bg-elevated px-2 py-0.5 font-mono text-xs text-text-tertiary"
+              className="rounded-full bg-bg-elevated font-mono text-xs text-text-tertiary"
+              style={{ padding: '3px 10px' }}
             >
               {cat}
             </span>
           ))}
         </div>
-        <div className="flex items-center gap-1">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button
-            className="rounded-md p-1.5 text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
+            className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
             onClick={(e) => { e.stopPropagation(); }}
             title="Play podcast"
+            style={{ padding: 8 }}
           >
-            <Headphones size={15} />
+            <Headphones size={16} />
           </button>
           <button
-            className="rounded-md p-1.5 text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
+            className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
             onClick={(e) => { e.stopPropagation(); }}
             title="Share"
+            style={{ padding: 8 }}
           >
-            <Share2 size={15} />
+            <Share2 size={16} />
           </button>
           <button
-            className="rounded-md p-1.5 text-text-tertiary transition hover:bg-bg-elevated hover:text-warning"
+            className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-warning"
             onClick={(e) => { e.stopPropagation(); }}
             title="Rate"
+            style={{ padding: 8 }}
           >
-            <Star size={15} />
+            <Star size={16} />
           </button>
         </div>
       </div>

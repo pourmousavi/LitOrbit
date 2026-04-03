@@ -6,14 +6,13 @@ export default function Feed() {
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
 
   return (
-    <div className="flex min-h-svh">
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Feed column */}
-      <div
-        className="flex-1 overflow-y-auto p-6"
-        style={{ display: selectedPaperId ? undefined : 'block' }}
-      >
-        <div className="mx-auto max-w-2xl">
-          <h1 className="mb-6 font-mono text-xl font-medium text-text-primary">Paper Feed</h1>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+            Paper Feed
+          </h1>
           <PaperFeed />
         </div>
       </div>
@@ -22,7 +21,7 @@ export default function Feed() {
       {selectedPaperId && (
         <div
           className="hidden border-l border-border-default bg-bg-surface md:block"
-          style={{ width: 400, flexShrink: 0 }}
+          style={{ width: 420, flexShrink: 0, overflowY: 'auto' }}
         >
           <PaperDetail />
         </div>

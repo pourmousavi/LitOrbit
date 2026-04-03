@@ -9,7 +9,6 @@ import type { PapersResponse } from '@/types';
 export default function Categories() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Fetch all papers to extract unique categories
   const { data } = useQuery<PapersResponse>({
     queryKey: ['papers', 'categories-extract'],
     queryFn: async () => {
@@ -23,45 +22,55 @@ export default function Categories() {
   const sortedCategories = Array.from(categories).sort();
 
   return (
-    <div className="mx-auto max-w-2xl p-4">
-      <h1 className="mb-4 font-mono text-lg font-medium text-text-primary">Categories</h1>
+    <div style={{ padding: '32px 24px' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+          Categories
+        </h1>
 
-      {/* Category chips */}
-      <div className="mb-6 flex flex-wrap gap-2">
-        <button
-          onClick={() => setSelectedCategory(null)}
-          className={cn(
-            'rounded-full px-3 py-1.5 font-mono text-xs transition',
-            !selectedCategory ? 'bg-accent text-white' : 'bg-bg-surface text-text-secondary hover:text-text-primary border border-border-default',
-          )}
-        >
-          All
-        </button>
-        {sortedCategories.map((cat) => (
+        {/* Category chips */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
           <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
+            onClick={() => setSelectedCategory(null)}
             className={cn(
-              'rounded-full px-3 py-1.5 font-mono text-xs transition',
-              selectedCategory === cat ? 'bg-accent text-white' : 'bg-bg-surface text-text-secondary hover:text-text-primary border border-border-default',
+              'rounded-full font-mono text-sm transition',
+              !selectedCategory
+                ? 'bg-accent text-white'
+                : 'bg-bg-surface text-text-secondary hover:text-text-primary border border-border-default',
             )}
+            style={{ padding: '8px 16px' }}
           >
-            {cat}
+            All
           </button>
-        ))}
-      </div>
-
-      {sortedCategories.length === 0 && !data ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <LayoutGrid className="mb-3 text-text-tertiary" size={32} />
-          <p className="font-mono text-lg text-text-secondary">No categories yet</p>
-          <p className="mt-1 font-mono text-sm text-text-tertiary">
-            Categories are assigned when papers are summarised
-          </p>
+          {sortedCategories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={cn(
+                'rounded-full font-mono text-sm transition',
+                selectedCategory === cat
+                  ? 'bg-accent text-white'
+                  : 'bg-bg-surface text-text-secondary hover:text-text-primary border border-border-default',
+              )}
+              style={{ padding: '8px 16px' }}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
-      ) : (
-        <PaperFeed category={selectedCategory ?? undefined} />
-      )}
+
+        {sortedCategories.length === 0 && !data ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
+            <LayoutGrid className="text-text-tertiary" size={40} />
+            <p style={{ marginTop: 16, fontSize: 18 }} className="font-mono text-text-secondary">No categories yet</p>
+            <p style={{ marginTop: 6 }} className="font-mono text-sm text-text-tertiary">
+              Categories are assigned when papers are summarised
+            </p>
+          </div>
+        ) : (
+          <PaperFeed category={selectedCategory ?? undefined} />
+        )}
+      </div>
     </div>
   );
 }

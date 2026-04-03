@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Mail, MailOpen } from 'lucide-react';
+import { Mail, MailOpen, Share2 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -41,73 +41,83 @@ export default function SharedWithMe() {
 
   if (isLoading) {
     return (
-      <div className="p-4">
-        <h1 className="mb-4 font-mono text-lg font-medium text-text-primary">Shared with Me</h1>
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="animate-pulse rounded-xl border border-border-default bg-bg-surface p-4">
-              <div className="h-4 w-3/4 rounded bg-bg-elevated" />
-              <div className="mt-2 h-3 w-1/2 rounded bg-bg-elevated" />
-            </div>
-          ))}
+      <div style={{ padding: '32px 24px' }}>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+            Shared with Me
+          </h1>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
+                <div className="h-5 w-3/4 rounded bg-bg-elevated" />
+                <div className="mt-3 h-4 w-1/2 rounded bg-bg-elevated" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-4">
-      <h1 className="mb-4 font-mono text-lg font-medium text-text-primary">Shared with Me</h1>
+    <div style={{ padding: '32px 24px' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+          Shared with Me
+        </h1>
 
-      {!shares?.length ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <p className="font-mono text-lg text-text-secondary">Nothing shared yet</p>
-          <p className="mt-1 font-mono text-sm text-text-tertiary">
-            Papers shared with you will appear here
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {shares.map((share) => (
-            <article
-              key={share.id}
-              className={cn(
-                'rounded-xl border border-border-default bg-bg-surface p-4 transition',
-                !share.is_read && 'border-l-2 border-l-accent',
-              )}
-              onClick={() => {
-                if (!share.is_read) markRead.mutate(share.id);
-              }}
-            >
-              <div className="mb-2 flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  {share.is_read ? (
-                    <MailOpen size={14} className="text-text-tertiary" />
-                  ) : (
-                    <Mail size={14} className="text-accent" />
-                  )}
-                  <span className="font-mono text-xs text-text-secondary">
-                    From {share.sharer_name} · {formatDate(share.shared_at)}
+        {!shares?.length ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
+            <Share2 className="text-text-tertiary" size={40} />
+            <p style={{ marginTop: 16, fontSize: 18 }} className="font-mono text-text-secondary">Nothing shared yet</p>
+            <p style={{ marginTop: 6 }} className="font-mono text-sm text-text-tertiary">
+              Papers shared with you will appear here
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {shares.map((share) => (
+              <article
+                key={share.id}
+                className={cn(
+                  'rounded-2xl border border-border-default bg-bg-surface transition cursor-pointer hover:border-border-strong',
+                  !share.is_read && 'border-l-[3px] border-l-accent',
+                )}
+                style={{ padding: 20 }}
+                onClick={() => {
+                  if (!share.is_read) markRead.mutate(share.id);
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {share.is_read ? (
+                      <MailOpen size={16} className="text-text-tertiary" />
+                    ) : (
+                      <Mail size={16} className="text-accent" />
+                    )}
+                    <span className="font-mono text-sm text-text-secondary">
+                      From <strong className="text-text-primary">{share.sharer_name}</strong> &middot; {formatDate(share.shared_at)}
+                    </span>
+                  </div>
+                  <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary" style={{ padding: '4px 10px' }}>
+                    {share.paper.journal}
                   </span>
                 </div>
-                <span className="rounded-md bg-bg-elevated px-2 py-0.5 font-mono text-xs text-text-secondary">
-                  {share.paper.journal}
-                </span>
-              </div>
 
-              <h3 className="mb-1 font-serif text-sm font-semibold text-text-primary">
-                {share.paper.title}
-              </h3>
+                <h3 className="font-serif font-semibold text-text-primary" style={{ fontSize: 16, lineHeight: 1.4 }}>
+                  {share.paper.title}
+                </h3>
 
-              {share.annotation && (
-                <div className="mt-2 rounded-md bg-accent-subtle px-3 py-2">
-                  <p className="text-sm text-text-secondary italic">"{share.annotation}"</p>
-                </div>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
+                {share.annotation && (
+                  <div className="rounded-xl bg-accent-subtle" style={{ marginTop: 12, padding: '12px 16px' }}>
+                    <p className="text-sm text-text-secondary italic">&ldquo;{share.annotation}&rdquo;</p>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
