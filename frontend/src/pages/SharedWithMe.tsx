@@ -104,7 +104,7 @@ export default function SharedWithMe() {
                   </span>
                 </div>
 
-                <h3 className="font-serif font-semibold text-text-primary" style={{ fontSize: 16, lineHeight: 1.4 }}>
+                <h3 className="font-sans font-semibold text-text-primary" style={{ fontSize: 16, lineHeight: 1.4 }}>
                   {share.paper.title}
                 </h3>
 

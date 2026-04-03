@@ -83,7 +83,7 @@ export default function MyRatings() {
 
                 {/* Paper info */}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <h3 className="font-serif font-semibold text-text-primary" style={{ fontSize: 15, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <h3 className="font-sans font-semibold text-text-primary" style={{ fontSize: 15, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.paper_title}
                   </h3>
                   <p className="font-mono text-xs text-text-secondary" style={{ marginTop: 4 }}>

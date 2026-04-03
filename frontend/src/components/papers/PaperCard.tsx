@@ -45,7 +45,7 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
       </div>
 
       {/* Title */}
-      <h3 className="font-serif font-semibold text-text-primary line-clamp-2" style={{ fontSize: 16, lineHeight: 1.45, marginBottom: 8 }}>
+      <h3 className="font-sans font-semibold text-text-primary line-clamp-2" style={{ fontSize: 16, lineHeight: 1.45, marginBottom: 8 }}>
         {paper.title}
       </h3>
 

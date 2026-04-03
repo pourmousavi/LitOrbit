@@ -101,7 +101,7 @@ export default function PodcastPlayer() {
       <div style={{ maxWidth: 960, margin: '0 auto', height: '100%', display: 'flex', alignItems: 'center', gap: 16, padding: '0 20px' }}>
         {/* Track info */}
         <div style={{ minWidth: 0, flex: 1 }}>
-          <p className="truncate font-serif text-text-primary" style={{ fontSize: 14 }}>{currentPaperTitle}</p>
+          <p className="truncate font-sans text-text-primary" style={{ fontSize: 14 }}>{currentPaperTitle}</p>
           <p className="truncate font-mono text-text-secondary" style={{ fontSize: 12 }}>{currentJournal}</p>
         </div>
 

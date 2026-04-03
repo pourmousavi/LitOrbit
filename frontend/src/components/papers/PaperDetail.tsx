@@ -229,7 +229,7 @@ export default function PaperDetail() {
             </div>
 
             {/* Title */}
-            <h2 className="font-serif font-semibold text-text-primary" style={{ fontSize: 20, lineHeight: 1.35 }}>
+            <h2 className="font-sans font-semibold text-text-primary" style={{ fontSize: 20, lineHeight: 1.35 }}>
               {paper.title}
             </h2>
 

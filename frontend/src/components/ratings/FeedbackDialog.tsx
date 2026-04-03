@@ -40,7 +40,7 @@ export default function FeedbackDialog({ question, options, onSelect, onDismiss 
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
-          <p className="font-serif text-text-primary" style={{ fontSize: 14, lineHeight: 1.5 }}>{question}</p>
+          <p className="font-sans text-text-primary" style={{ fontSize: 14, lineHeight: 1.5 }}>{question}</p>
           <button
             onClick={() => {
               setVisible(false);

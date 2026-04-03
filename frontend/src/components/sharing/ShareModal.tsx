@@ -70,7 +70,7 @@ export default function ShareModal({ paper, onClose }: ShareModalProps) {
           className="rounded-xl bg-bg-base border border-border-default"
           style={{ padding: '12px 16px', marginBottom: 20 }}
         >
-          <p className="font-serif text-sm text-text-secondary line-clamp-2" style={{ lineHeight: 1.5 }}>
+          <p className="font-sans text-sm text-text-secondary line-clamp-2" style={{ lineHeight: 1.5 }}>
             {paper.title}
           </p>
         </div>

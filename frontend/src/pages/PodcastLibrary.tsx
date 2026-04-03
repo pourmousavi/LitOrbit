@@ -73,7 +73,7 @@ export default function PodcastLibrary() {
                     </button>
                   </div>
 
-                  <h3 className="font-serif font-semibold text-text-primary line-clamp-2" style={{ fontSize: 15, lineHeight: 1.4 }}>
+                  <h3 className="font-sans font-semibold text-text-primary line-clamp-2" style={{ fontSize: 15, lineHeight: 1.4 }}>
                     {podcast.paper_title}
                   </h3>
 

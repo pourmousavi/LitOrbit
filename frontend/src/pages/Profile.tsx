@@ -98,7 +98,7 @@ export default function Profile() {
             <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 16 }}>
               Account
             </h2>
-            <p className="font-serif text-text-primary" style={{ fontSize: 20 }}>{profile.full_name}</p>
+            <p className="font-sans text-text-primary" style={{ fontSize: 20 }}>{profile.full_name}</p>
             <p className="font-mono text-sm text-text-secondary" style={{ marginTop: 4 }}>{profile.email}</p>
             <span
               className={cn(
