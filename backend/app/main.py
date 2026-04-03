@@ -12,9 +12,13 @@ app = FastAPI(
     description="Academic research intelligence platform",
 )
 
+allowed_origins = ["http://localhost:5173"]
+if settings.frontend_url and settings.frontend_url != "http://localhost:5173":
+    allowed_origins.append(settings.frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
