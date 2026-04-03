@@ -378,6 +378,17 @@ function PipelineStatusTab() {
     },
   });
 
+  const deleteBatchMutation = useMutation({
+    mutationFn: async (runId: string) => {
+      const { data } = await api.delete(`/api/v1/admin/pipeline/runs/${runId}/papers`);
+      return data as { papers_deleted: number };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'pipeline'] });
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
+    },
+  });
+
   const rescoreMutation = useMutation({
     mutationFn: async (runId: string) => {
       const { data } = await api.post(`/api/v1/admin/rescore/${runId}`);
@@ -487,9 +498,9 @@ function PipelineStatusTab() {
                 </p>
               )}
 
-              {/* Per-run re-score button */}
+              {/* Per-run actions */}
               {run.status === 'success' && run.papers_processed > 0 && (
-                <div style={{ marginTop: 14 }}>
+                <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <button
                     onClick={() => { if (confirm(`Re-score ${run.papers_processed} papers from this batch?`)) rescoreMutation.mutate(run.id); }}
                     disabled={rescoreMutation.isPending}
@@ -497,11 +508,25 @@ function PipelineStatusTab() {
                     style={{ gap: 6, padding: '8px 14px' }}
                   >
                     {rescoreMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Activity size={13} />}
-                    Re-score this batch
+                    Re-score
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Delete all ${run.papers_processed} papers from this batch? This cannot be undone.`)) deleteBatchMutation.mutate(run.id); }}
+                    disabled={deleteBatchMutation.isPending}
+                    className="flex items-center rounded-xl border border-border-default font-mono text-xs text-text-secondary transition hover:border-danger hover:text-danger disabled:opacity-50"
+                    style={{ gap: 6, padding: '8px 14px' }}
+                  >
+                    {deleteBatchMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    Delete batch
                   </button>
                   {rescoreMutation.isSuccess && rescoreMutation.variables === run.id && (
-                    <span className="font-mono text-success" style={{ fontSize: 11, marginLeft: 10 }}>
+                    <span className="font-mono text-success" style={{ fontSize: 11 }}>
                       Re-scoring {rescoreMutation.data?.papers_count} papers...
+                    </span>
+                  )}
+                  {deleteBatchMutation.isSuccess && deleteBatchMutation.variables === run.id && (
+                    <span className="font-mono text-success" style={{ fontSize: 11 }}>
+                      Deleted {deleteBatchMutation.data?.papers_deleted} papers
                     </span>
                   )}
                 </div>

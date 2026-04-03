@@ -72,6 +72,7 @@ async def fetch_scopus_papers(
             "journal": entry.get("prism:publicationName", ""),
             "journal_source": "scopus",
             "published_date": entry.get("prism:coverDate"),
+            "online_date": entry.get("prism:coverDate"),
             "early_access": False,
             "url": entry.get("prism:url", ""),
         })

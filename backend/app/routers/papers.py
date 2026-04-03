@@ -156,6 +156,119 @@ async def get_paper(
     }
 
 
+@router.delete("/{paper_id}")
+async def delete_paper(
+    paper_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete a paper and all associated data."""
+    try:
+        pid = uuid.UUID(paper_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid paper ID")
+
+    result = await db.execute(select(Paper).where(Paper.id == pid))
+    paper = result.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    await db.delete(paper)
+    await db.commit()
+    return {"status": "deleted"}
+
+
+@router.post("/{paper_id}/rescore")
+async def rescore_paper(
+    paper_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Re-score a single paper for all users."""
+    from sqlalchemy import delete
+    from app.services.ranking.scorer import score_paper_for_all_users
+    from app.services.summariser import generate_summary
+    from app.models.user_profile import UserProfile
+
+    try:
+        pid = uuid.UUID(paper_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid paper ID")
+
+    result = await db.execute(select(Paper).where(Paper.id == pid))
+    paper = result.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    # Delete existing scores
+    del_result = await db.execute(delete(PaperScore).where(PaperScore.paper_id == pid))
+    old_scores = del_result.rowcount
+    await db.commit()
+
+    # Get all users
+    users_result = await db.execute(select(UserProfile))
+    users = [
+        {
+            "id": str(u.id),
+            "full_name": u.full_name,
+            "interest_keywords": u.interest_keywords or [],
+            "interest_categories": u.interest_categories or [],
+            "interest_vector": u.interest_vector or {},
+        }
+        for u in users_result.scalars().all()
+    ]
+
+    if not users:
+        return {"status": "no_users", "message": "No users found to score for"}
+
+    paper_dict = {
+        "id": str(paper.id),
+        "title": paper.title,
+        "abstract": paper.abstract or "",
+        "authors": paper.authors,
+        "journal": paper.journal,
+    }
+
+    # Score for all users
+    scores = await score_paper_for_all_users(paper_dict, users)
+
+    # Save scores
+    for score_data in scores:
+        score = PaperScore(
+            id=uuid.uuid4(),
+            paper_id=pid,
+            user_id=uuid.UUID(score_data["user_id"]),
+            relevance_score=score_data["score"],
+            score_reasoning=score_data.get("reasoning"),
+        )
+        db.add(score)
+
+    # Re-generate summary if any score >= 5.0
+    max_score = max(s["score"] for s in scores) if scores else 0
+    summary_regenerated = False
+    if max_score >= 5.0:
+        summary = await generate_summary(paper_dict)
+        if summary:
+            paper.summary = json.dumps(summary)
+            paper.categories = summary.get("categories", [])
+            paper.summary_generated_at = datetime.now(timezone.utc)
+            summary_regenerated = True
+
+    await db.commit()
+
+    return {
+        "status": "success",
+        "old_scores_deleted": old_scores,
+        "new_scores": len(scores),
+        "max_score": round(max_score, 1),
+        "summary_regenerated": summary_regenerated,
+        "scores": [
+            {"user": s["user_id"][:8], "score": round(s["score"], 1), "reasoning": s["reasoning"]}
+            for s in scores
+        ],
+    }
+
+
 @router.post("/{paper_id}/upload-pdf")
 async def upload_pdf(
     paper_id: str,

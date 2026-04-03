@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePaper } from '@/hooks/usePapers';
 import { usePodcastStatus, useGeneratePodcast } from '@/hooks/usePodcast';
@@ -154,6 +154,27 @@ export default function PaperDetail() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/api/v1/papers/${selectedPaperId}`);
+    },
+    onSuccess: () => {
+      selectPaper(null);
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
+    },
+  });
+
+  const rescoreMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/api/v1/papers/${selectedPaperId}/rescore`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['paper', selectedPaperId] });
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
+    },
+  });
+
   const feedbackMutation = useMutation({
     mutationFn: async ({ ratingId, option }: { ratingId: string; option: string }) => {
       await api.post(`/api/v1/ratings/${ratingId}/feedback`, null, {
@@ -202,13 +223,34 @@ export default function PaperDetail() {
             <ArrowLeft size={16} />
             <span className="md:hidden">Back</span>
           </button>
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
-            style={{ padding: 8 }}
-          >
-            <Share2 size={16} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              onClick={() => rescoreMutation.mutate()}
+              disabled={rescoreMutation.isPending}
+              className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
+              style={{ padding: 8 }}
+              title="Re-score this paper"
+            >
+              {rescoreMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+            </button>
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
+              style={{ padding: 8 }}
+              title="Share"
+            >
+              <Share2 size={16} />
+            </button>
+            <button
+              onClick={() => { if (confirm('Delete this paper?')) deleteMutation.mutate(); }}
+              disabled={deleteMutation.isPending}
+              className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-danger"
+              style={{ padding: 8 }}
+              title="Delete paper"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable content */}
@@ -276,6 +318,25 @@ export default function PaperDetail() {
                 {paper.score_reasoning && (
                   <p className="text-text-secondary" style={{ fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>{paper.score_reasoning}</p>
                 )}
+              </div>
+            )}
+
+            {/* Re-score result */}
+            {rescoreMutation.isSuccess && rescoreMutation.data && (
+              <div className="rounded-2xl border border-success/30 bg-success/5" style={{ padding: 16 }}>
+                <p className="font-mono font-medium text-success" style={{ fontSize: 13, marginBottom: 8 }}>Re-score complete</p>
+                <div className="font-mono text-text-secondary" style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span>New score: <strong className="text-text-primary">{rescoreMutation.data.max_score}/10</strong></span>
+                  <span>Summary {rescoreMutation.data.summary_regenerated ? 'regenerated' : 'unchanged'}</span>
+                  {rescoreMutation.data.scores?.map((s: { user: string; score: number; reasoning: string }) => (
+                    <span key={s.user} className="text-text-tertiary">{s.reasoning}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {rescoreMutation.isError && (
+              <div className="rounded-2xl border border-danger/30 bg-danger/5" style={{ padding: 16 }}>
+                <p className="font-mono text-sm text-danger">Re-scoring failed. Try again.</p>
               </div>
             )}
 

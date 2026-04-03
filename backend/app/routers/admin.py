@@ -162,6 +162,39 @@ async def trigger_pipeline(
     return {"status": "triggered"}
 
 
+# --- Delete batch ---
+
+@router.delete("/pipeline/runs/{run_id}/papers")
+async def delete_run_papers(
+    run_id: str,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete all papers from a specific pipeline run."""
+    from app.models.paper import Paper
+
+    result = await db.execute(select(PipelineRun).where(PipelineRun.id == uuid.UUID(run_id)))
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if not run.started_at:
+        raise HTTPException(status_code=400, detail="Run has no start time")
+
+    end_time = run.completed_at or run.started_at
+    paper_result = await db.execute(
+        select(Paper).where(
+            Paper.created_at >= run.started_at,
+            Paper.created_at <= end_time,
+        )
+    )
+    papers = paper_result.scalars().all()
+    count = len(papers)
+    for p in papers:
+        await db.delete(p)
+    await db.commit()
+    return {"status": "deleted", "papers_deleted": count}
+
+
 # --- Re-score ---
 
 @router.post("/rescore/{run_id}")
