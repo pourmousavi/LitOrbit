@@ -1,5 +1,5 @@
-import { useState, type KeyboardEvent } from 'react';
-import { Plus, X, Loader2 } from 'lucide-react';
+import { useState, useEffect, type KeyboardEvent } from 'react';
+import { Plus, X, Loader2, RotateCcw } from 'lucide-react';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
 import { cn } from '@/lib/utils';
 
@@ -53,6 +53,20 @@ export default function Profile() {
   const { data: profile, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
   const [newKeyword, setNewKeyword] = useState('');
+  const [scoringPrompt, setScoringPrompt] = useState('');
+  const [promptDirty, setPromptDirty] = useState(false);
+
+  const defaultPrompt = `You are a research relevance scoring assistant. You will be given a paper's title, abstract, and keywords, along with a researcher's interest profile. Score the paper's relevance to this specific researcher on a scale of 0.0 to 10.0. Consider how well the paper's topic, methods, and findings align with the researcher's stated interests.
+
+Return ONLY valid JSON in this exact format:
+{"score": 7.5, "reasoning": "One sentence explanation of why this score was given."}`;
+
+  useEffect(() => {
+    if (profile) {
+      setScoringPrompt(profile.scoring_prompt || defaultPrompt);
+      setPromptDirty(false);
+    }
+  }, [profile?.scoring_prompt]);
 
   if (isLoading || !profile) {
     return (
@@ -219,6 +233,44 @@ export default function Profile() {
                   ))}
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* Scoring Prompt */}
+          <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+            <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 8 }}>
+              Scoring Prompt
+            </h2>
+            <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 16 }}>
+              This prompt is sent to the AI when scoring papers for your relevance. Customise it to match your research focus.
+            </p>
+            <textarea
+              value={scoringPrompt}
+              onChange={(e) => { setScoringPrompt(e.target.value); setPromptDirty(true); }}
+              rows={8}
+              className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
+              style={{ width: '100%', padding: '12px 16px', resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)' }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+              <button
+                onClick={() => {
+                  updateProfile.mutate({ scoring_prompt: scoringPrompt });
+                  setPromptDirty(false);
+                }}
+                disabled={!promptDirty || updateProfile.isPending}
+                className="rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                style={{ padding: '10px 20px' }}
+              >
+                Save Prompt
+              </button>
+              <button
+                onClick={() => { setScoringPrompt(defaultPrompt); setPromptDirty(true); }}
+                className="flex items-center rounded-xl font-mono text-xs text-text-tertiary transition hover:text-text-secondary"
+                style={{ gap: 6, padding: '10px 14px' }}
+                title="Reset to default"
+              >
+                <RotateCcw size={13} /> Reset to default
+              </button>
             </div>
           </section>
 

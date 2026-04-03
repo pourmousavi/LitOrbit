@@ -47,6 +47,7 @@ export interface UserProfile {
   podcast_preference: 'single' | 'dual';
   email_digest_enabled: boolean;
   digest_frequency: 'daily' | 'weekly';
+  scoring_prompt: string | null;
 }
 
 export interface Rating {

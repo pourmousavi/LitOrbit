@@ -21,5 +21,6 @@ class UserProfile(Base):
     podcast_preference: Mapped[str] = mapped_column(String, default="single")
     email_digest_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     digest_frequency: Mapped[str] = mapped_column(String, default="weekly")
+    scoring_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

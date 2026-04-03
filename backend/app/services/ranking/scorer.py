@@ -9,12 +9,11 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are a research relevance scoring assistant for an academic research group \
-specialising in battery energy storage systems, electricity markets, power system \
-operation, renewable energy integration, and AI/ML methods for energy systems.
-
-You will be given a paper's title and abstract, and a researcher's interest profile. \
+DEFAULT_SCORING_PROMPT = """You are a research relevance scoring assistant. \
+You will be given a paper's title, abstract, and keywords, along with a researcher's interest profile. \
 Score the paper's relevance to this specific researcher on a scale of 0.0 to 10.0. \
+Consider how well the paper's topic, methods, and findings align with the researcher's stated interests.
+
 Return ONLY valid JSON in this exact format:
 {"score": 7.5, "reasoning": "One sentence explanation of why this score was given."}"""
 
@@ -23,6 +22,7 @@ async def score_paper_for_user(
     paper: dict[str, Any],
     user: dict[str, Any],
     client: anthropic.AsyncAnthropic | None = None,
+    custom_prompt: str | None = None,
 ) -> dict[str, Any]:
     """Score a single paper's relevance to a single user using Claude Haiku.
 
@@ -53,10 +53,15 @@ Keywords of interest: {', '.join(user.get('interest_keywords', []))}
 Research focus areas: {', '.join(user.get('interest_categories', []))}"""
 
     try:
+        system_prompt = custom_prompt or DEFAULT_SCORING_PROMPT
+        # Ensure the JSON format instruction is always present
+        if '{"score"' not in system_prompt:
+            system_prompt += '\n\nReturn ONLY valid JSON: {"score": 7.5, "reasoning": "..."}'
+
         response = await client.messages.create(
             model=get_settings().claude_model_fast,
             max_tokens=200,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         )
 
@@ -94,7 +99,7 @@ async def score_paper_for_all_users(
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     tasks = [
-        score_paper_for_user(paper, user, client)
+        score_paper_for_user(paper, user, client, user.get("scoring_prompt"))
         for user in users
     ]
     results = await asyncio.gather(*tasks)

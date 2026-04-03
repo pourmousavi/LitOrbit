@@ -19,6 +19,7 @@ class ProfileUpdate(BaseModel):
     podcast_preference: str | None = None
     email_digest_enabled: bool | None = None
     digest_frequency: str | None = None
+    scoring_prompt: str | None = None
 
 
 @router.get("/me")
@@ -45,6 +46,7 @@ async def get_my_profile(
         "podcast_preference": profile.podcast_preference,
         "email_digest_enabled": profile.email_digest_enabled,
         "digest_frequency": profile.digest_frequency,
+        "scoring_prompt": profile.scoring_prompt,
     }
 
 
@@ -72,6 +74,8 @@ async def update_my_profile(
         profile.email_digest_enabled = req.email_digest_enabled
     if req.digest_frequency is not None:
         profile.digest_frequency = req.digest_frequency
+    if req.scoring_prompt is not None:
+        profile.scoring_prompt = req.scoring_prompt if req.scoring_prompt.strip() else None
 
     await db.commit()
     return {"status": "updated"}
