@@ -379,9 +379,9 @@ function PipelineStatusTab() {
   });
 
   const rescoreMutation = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post('/api/v1/admin/rescore');
-      return data as { scores_deleted: number };
+    mutationFn: async (runId: string) => {
+      const { data } = await api.post(`/api/v1/admin/rescore/${runId}`);
+      return data as { papers_count: number; scores_deleted: number };
     },
   });
 
@@ -397,23 +397,9 @@ function PipelineStatusTab() {
           {triggerMutation.isPending || isRunning ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
           {isRunning ? 'Fetching...' : 'Fetch Papers Now'}
         </button>
-        <button
-          onClick={() => { if (confirm('This will re-score all papers with the AI. Continue?')) rescoreMutation.mutate(); }}
-          disabled={rescoreMutation.isPending || !!isRunning}
-          className="flex items-center rounded-2xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-accent hover:text-accent disabled:opacity-50"
-          style={{ gap: 10, padding: '14px 24px' }}
-        >
-          {rescoreMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
-          Re-score All Papers
-        </button>
         {isRunning && (
           <span className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
             Auto-refreshing every 3s
-          </span>
-        )}
-        {rescoreMutation.isSuccess && (
-          <span className="font-mono text-success" style={{ fontSize: 12 }}>
-            Re-scoring started ({rescoreMutation.data?.scores_deleted} old scores cleared)
           </span>
         )}
       </div>
@@ -499,6 +485,26 @@ function PipelineStatusTab() {
                 >
                   {run.error_message}
                 </p>
+              )}
+
+              {/* Per-run re-score button */}
+              {run.status === 'success' && run.papers_processed > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <button
+                    onClick={() => { if (confirm(`Re-score ${run.papers_processed} papers from this batch?`)) rescoreMutation.mutate(run.id); }}
+                    disabled={rescoreMutation.isPending}
+                    className="flex items-center rounded-xl border border-border-default font-mono text-xs text-text-secondary transition hover:border-accent hover:text-accent disabled:opacity-50"
+                    style={{ gap: 6, padding: '8px 14px' }}
+                  >
+                    {rescoreMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Activity size={13} />}
+                    Re-score this batch
+                  </button>
+                  {rescoreMutation.isSuccess && rescoreMutation.variables === run.id && (
+                    <span className="font-mono text-success" style={{ fontSize: 11, marginLeft: 10 }}>
+                      Re-scoring {rescoreMutation.data?.papers_count} papers...
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           ))}

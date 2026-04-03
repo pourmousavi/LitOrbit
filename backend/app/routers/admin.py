@@ -164,38 +164,62 @@ async def trigger_pipeline(
 
 # --- Re-score ---
 
-@router.post("/rescore")
-async def rescore_all_papers(
+@router.post("/rescore/{run_id}")
+async def rescore_run(
+    run_id: str,
     background_tasks: BackgroundTasks,
     _admin: dict[str, Any] = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Delete all existing scores and re-run scoring + summarisation."""
+    """Re-score papers from a specific pipeline run."""
     from sqlalchemy import delete
+    from app.models.paper import Paper
     from app.models.paper_score import PaperScore
 
-    count = (await db.execute(select(func.count()).select_from(PaperScore))).scalar() or 0
-    await db.execute(delete(PaperScore))
+    # Get the run to find its time window
+    result = await db.execute(select(PipelineRun).where(PipelineRun.id == uuid.UUID(run_id)))
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if not run.started_at:
+        raise HTTPException(status_code=400, detail="Run has no start time")
+
+    # Find papers created during this run's window
+    end_time = run.completed_at or run.started_at
+    paper_ids_result = await db.execute(
+        select(Paper.id).where(
+            Paper.created_at >= run.started_at,
+            Paper.created_at <= end_time,
+        )
+    )
+    paper_ids = [row[0] for row in paper_ids_result.all()]
+
+    if not paper_ids:
+        return {"status": "no_papers", "message": "No papers found for this run"}
+
+    # Delete existing scores for these papers
+    count = 0
+    for pid in paper_ids:
+        del_result = await db.execute(delete(PaperScore).where(PaperScore.paper_id == pid))
+        count += del_result.rowcount
     await db.commit()
 
     async def _run():
         from app.database import init_db, async_session_factory
         from app.pipeline.runner import score_and_summarise_papers
-        from app.models.pipeline_run import PipelineRun as PR
         import logging
         logger = logging.getLogger(__name__)
         try:
             if async_session_factory is None:
                 init_db()
             async with async_session_factory() as session:
-                dummy_run = PR(id=uuid.uuid4(), started_at=__import__('datetime').datetime.now(__import__('datetime').timezone.utc), status="running")
-                result = await score_and_summarise_papers(session, dummy_run)
-                logger.info(f"Re-score complete: {result}")
+                result = await score_and_summarise_papers(session, run)
+                logger.info(f"Re-score for run {run_id} complete: {result}")
         except Exception as e:
-            logger.exception(f"Re-score failed: {e}")
+            logger.exception(f"Re-score for run {run_id} failed: {e}")
 
     background_tasks.add_task(_run)
-    return {"status": "triggered", "scores_deleted": count}
+    return {"status": "triggered", "papers_count": len(paper_ids), "scores_deleted": count}
 
 
 # --- Global Keywords ---
