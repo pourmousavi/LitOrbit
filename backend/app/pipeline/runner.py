@@ -57,9 +57,17 @@ async def get_all_users(db: AsyncSession) -> list[dict]:
 
 
 async def get_existing_dois(db: AsyncSession) -> set[str]:
-    """Get all DOIs already stored in the database."""
+    """Get all DOIs already stored or previously deleted."""
+    from app.models.deleted_paper import DeletedPaper
+
     result = await db.execute(select(Paper.doi).where(Paper.doi.isnot(None)))
-    return {row[0] for row in result.all()}
+    dois = {row[0] for row in result.all()}
+
+    # Also exclude DOIs of papers the user has deleted
+    deleted_result = await db.execute(select(DeletedPaper.doi).where(DeletedPaper.doi.isnot(None)))
+    dois.update(row[0] for row in deleted_result.all())
+
+    return dois
 
 
 async def save_papers(db: AsyncSession, papers: list[dict[str, Any]]) -> int:
@@ -154,31 +162,52 @@ async def score_and_summarise_papers(
 
     scored_count = 0
     summarised_count = 0
+    import json as json_module
+    import asyncio as aio
 
-    # Score each filtered paper for all users, then summarise if relevant
-    for paper_dict in filtered:
-        paper_id = uuid.UUID(paper_dict["id"])
+    BATCH_SIZE = 5  # Process 5 papers concurrently
 
-        # Score for all users
+    async def _score_one(paper_dict: dict) -> tuple[dict, list[dict], float]:
+        """Score a single paper for all users. Returns (paper_dict, scores, max_score)."""
         scores = await score_paper_for_all_users(paper_dict, users)
-        await save_scores(db, paper_id, scores)
-        scored_count += 1
-
-        # Check if any user scored >= 5.0
         max_score = max(s["score"] for s in scores) if scores else 0
-        if max_score >= 5.0:
-            summary = await generate_summary(paper_dict)
-            if summary:
-                import json
-                paper_obj = await db.get(Paper, paper_id)
-                if paper_obj:
-                    paper_obj.summary = json.dumps(summary)
-                    paper_obj.categories = summary.get("categories", [])
-                    paper_obj.summary_generated_at = datetime.now(timezone.utc)
-                    await db.commit()
-                    summarised_count += 1
+        return paper_dict, scores, max_score
 
-        logger.info(f"Processed paper {scored_count}/{len(filtered)}: max_score={max_score:.1f}")
+    async def _summarise_one(paper_dict: dict, paper_id: uuid.UUID) -> bool:
+        """Generate summary for one paper. Returns True if successful."""
+        summary = await generate_summary(paper_dict)
+        if summary:
+            paper_obj = await db.get(Paper, paper_id)
+            if paper_obj:
+                paper_obj.summary = json_module.dumps(summary)
+                paper_obj.categories = summary.get("categories", [])
+                paper_obj.summary_generated_at = datetime.now(timezone.utc)
+                return True
+        return False
+
+    # Phase 1: Score all papers in batches
+    papers_to_summarise = []
+    for i in range(0, len(filtered), BATCH_SIZE):
+        batch = filtered[i:i + BATCH_SIZE]
+        results = await aio.gather(*[_score_one(p) for p in batch])
+
+        for paper_dict, scores, max_score in results:
+            paper_id = uuid.UUID(paper_dict["id"])
+            await save_scores(db, paper_id, scores)
+            scored_count += 1
+            if max_score >= 5.0:
+                papers_to_summarise.append((paper_dict, paper_id))
+            logger.info(f"Scored paper {scored_count}/{len(filtered)}: max_score={max_score:.1f}")
+
+    await db.commit()
+
+    # Phase 2: Summarise qualifying papers in batches
+    for i in range(0, len(papers_to_summarise), BATCH_SIZE):
+        batch = papers_to_summarise[i:i + BATCH_SIZE]
+        results = await aio.gather(*[_summarise_one(pd, pid) for pd, pid in batch])
+        summarised_count += sum(1 for r in results if r)
+        await db.commit()
+        logger.info(f"Summarised batch {i // BATCH_SIZE + 1}: {sum(1 for r in results if r)}/{len(batch)}")
 
     return {"prefiltered": len(filtered), "scored": scored_count, "summarised": summarised_count}
 

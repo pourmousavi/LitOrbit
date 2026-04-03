@@ -175,6 +175,10 @@ async def delete_paper(
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
 
+    # Record deletion so it won't be re-fetched
+    from app.models.deleted_paper import DeletedPaper
+    db.add(DeletedPaper(id=uuid.uuid4(), doi=paper.doi, title=paper.title))
+
     await db.delete(paper)
     await db.commit()
     return {"status": "deleted"}

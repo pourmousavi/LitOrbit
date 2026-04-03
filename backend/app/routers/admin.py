@@ -187,9 +187,12 @@ async def delete_run_papers(
             Paper.created_at <= end_time,
         )
     )
+    from app.models.deleted_paper import DeletedPaper
+
     papers = paper_result.scalars().all()
     count = len(papers)
     for p in papers:
+        db.add(DeletedPaper(id=uuid.uuid4(), doi=p.doi, title=p.title))
         await db.delete(p)
     # Mark run as deleted
     run.status = "deleted"
