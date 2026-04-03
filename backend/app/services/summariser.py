@@ -79,7 +79,7 @@ async def generate_summary(
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-5-20250514",
+            model="claude-sonnet-4-6-20250514",
             max_tokens=1000,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
