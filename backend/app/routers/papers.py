@@ -24,6 +24,7 @@ async def list_papers(
     per_page: int = Query(20, ge=1, le=100),
     journal: str | None = None,
     category: str | None = None,
+    search: str | None = None,
 ) -> dict:
     """List papers paginated and sorted by the current user's relevance score."""
     user_id = user["id"]
@@ -47,6 +48,16 @@ async def list_papers(
         query = query.where(Paper.journal == journal)
     if category:
         query = query.where(Paper.categories.contains([category]))
+    if search:
+        term = f"%{search}%"
+        query = query.where(
+            Paper.title.ilike(term)
+            | Paper.abstract.ilike(term)
+            | Paper.journal.ilike(term)
+            | Paper.doi.ilike(term)
+            | func.array_to_string(Paper.authors, ' ').ilike(term)
+            | func.array_to_string(Paper.categories, ' ').ilike(term)
+        )
 
     # Count total
     count_query = select(func.count()).select_from(query.subquery())

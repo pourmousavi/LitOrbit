@@ -25,11 +25,12 @@ function SkeletonCard() {
 interface PaperFeedProps {
   journal?: string;
   category?: string;
+  search?: string;
 }
 
-export default function PaperFeed({ journal, category }: PaperFeedProps) {
+export default function PaperFeed({ journal, category, search }: PaperFeedProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } =
-    usePapers({ journal, category });
+    usePapers({ journal, category, search });
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
   const selectPaper = useUIStore((s) => s.selectPaper);
   const sentinelRef = useRef<HTMLDivElement>(null);
