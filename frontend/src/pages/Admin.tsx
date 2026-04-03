@@ -45,32 +45,40 @@ export default function Admin() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <h1 className="mb-6 font-mono text-xl font-medium text-text-primary">Admin Panel</h1>
+    <div style={{ padding: '32px 24px' }}>
+      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+          Admin Panel
+        </h1>
 
-      {/* Tab bar */}
-      <div className="mb-8 flex flex-wrap gap-2 rounded-xl bg-bg-surface p-1.5">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-4 py-2.5 font-mono text-sm transition',
-              tab === t.key
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
-            )}
-          >
-            <t.icon size={15} />
-            {t.label}
-          </button>
-        ))}
+        {/* Tab bar */}
+        <div
+          className="rounded-2xl bg-bg-surface"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 6, marginBottom: 32 }}
+        >
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                'flex items-center rounded-xl font-mono text-sm transition',
+                tab === t.key
+                  ? 'bg-accent text-white'
+                  : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
+              )}
+              style={{ gap: 8, padding: '10px 18px' }}
+            >
+              <t.icon size={15} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'journals' && <JournalConfigTab />}
+        {tab === 'users' && <UserManagementTab />}
+        {tab === 'pipeline' && <PipelineStatusTab />}
+        {tab === 'keywords' && <GlobalKeywordsTab />}
       </div>
-
-      {tab === 'journals' && <JournalConfigTab />}
-      {tab === 'users' && <UserManagementTab />}
-      {tab === 'pipeline' && <PipelineStatusTab />}
-      {tab === 'keywords' && <GlobalKeywordsTab />}
     </div>
   );
 }
@@ -102,20 +110,25 @@ function JournalConfigTab() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {journals.map((j) => (
-        <div key={j.id} className="flex items-center justify-between rounded-xl border border-border-default bg-bg-surface p-4">
+        <div
+          key={j.id}
+          className="rounded-2xl border border-border-default bg-bg-surface"
+          style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+        >
           <div>
-            <p className="font-mono text-sm font-medium text-text-primary">{j.name}</p>
-            <p className="mt-1 font-mono text-xs text-text-tertiary">
+            <p className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{j.name}</p>
+            <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 6 }}>
               {j.publisher} &middot; {j.source_type} &middot; {j.source_identifier}
             </p>
           </div>
           <button
             onClick={() => toggleMutation.mutate({ id: j.id, is_active: !j.is_active })}
             className={cn('transition', j.is_active ? 'text-success' : 'text-text-tertiary')}
+            style={{ flexShrink: 0, marginLeft: 16 }}
           >
-            {j.is_active ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+            {j.is_active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
           </button>
         </div>
       ))}
@@ -137,17 +150,24 @@ function UserManagementTab() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {users.map((u) => (
-        <div key={u.id} className="flex items-center justify-between rounded-xl border border-border-default bg-bg-surface p-4">
+        <div
+          key={u.id}
+          className="rounded-2xl border border-border-default bg-bg-surface"
+          style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+        >
           <div>
-            <p className="font-mono text-sm font-medium text-text-primary">{u.full_name}</p>
-            <p className="mt-1 font-mono text-xs text-text-tertiary">{u.email}</p>
+            <p className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{u.full_name}</p>
+            <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 6 }}>{u.email}</p>
           </div>
-          <span className={cn(
-            'rounded-full px-3 py-1 font-mono text-xs',
-            u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-secondary',
-          )}>
+          <span
+            className={cn(
+              'rounded-full font-mono',
+              u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-secondary',
+            )}
+            style={{ fontSize: 12, padding: '5px 14px', flexShrink: 0 }}
+          >
             {u.role}
           </span>
         </div>
@@ -173,13 +193,14 @@ function PipelineStatusTab() {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <button
         onClick={() => triggerMutation.mutate()}
         disabled={triggerMutation.isPending}
-        className="flex w-fit items-center gap-2 rounded-xl bg-accent px-5 py-3 font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+        className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+        style={{ gap: 10, padding: '14px 24px', width: 'fit-content' }}
       >
-        {triggerMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
+        {triggerMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
         Run Pipeline Now
       </button>
 
@@ -190,30 +211,44 @@ function PipelineStatusTab() {
       ) : !runs?.length ? (
         <EmptyState title="No pipeline runs yet" description="Click 'Run Pipeline Now' to fetch papers." />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {runs.map((run) => (
-            <div key={run.id} className="rounded-xl border border-border-default bg-bg-surface p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className={cn(
-                    'h-2.5 w-2.5 rounded-full',
-                    run.status === 'success' && 'bg-success',
-                    run.status === 'failed' && 'bg-danger',
-                    run.status === 'running' && 'bg-warning animate-pulse',
-                  )} />
-                  <span className="font-mono text-sm font-medium text-text-primary capitalize">{run.status}</span>
+            <div
+              key={run.id}
+              className="rounded-2xl border border-border-default bg-bg-surface"
+              style={{ padding: 20 }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span
+                    className={cn(
+                      'rounded-full',
+                      run.status === 'success' && 'bg-success',
+                      run.status === 'failed' && 'bg-danger',
+                      run.status === 'running' && 'bg-warning animate-pulse',
+                    )}
+                    style={{ width: 10, height: 10 }}
+                  />
+                  <span className="font-mono font-medium text-text-primary capitalize" style={{ fontSize: 14 }}>
+                    {run.status}
+                  </span>
                 </div>
-                <span className="font-mono text-xs text-text-tertiary">
+                <span className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
                   {formatDate(run.started_at)}
                 </span>
               </div>
-              <div className="mt-3 flex gap-6 font-mono text-xs text-text-secondary">
+              <div className="font-mono text-text-secondary" style={{ display: 'flex', gap: 24, marginTop: 14, fontSize: 13 }}>
                 <span>Discovered: <strong className="text-text-primary">{run.papers_discovered}</strong></span>
                 <span>Filtered: <strong className="text-text-primary">{run.papers_filtered}</strong></span>
                 <span>Processed: <strong className="text-text-primary">{run.papers_processed}</strong></span>
               </div>
               {run.error_message && (
-                <p className="mt-2 rounded-lg bg-danger/10 p-2 font-mono text-xs text-danger">{run.error_message}</p>
+                <p
+                  className="rounded-xl bg-danger/10 font-mono text-danger"
+                  style={{ marginTop: 12, padding: '10px 14px', fontSize: 12 }}
+                >
+                  {run.error_message}
+                </p>
               )}
             </div>
           ))}
@@ -255,20 +290,22 @@ function GlobalKeywordsTab() {
   if (isError) return <ErrorState message="Failed to load keywords" />;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div className="flex gap-3">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 12 }}>
         <input
           value={newKeyword}
           onChange={(e) => setNewKeyword(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && addKeyword()}
           placeholder="Add keyword..."
-          className="flex-1 rounded-xl border border-border-default bg-bg-surface px-4 py-3 text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+          className="rounded-2xl border border-border-default bg-bg-surface text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+          style={{ flex: 1, padding: '12px 18px' }}
         />
         <button
           onClick={addKeyword}
-          className="flex items-center gap-2 rounded-xl bg-accent px-4 py-3 font-mono text-sm text-white hover:bg-accent-hover"
+          className="flex items-center rounded-2xl bg-accent font-mono text-sm text-white hover:bg-accent-hover"
+          style={{ gap: 8, padding: '12px 20px' }}
         >
-          <Plus size={15} /> Add
+          <Plus size={16} /> Add
         </button>
       </div>
 
@@ -276,20 +313,23 @@ function GlobalKeywordsTab() {
         <EmptyState title="No keywords yet" description="Add keywords to help filter and score papers." />
       ) : (
         <>
-          <div className="flex flex-wrap gap-2">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {data.keywords.map((kw) => (
               <span
                 key={kw}
-                className="flex items-center gap-2 rounded-full border border-border-default bg-bg-surface px-3 py-1.5 font-mono text-xs text-text-secondary"
+                className="flex items-center rounded-full border border-border-default bg-bg-surface font-mono text-text-secondary"
+                style={{ gap: 10, padding: '8px 16px', fontSize: 13 }}
               >
                 {kw}
                 <button onClick={() => removeKeyword(kw)} className="text-text-tertiary hover:text-danger">
-                  <X size={12} />
+                  <X size={14} />
                 </button>
               </span>
             ))}
           </div>
-          <p className="font-mono text-xs text-text-tertiary">{data.keywords.length} keywords configured</p>
+          <p className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
+            {data.keywords.length} keywords configured
+          </p>
         </>
       )}
     </div>
@@ -298,19 +338,20 @@ function GlobalKeywordsTab() {
 
 function LoadingState() {
   return (
-    <div className="flex items-center justify-center py-16">
-      <Loader2 size={20} className="animate-spin text-text-tertiary" />
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0' }}>
+      <Loader2 size={24} className="animate-spin text-text-tertiary" />
     </div>
   );
 }
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16">
-      <p className="font-mono text-sm text-danger">{message}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 64 }}>
+      <p className="font-mono text-danger" style={{ fontSize: 14 }}>{message}</p>
       <button
         onClick={() => window.location.reload()}
-        className="mt-3 rounded-lg bg-bg-elevated px-4 py-2 font-mono text-sm text-text-secondary hover:text-text-primary"
+        className="rounded-xl bg-bg-elevated font-mono text-sm text-text-secondary hover:text-text-primary"
+        style={{ marginTop: 14, padding: '10px 20px' }}
       >
         Retry
       </button>
@@ -320,9 +361,9 @@ function ErrorState({ message }: { message: string }) {
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16">
-      <p className="font-mono text-base text-text-secondary">{title}</p>
-      <p className="mt-1 font-mono text-sm text-text-tertiary">{description}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 64 }}>
+      <p className="font-mono text-text-secondary" style={{ fontSize: 16 }}>{title}</p>
+      <p className="font-mono text-text-tertiary" style={{ marginTop: 6, fontSize: 14 }}>{description}</p>
     </div>
   );
 }
