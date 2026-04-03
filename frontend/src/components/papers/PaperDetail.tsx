@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw, Download, Plus, X } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePaper } from '@/hooks/usePapers';
-import { usePodcastStatus, useGeneratePodcast } from '@/hooks/usePodcast';
+import { usePodcastStatus, useGeneratePodcast, useDeletePodcast } from '@/hooks/usePodcast';
 import { useUIStore } from '@/stores/uiStore';
 import { usePlayerStore } from '@/stores/playerStore';
 import { cn, getScoreColor, formatDate } from '@/lib/utils';
@@ -135,6 +135,7 @@ export default function PaperDetail() {
   const [voiceMode, setVoiceMode] = useState<'single' | 'dual'>('single');
   const { data: podcastStatus } = usePodcastStatus(selectedPaperId, voiceMode);
   const generatePodcast = useGeneratePodcast();
+  const deletePodcast = useDeletePodcast();
   const setTrack = usePlayerStore((s) => s.setTrack);
   const apiBase = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
@@ -435,6 +436,19 @@ export default function PaperDetail() {
                     >
                       <Download size={16} />
                     </a>
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this podcast?')) {
+                          deletePodcast.mutate(podcastStatus.podcast!.id);
+                        }
+                      }}
+                      disabled={deletePodcast.isPending}
+                      className="flex items-center justify-center rounded-xl border border-border-default bg-bg-elevated text-text-secondary transition hover:border-danger hover:text-danger disabled:opacity-50"
+                      style={{ padding: '12px 14px' }}
+                      title="Delete podcast"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 ) : podcastStatus?.status === 'generating' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 0' }}>

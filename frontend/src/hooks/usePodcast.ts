@@ -67,6 +67,20 @@ interface PodcastListItem {
   collections: { id: string; name: string; color: string }[];
 }
 
+export function useDeletePodcast() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (podcastId: string) => {
+      const { data } = await api.delete(`/api/v1/podcasts/${podcastId}`);
+      return data as { status: string; paper_id: string; voice_mode: string };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['podcasts', 'list'] });
+      queryClient.invalidateQueries({ queryKey: ['podcast', data.paper_id] });
+    },
+  });
+}
+
 export function usePodcastList() {
   return useQuery<PodcastListItem[]>({
     queryKey: ['podcasts', 'list'],

@@ -328,6 +328,33 @@ async def download_audio(
     )
 
 
+@router.delete("/{podcast_id}")
+async def delete_podcast(
+    podcast_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete a podcast and its audio from storage."""
+    from app.services.storage import delete_audio
+
+    result = await db.execute(
+        select(Podcast).where(Podcast.id == uuid.UUID(podcast_id))
+    )
+    podcast = result.scalar_one_or_none()
+    if not podcast:
+        raise HTTPException(status_code=404, detail="Podcast not found")
+
+    # Delete audio from Supabase Storage
+    storage_key = f"{podcast_id}.mp3"
+    await delete_audio(storage_key)
+
+    # Delete DB record
+    await db.delete(podcast)
+    await db.commit()
+
+    return {"status": "deleted", "paper_id": str(podcast.paper_id), "voice_mode": podcast.voice_mode}
+
+
 @router.get("")
 async def list_podcasts(
     user: dict[str, Any] = Depends(get_current_user),

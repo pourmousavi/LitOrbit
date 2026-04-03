@@ -1,10 +1,11 @@
-import { Play, Headphones } from 'lucide-react';
-import { usePodcastList } from '@/hooks/usePodcast';
+import { Play, Headphones, Trash2 } from 'lucide-react';
+import { usePodcastList, useDeletePodcast } from '@/hooks/usePodcast';
 import { usePlayerStore } from '@/stores/playerStore';
 import { cn, formatDate } from '@/lib/utils';
 
 export default function PodcastLibrary() {
   const { data: podcasts, isLoading } = usePodcastList();
+  const deletePodcast = useDeletePodcast();
   const setTrack = usePlayerStore((s) => s.setTrack);
   const currentTrackUrl = usePlayerStore((s) => s.currentTrackUrl);
 
@@ -65,12 +66,27 @@ export default function PodcastLibrary() {
                     <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary" style={{ padding: '4px 10px' }}>
                       {podcast.voice_mode === 'dual' ? 'Dual voice' : 'Single voice'}
                     </span>
-                    <button
-                      className="flex items-center justify-center rounded-full bg-accent text-white opacity-0 transition group-hover:opacity-100"
-                      style={{ width: 36, height: 36 }}
-                    >
-                      <Play size={14} style={{ marginLeft: 2 }} />
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm('Delete this podcast?')) {
+                            deletePodcast.mutate(podcast.id);
+                          }
+                        }}
+                        className="flex items-center justify-center rounded-full bg-bg-elevated text-text-tertiary opacity-0 transition hover:bg-danger/15 hover:text-danger group-hover:opacity-100"
+                        style={{ width: 36, height: 36 }}
+                        title="Delete podcast"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                      <button
+                        className="flex items-center justify-center rounded-full bg-accent text-white opacity-0 transition group-hover:opacity-100"
+                        style={{ width: 36, height: 36 }}
+                      >
+                        <Play size={14} style={{ marginLeft: 2 }} />
+                      </button>
+                    </div>
                   </div>
 
                   <h3 className="font-sans font-semibold text-text-primary line-clamp-2" style={{ fontSize: 15, lineHeight: 1.4 }}>
