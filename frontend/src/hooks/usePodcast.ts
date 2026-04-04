@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { usePlayerStore } from '@/stores/playerStore';
 
 interface PodcastInfo {
   id: string;
@@ -69,12 +70,19 @@ interface PodcastListItem {
 
 export function useDeletePodcast() {
   const queryClient = useQueryClient();
+  const clearTrack = usePlayerStore((s) => s.clearTrack);
+  const currentTrackUrl = usePlayerStore((s) => s.currentTrackUrl);
   return useMutation({
     mutationFn: async (podcastId: string) => {
       const { data } = await api.delete(`/api/v1/podcasts/${podcastId}`);
       return data as { status: string; paper_id: string; voice_mode: string };
     },
     onMutate: async (podcastId: string) => {
+      // Stop player if this podcast is currently playing
+      if (currentTrackUrl?.includes(podcastId)) {
+        clearTrack();
+      }
+
       // Cancel in-flight refetches
       await queryClient.cancelQueries({ queryKey: ['podcasts', 'list'] });
 
