@@ -57,6 +57,12 @@ export interface UserProfile {
   single_voice_id: string | null;
   dual_voice_alex_id: string | null;
   dual_voice_sam_id: string | null;
+  podcast_feed_enabled: boolean;
+  podcast_feed_token: string | null;
+  podcast_feed_title: string | null;
+  podcast_feed_description: string | null;
+  podcast_feed_author: string | null;
+  podcast_feed_cover_url: string | null;
 }
 
 export interface Rating {

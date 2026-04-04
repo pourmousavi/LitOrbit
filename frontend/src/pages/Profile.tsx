@@ -1,5 +1,5 @@
 import { useState, useEffect, type KeyboardEvent } from 'react';
-import { Plus, X, Loader2, RotateCcw } from 'lucide-react';
+import { Plus, X, Loader2, RotateCcw, Copy, Check, Rss } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
 import api from '@/lib/api';
@@ -69,6 +69,12 @@ export default function Profile() {
   const [singlePromptDirty, setSinglePromptDirty] = useState(false);
   const [dualPrompt, setDualPrompt] = useState('');
   const [dualPromptDirty, setDualPromptDirty] = useState(false);
+  const [feedTitle, setFeedTitle] = useState('');
+  const [feedDescription, setFeedDescription] = useState('');
+  const [feedAuthor, setFeedAuthor] = useState('');
+  const [feedCoverUrl, setFeedCoverUrl] = useState('');
+  const [feedDirty, setFeedDirty] = useState(false);
+  const [feedCopied, setFeedCopied] = useState(false);
 
   const { data: voices } = useQuery<TTSVoice[]>({
     queryKey: ['tts-voices'],
@@ -105,8 +111,13 @@ SAM: <dialogue>`;
       setSinglePromptDirty(false);
       setDualPrompt(profile.dual_voice_prompt || defaultDualPrompt);
       setDualPromptDirty(false);
+      setFeedTitle(profile.podcast_feed_title || '');
+      setFeedDescription(profile.podcast_feed_description || '');
+      setFeedAuthor(profile.podcast_feed_author || '');
+      setFeedCoverUrl(profile.podcast_feed_cover_url || '');
+      setFeedDirty(false);
     }
-  }, [profile?.scoring_prompt, profile?.single_voice_prompt, profile?.dual_voice_prompt]);
+  }, [profile?.scoring_prompt, profile?.single_voice_prompt, profile?.dual_voice_prompt, profile?.podcast_feed_token]);
 
   if (isLoading || !profile) {
     return (
@@ -340,6 +351,147 @@ SAM: <dialogue>`;
                 </div>
               </div>
             </div>
+          </section>
+
+          {/* Podcast Feed */}
+          <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+            <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 8 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Rss size={14} /> Podcast Feed
+              </span>
+            </h2>
+            <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 20, lineHeight: 1.6 }}>
+              Expose your digest podcasts as an RSS feed. Add the feed URL to any podcast app
+              (Pocket Casts, Overcast, AntennaPod, Apple Podcasts) and new episodes appear automatically.
+              The feed is private — only accessible via this unique URL.
+            </p>
+
+            {/* Feed toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <p className="font-mono text-sm text-text-primary">Enable podcast feed</p>
+                <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>Generate an RSS feed URL for your digest podcasts</p>
+              </div>
+              <button
+                onClick={() => updateProfile.mutate({ podcast_feed_enabled: !profile.podcast_feed_enabled })}
+                className={cn('transition', profile.podcast_feed_enabled ? 'text-success' : 'text-text-tertiary')}
+                style={{ fontSize: 28 }}
+              >
+                {profile.podcast_feed_enabled ? '●' : '○'}
+              </button>
+            </div>
+
+            {profile.podcast_feed_enabled && profile.podcast_feed_token && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Feed URL */}
+                <div>
+                  <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                    Feed URL
+                  </label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      readOnly
+                      value={`${window.location.origin.replace('://app.', '://api.').replace(':5173', ':8000')}/api/v1/feed/${profile.podcast_feed_token}.xml`}
+                      className="flex-1 rounded-xl border border-border-default bg-bg-base text-xs text-text-secondary outline-none font-mono"
+                      style={{ padding: '10px 16px' }}
+                      onFocus={(e) => e.target.select()}
+                    />
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin.replace('://app.', '://api.').replace(':5173', ':8000')}/api/v1/feed/${profile.podcast_feed_token}.xml`;
+                        navigator.clipboard.writeText(url);
+                        setFeedCopied(true);
+                        setTimeout(() => setFeedCopied(false), 2000);
+                      }}
+                      className="flex items-center gap-2 rounded-xl bg-accent font-mono text-xs text-white hover:bg-accent-hover"
+                      style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}
+                    >
+                      {feedCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Feed title */}
+                <div>
+                  <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                    Podcast name
+                  </label>
+                  <input
+                    value={feedTitle}
+                    onChange={(e) => { setFeedTitle(e.target.value); setFeedDirty(true); }}
+                    placeholder={`LitOrbit Digest — ${profile.full_name}`}
+                    className="w-full rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-accent font-mono"
+                    style={{ padding: '10px 16px' }}
+                  />
+                </div>
+
+                {/* Feed description */}
+                <div>
+                  <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                    Description
+                  </label>
+                  <textarea
+                    value={feedDescription}
+                    onChange={(e) => { setFeedDescription(e.target.value); setFeedDirty(true); }}
+                    placeholder="AI-curated research digest podcasts powered by LitOrbit"
+                    rows={2}
+                    className="w-full rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-accent font-mono"
+                    style={{ padding: '10px 16px', resize: 'vertical', lineHeight: 1.6 }}
+                  />
+                </div>
+
+                {/* Feed author */}
+                <div>
+                  <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                    Author
+                  </label>
+                  <input
+                    value={feedAuthor}
+                    onChange={(e) => { setFeedAuthor(e.target.value); setFeedDirty(true); }}
+                    placeholder={profile.full_name}
+                    className="w-full rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-accent font-mono"
+                    style={{ padding: '10px 16px' }}
+                  />
+                </div>
+
+                {/* Cover art URL */}
+                <div>
+                  <label className="font-mono text-xs font-medium text-text-secondary" style={{ marginBottom: 6, display: 'block' }}>
+                    Cover art URL
+                  </label>
+                  <input
+                    value={feedCoverUrl}
+                    onChange={(e) => { setFeedCoverUrl(e.target.value); setFeedDirty(true); }}
+                    placeholder="https://example.com/cover.png"
+                    className="w-full rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-accent font-mono"
+                    style={{ padding: '10px 16px' }}
+                  />
+                  <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginTop: 4 }}>
+                    Square image, minimum 1400x1400px recommended. Leave empty for no cover art.
+                  </p>
+                </div>
+
+                {/* Save button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    onClick={() => {
+                      updateProfile.mutate({
+                        podcast_feed_title: feedTitle,
+                        podcast_feed_description: feedDescription,
+                        podcast_feed_author: feedAuthor,
+                        podcast_feed_cover_url: feedCoverUrl,
+                      });
+                      setFeedDirty(false);
+                    }}
+                    disabled={!feedDirty || updateProfile.isPending}
+                    className="rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                    style={{ padding: '10px 20px' }}
+                  >
+                    Save Feed Settings
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Scoring Prompt */}

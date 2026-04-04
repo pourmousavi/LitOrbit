@@ -30,5 +30,12 @@ class UserProfile(Base):
     single_voice_id: Mapped[str | None] = mapped_column(String, nullable=True)
     dual_voice_alex_id: Mapped[str | None] = mapped_column(String, nullable=True)
     dual_voice_sam_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Podcast RSS feed settings
+    podcast_feed_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    podcast_feed_token: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
+    podcast_feed_title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    podcast_feed_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    podcast_feed_author: Mapped[str | None] = mapped_column(String, nullable=True)
+    podcast_feed_cover_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

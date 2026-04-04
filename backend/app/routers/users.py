@@ -10,6 +10,15 @@ from app.auth import get_current_user, require_admin
 from app.database import get_db
 from app.models.user_profile import UserProfile
 
+_FEED_FIELDS = (
+    "podcast_feed_enabled",
+    "podcast_feed_token",
+    "podcast_feed_title",
+    "podcast_feed_description",
+    "podcast_feed_author",
+    "podcast_feed_cover_url",
+)
+
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
 
@@ -28,6 +37,11 @@ class ProfileUpdate(BaseModel):
     single_voice_id: str | None = None
     dual_voice_alex_id: str | None = None
     dual_voice_sam_id: str | None = None
+    podcast_feed_enabled: bool | None = None
+    podcast_feed_title: str | None = None
+    podcast_feed_description: str | None = None
+    podcast_feed_author: str | None = None
+    podcast_feed_cover_url: str | None = None
 
 
 @router.get("/me")
@@ -63,6 +77,12 @@ async def get_my_profile(
         "single_voice_id": profile.single_voice_id,
         "dual_voice_alex_id": profile.dual_voice_alex_id,
         "dual_voice_sam_id": profile.dual_voice_sam_id,
+        "podcast_feed_enabled": profile.podcast_feed_enabled,
+        "podcast_feed_token": profile.podcast_feed_token,
+        "podcast_feed_title": profile.podcast_feed_title,
+        "podcast_feed_description": profile.podcast_feed_description,
+        "podcast_feed_author": profile.podcast_feed_author,
+        "podcast_feed_cover_url": profile.podcast_feed_cover_url,
     }
 
 
@@ -108,6 +128,21 @@ async def update_my_profile(
         profile.dual_voice_alex_id = req.dual_voice_alex_id if req.dual_voice_alex_id.strip() else None
     if req.dual_voice_sam_id is not None:
         profile.dual_voice_sam_id = req.dual_voice_sam_id if req.dual_voice_sam_id.strip() else None
+
+    # Podcast feed settings
+    if req.podcast_feed_enabled is not None:
+        profile.podcast_feed_enabled = req.podcast_feed_enabled
+        # Auto-generate a feed token when enabling for the first time
+        if req.podcast_feed_enabled and not profile.podcast_feed_token:
+            profile.podcast_feed_token = str(uuid.uuid4())
+    if req.podcast_feed_title is not None:
+        profile.podcast_feed_title = req.podcast_feed_title.strip() or None
+    if req.podcast_feed_description is not None:
+        profile.podcast_feed_description = req.podcast_feed_description.strip() or None
+    if req.podcast_feed_author is not None:
+        profile.podcast_feed_author = req.podcast_feed_author.strip() or None
+    if req.podcast_feed_cover_url is not None:
+        profile.podcast_feed_cover_url = req.podcast_feed_cover_url.strip() or None
 
     await db.commit()
     return {"status": "updated"}
