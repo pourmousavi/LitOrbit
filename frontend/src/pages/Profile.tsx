@@ -268,6 +268,25 @@ SAM: <dialogue>`;
                 </div>
               )}
 
+              {/* Digest day (weekly only) */}
+              {profile.email_digest_enabled && profile.digest_frequency === 'weekly' && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <p className="font-mono text-sm text-text-primary">Digest day</p>
+                  <select
+                    value={profile.digest_day || 'monday'}
+                    onChange={(e) => updateProfile.mutate({ digest_day: e.target.value })}
+                    className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent font-mono"
+                    style={{ padding: '6px 14px' }}
+                  >
+                    {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
+                      <option key={day} value={day}>
+                        {day.charAt(0).toUpperCase() + day.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Digest podcast toggle */}
               {profile.email_digest_enabled && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

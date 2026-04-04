@@ -48,6 +48,7 @@ export interface UserProfile {
   podcast_preference: 'single' | 'dual';
   email_digest_enabled: boolean;
   digest_frequency: 'daily' | 'weekly';
+  digest_day: string;
   digest_podcast_enabled: boolean;
   digest_podcast_voice_mode: 'single' | 'dual';
   digest_top_papers: number | null;

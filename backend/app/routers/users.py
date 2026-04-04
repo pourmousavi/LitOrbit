@@ -28,6 +28,7 @@ class ProfileUpdate(BaseModel):
     podcast_preference: str | None = None
     email_digest_enabled: bool | None = None
     digest_frequency: str | None = None
+    digest_day: str | None = None
     digest_podcast_enabled: bool | None = None
     digest_podcast_voice_mode: str | None = None
     digest_top_papers: int | None = None
@@ -68,6 +69,7 @@ async def get_my_profile(
         "podcast_preference": profile.podcast_preference,
         "email_digest_enabled": profile.email_digest_enabled,
         "digest_frequency": profile.digest_frequency,
+        "digest_day": profile.digest_day,
         "digest_podcast_enabled": profile.digest_podcast_enabled,
         "digest_podcast_voice_mode": profile.digest_podcast_voice_mode,
         "digest_top_papers": profile.digest_top_papers,
@@ -110,6 +112,10 @@ async def update_my_profile(
         profile.email_digest_enabled = req.email_digest_enabled
     if req.digest_frequency is not None:
         profile.digest_frequency = req.digest_frequency
+    if req.digest_day is not None:
+        valid_days = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        if req.digest_day.lower() in valid_days:
+            profile.digest_day = req.digest_day.lower()
     if req.digest_podcast_enabled is not None:
         profile.digest_podcast_enabled = req.digest_podcast_enabled
     if req.digest_podcast_voice_mode is not None:

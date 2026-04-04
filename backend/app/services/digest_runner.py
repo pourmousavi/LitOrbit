@@ -324,7 +324,18 @@ async def run_digests(
         query = query.where(UserProfile.digest_frequency == frequency)
 
     result = await db.execute(query)
-    users = result.scalars().all()
+    all_users = result.scalars().all()
+
+    # Filter weekly users by their chosen digest day
+    today_name = datetime.now(timezone.utc).strftime("%A").lower()  # e.g. "monday"
+    users = []
+    for u in all_users:
+        if u.digest_frequency == "weekly":
+            user_day = (u.digest_day or "monday").lower()
+            if user_day != today_name:
+                logger.info(f"Skipping {u.full_name}: weekly digest day is {user_day}, today is {today_name}")
+                continue
+        users.append(u)
 
     if not users:
         logger.info("No users eligible for digest")
