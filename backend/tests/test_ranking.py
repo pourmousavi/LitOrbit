@@ -69,15 +69,26 @@ class TestPrefilter:
         assert result[0]["title"] == "EV Charging Infrastructure Planning"
 
 
+def _make_mock_gemini_client(response_text: str):
+    """Create a mock Google GenAI client that returns the given text."""
+    mock_response = MagicMock()
+    mock_response.text = response_text
+
+    mock_aio = MagicMock()
+    mock_aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+    mock_client = MagicMock()
+    mock_client.aio = mock_aio
+    return mock_client
+
+
 class TestScorer:
     @pytest.mark.asyncio
     async def test_scorer_returns_valid_score(self):
-        """Mock Claude response, assert score is float 0-10."""
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"score": 7.5, "reasoning": "Highly relevant to battery research."}')]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        """Mock Gemini response, assert score is float 0-10."""
+        mock_client = _make_mock_gemini_client(
+            '{"score": 7.5, "reasoning": "Highly relevant to battery research."}'
+        )
 
         paper = {"title": "Battery Degradation Analysis", "abstract": "A study on lithium-ion battery aging."}
         user = {"full_name": "Ali Pourmousavi", "interest_keywords": ["battery", "degradation"], "interest_categories": ["energy storage"]}
@@ -91,11 +102,9 @@ class TestScorer:
     @pytest.mark.asyncio
     async def test_scorer_stores_reasoning(self):
         """Assert reasoning string is stored."""
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"score": 8.0, "reasoning": "Directly addresses battery SOH estimation."}')]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_client = _make_mock_gemini_client(
+            '{"score": 8.0, "reasoning": "Directly addresses battery SOH estimation."}'
+        )
 
         paper = {"title": "SOH Estimation Methods", "abstract": "State of health prediction."}
         user = {"full_name": "Test User", "interest_keywords": ["SOH"], "interest_categories": ["battery"]}
@@ -107,11 +116,9 @@ class TestScorer:
     @pytest.mark.asyncio
     async def test_scorer_clamps_out_of_range(self):
         """Scores outside 0-10 should be clamped."""
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text='{"score": 15.0, "reasoning": "Off the charts"}')]
-
-        mock_client = AsyncMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_client = _make_mock_gemini_client(
+            '{"score": 15.0, "reasoning": "Off the charts"}'
+        )
 
         paper = {"title": "Test", "abstract": "Test"}
         user = {"full_name": "Test", "interest_keywords": [], "interest_categories": []}

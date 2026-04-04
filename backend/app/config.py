@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     ieee_api_key: str = ""
     scopus_api_key: str = ""
     anthropic_api_key: str = ""
+    gemini_api_key: str = ""
 
     # Email — Resend (preferred) or SMTP fallback
     resend_api_key: str = ""
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     # Claude models (update these when new versions release)
     claude_model_fast: str = "claude-haiku-4-5"
     claude_model_smart: str = "claude-sonnet-4-6"
+    gemini_model_fast: str = "gemini-2.5-flash"
 
     # App
     secret_key: str = ""
