@@ -199,48 +199,15 @@ async def generate_audio_dual(
 
 
 def _get_mp3_duration(filepath: str) -> int:
-    """Calculate MP3 duration by parsing frame headers."""
-    BITRATES = {
-        0x01: 32, 0x02: 40, 0x03: 48, 0x04: 56, 0x05: 64,
-        0x06: 80, 0x07: 96, 0x08: 112, 0x09: 128, 0x0A: 160,
-        0x0B: 192, 0x0C: 224, 0x0D: 256, 0x0E: 320,
-    }
-    SAMPLE_RATES = {0x00: 44100, 0x01: 48000, 0x02: 32000}
-
+    """Get MP3 duration using ffprobe (installed via ffmpeg)."""
+    import subprocess
     try:
-        total_samples = 0
-        sample_rate = 44100
-        with open(filepath, 'rb') as f:
-            data = f.read()
-
-        i = 0
-        while i < len(data) - 4:
-            # Find sync word (0xFFE0 mask for MPEG1 Layer3)
-            if data[i] != 0xFF or (data[i + 1] & 0xE0) != 0xE0:
-                i += 1
-                continue
-
-            header = data[i + 1:i + 4]
-            bitrate_idx = (header[1] >> 4) & 0x0F
-            sr_idx = (header[1] >> 2) & 0x03
-            padding = (header[1] >> 1) & 0x01
-
-            bitrate = BITRATES.get(bitrate_idx)
-            sr = SAMPLE_RATES.get(sr_idx)
-            if not bitrate or not sr:
-                i += 1
-                continue
-
-            sample_rate = sr
-            frame_size = (144 * bitrate * 1000 // sr) + padding
-            if frame_size < 1:
-                i += 1
-                continue
-
-            total_samples += 1152  # samples per MPEG1 Layer3 frame
-            i += frame_size
-
-        return max(1, total_samples // sample_rate) if total_samples > 0 else 0
+        result = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", filepath],
+            capture_output=True, text=True, timeout=10,
+        )
+        return max(1, int(float(result.stdout.strip())))
     except Exception:
         # Fallback: rough estimate from file size
         try:
