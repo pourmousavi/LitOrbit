@@ -167,9 +167,12 @@ SAM: <dialogue>`;
 
           {/* Interest Keywords */}
           <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
-            <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 16 }}>
+            <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 8 }}>
               Interest Keywords
             </h2>
+            <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 16, lineHeight: 1.6 }}>
+              Your personal research interests, sent to the AI when scoring papers for you. These shape your relevance scores — different users can have different keywords to get personalised rankings.
+            </p>
 
             <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
               <input

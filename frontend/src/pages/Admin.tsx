@@ -618,6 +618,9 @@ function GlobalKeywordsTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <p className="font-mono text-xs text-text-tertiary" style={{ lineHeight: 1.6 }}>
+        Global pre-filter applied to all discovered papers before scoring. A paper must match at least one of these keywords in its title or abstract to enter the pipeline. This saves API costs by discarding out-of-domain papers early.
+      </p>
       <div style={{ display: 'flex', gap: 12 }}>
         <input
           value={newKeyword}
