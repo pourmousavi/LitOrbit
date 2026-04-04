@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive } from 'lucide-react';
+import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
-type Tab = 'journals' | 'users' | 'pipeline' | 'keywords';
+type Tab = 'journals' | 'users' | 'pipeline' | 'keywords' | 'digest';
 
 interface Journal {
   id: string;
@@ -54,6 +54,7 @@ export default function Admin() {
     { key: 'users', label: 'Users', icon: Users },
     { key: 'pipeline', label: 'Fetch Papers', icon: Activity },
     { key: 'keywords', label: 'Keywords', icon: Tags },
+    { key: 'digest', label: 'Digest', icon: Mail },
   ];
 
   return (
@@ -121,6 +122,7 @@ export default function Admin() {
         {tab === 'users' && <UserManagementTab />}
         {tab === 'pipeline' && <PipelineStatusTab />}
         {tab === 'keywords' && <GlobalKeywordsTab />}
+        {tab === 'digest' && <DigestTab />}
       </div>
     </div>
   );
@@ -661,6 +663,68 @@ function GlobalKeywordsTab() {
             {data.keywords.length} keywords configured
           </p>
         </>
+      )}
+    </div>
+  );
+}
+
+function DigestTab() {
+  const [frequency, setFrequency] = useState<'weekly' | 'daily'>('weekly');
+
+  const triggerMutation = useMutation({
+    mutationFn: async (freq: string) => {
+      const { data } = await api.post('/api/v1/admin/digest/trigger', { frequency: freq });
+      return data as { status: string; frequency: string };
+    },
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <p className="font-mono text-xs text-text-tertiary" style={{ lineHeight: 1.6 }}>
+        Manually trigger a digest email (with optional podcast) for all eligible users.
+        This is the same process that runs automatically after the daily pipeline.
+      </p>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        {/* Frequency selector */}
+        <div className="flex rounded-xl bg-bg-base" style={{ padding: 4, gap: 4 }}>
+          {(['daily', 'weekly'] as const).map((freq) => (
+            <button
+              key={freq}
+              onClick={() => setFrequency(freq)}
+              className={cn(
+                'rounded-lg font-mono text-xs transition',
+                frequency === freq ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
+              )}
+              style={{ padding: '6px 14px' }}
+            >
+              {freq}
+            </button>
+          ))}
+        </div>
+
+        {/* Trigger button */}
+        <button
+          onClick={() => triggerMutation.mutate(frequency)}
+          disabled={triggerMutation.isPending}
+          className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+          style={{ gap: 10, padding: '14px 24px' }}
+        >
+          {triggerMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+          Send {frequency} digest
+        </button>
+      </div>
+
+      {triggerMutation.isSuccess && (
+        <div className="rounded-xl bg-success/10 font-mono text-success" style={{ padding: '12px 16px', fontSize: 12 }}>
+          Digest triggered successfully ({triggerMutation.data?.frequency}). Emails and podcasts are being generated in the background.
+        </div>
+      )}
+
+      {triggerMutation.isError && (
+        <div className="rounded-xl bg-danger/10 font-mono text-danger" style={{ padding: '12px 16px', fontSize: 12 }}>
+          Failed to trigger digest. Check backend logs for details.
+        </div>
       )}
     </div>
   );
