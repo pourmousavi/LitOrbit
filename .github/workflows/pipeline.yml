@@ -26,6 +26,7 @@ jobs:
           IEEE_API_KEY: ${{ secrets.IEEE_API_KEY }}
           SCOPUS_API_KEY: ${{ secrets.SCOPUS_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           FRONTEND_URL: ${{ secrets.FRONTEND_URL }}

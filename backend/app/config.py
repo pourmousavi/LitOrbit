@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     scopus_api_key: str = ""
     anthropic_api_key: str = ""
 
-    # Email
+    # Email — Resend (preferred) or SMTP fallback
+    resend_api_key: str = ""
+    resend_from: str = "LitOrbit <noreply@litorbit.app>"
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
     smtp_user: str = ""

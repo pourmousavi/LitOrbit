@@ -4,6 +4,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
+import httpx
 from jinja2 import Template
 
 from app.config import get_settings
@@ -120,25 +121,36 @@ def generate_digest_html(
     )
 
 
-def send_digest_email(
-    to_email: str,
-    subject: str,
-    html_body: str,
-) -> bool:
-    """Send an HTML email via Gmail SMTP.
-
-    Returns True on success, False on failure.
-    """
-    settings = get_settings()
-    if not settings.smtp_user or not settings.smtp_password:
-        logger.warning("SMTP not configured, skipping email send")
+def _send_via_resend(to_email: str, subject: str, html_body: str, settings) -> bool:
+    """Send email via Resend HTTP API."""
+    try:
+        resp = httpx.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+            json={
+                "from": settings.resend_from or "LitOrbit <noreply@litorbit.app>",
+                "to": [to_email],
+                "subject": subject,
+                "html": html_body,
+            },
+            timeout=30,
+        )
+        if resp.status_code in (200, 201):
+            logger.info(f"Digest email sent via Resend to {to_email}")
+            return True
+        logger.error(f"Resend API error {resp.status_code}: {resp.text}")
+        return False
+    except Exception as e:
+        logger.error(f"Resend send failed for {to_email}: {e}")
         return False
 
+
+def _send_via_smtp(to_email: str, subject: str, html_body: str, settings) -> bool:
+    """Send email via SMTP (Gmail)."""
     msg = MIMEMultipart("alternative")
     msg["From"] = settings.smtp_user
     msg["To"] = to_email
     msg["Subject"] = subject
-
     msg.attach(MIMEText(html_body, "html"))
 
     try:
@@ -148,8 +160,31 @@ def send_digest_email(
             server.ehlo()
             server.login(settings.smtp_user, settings.smtp_password)
             server.sendmail(settings.smtp_user, to_email, msg.as_string())
-            logger.info(f"Digest email sent to {to_email}")
+            logger.info(f"Digest email sent via SMTP to {to_email}")
             return True
-    except smtplib.SMTPException as e:
-        logger.error(f"Failed to send email to {to_email}: {e}")
+    except Exception as e:
+        logger.error(f"SMTP send failed for {to_email}: {e}")
         return False
+
+
+def send_digest_email(
+    to_email: str,
+    subject: str,
+    html_body: str,
+) -> bool:
+    """Send an HTML email. Uses Resend API if configured, falls back to SMTP.
+
+    Returns True on success, False on failure. Never raises.
+    """
+    settings = get_settings()
+
+    # Prefer Resend (works on Render and other platforms that block SMTP)
+    if settings.resend_api_key:
+        return _send_via_resend(to_email, subject, html_body, settings)
+
+    # Fall back to SMTP
+    if settings.smtp_user and settings.smtp_password:
+        return _send_via_smtp(to_email, subject, html_body, settings)
+
+    logger.warning("No email provider configured (set RESEND_API_KEY or SMTP_USER/SMTP_PASSWORD)")
+    return False

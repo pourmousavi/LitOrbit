@@ -687,6 +687,7 @@ const DIGEST_STEP_LABELS: Record<string, string> = {
   users_found: 'Users identified',
   processing_user: 'Processing user',
   user_sent: 'Digest sent',
+  user_partial: 'Podcast saved (email failed)',
   user_skipped: 'Skipped (no papers)',
   user_failed: 'Failed to send',
   user_error: 'Error',
@@ -701,12 +702,14 @@ function DigestRunLogSteps({ log }: { log: Record<string, unknown>[] }) {
         const step = entry.step as string;
         const label = DIGEST_STEP_LABELS[step] || step;
         const isProcessing = step === 'processing_user';
+        const isWarning = step === 'user_partial';
         const isError = step === 'user_error' || step === 'user_failed';
         const details: string[] = [];
         if (entry.user) details.push(entry.user as string);
         if (entry.index) details.push(`${entry.index}/${entry.total}`);
         if (entry.papers !== undefined) details.push(`${entry.papers} papers`);
         if (entry.podcast) details.push('+ podcast');
+        if (entry.email_failed) details.push('email failed');
         if (entry.eligible !== undefined) details.push(`${entry.eligible} eligible`);
         if (entry.skipped_day) details.push(`${entry.skipped_day} skipped (wrong day)`);
         if (entry.sent !== undefined) details.push(`${entry.sent}/${entry.total} sent`);
@@ -714,8 +717,8 @@ function DigestRunLogSteps({ log }: { log: Record<string, unknown>[] }) {
         if (entry.detail) details.push(entry.detail as string);
         return (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className={isProcessing ? 'text-warning' : isError ? 'text-danger' : 'text-success'} style={{ fontSize: 14, flexShrink: 0 }}>
-              {isProcessing ? '◦' : isError ? '✗' : '✓'}
+            <span className={isProcessing ? 'text-warning' : isError ? 'text-danger' : isWarning ? 'text-warning' : 'text-success'} style={{ fontSize: 14, flexShrink: 0 }}>
+              {isProcessing ? '◦' : isError ? '✗' : isWarning ? '⚠' : '✓'}
             </span>
             <span className="font-mono text-text-secondary" style={{ fontSize: 12 }}>
               {label}

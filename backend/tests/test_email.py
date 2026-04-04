@@ -52,9 +52,10 @@ class TestEmailDigest:
         mock_smtp_class.return_value.__enter__ = MagicMock(return_value=mock_server)
         mock_smtp_class.return_value.__exit__ = MagicMock(return_value=False)
 
-        # Need to set SMTP creds
+        # Need to set SMTP creds (resend_api_key empty → falls back to SMTP)
         with patch("app.services.email_digest.get_settings") as mock_settings:
             settings = MagicMock()
+            settings.resend_api_key = ""
             settings.smtp_user = "test@gmail.com"
             settings.smtp_password = "password"
             settings.smtp_host = "smtp.gmail.com"

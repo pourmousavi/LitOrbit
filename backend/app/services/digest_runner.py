@@ -287,18 +287,19 @@ async def send_digest_for_user(
     )
 
     sent = send_digest_email(user.email, subject, html)
+    if not sent:
+        logger.warning(f"Email failed for {user.full_name}, but podcast/logs will still be saved")
 
-    # 6. Log papers to prevent future duplicates
-    if sent:
-        for paper, _score in paper_score_pairs:
-            db.add(DigestLog(
-                id=uuid.uuid4(),
-                user_id=user.id,
-                paper_id=paper.id,
-                digest_type=frequency,
-                podcast_id=podcast_record.id if podcast_record else None,
-            ))
-        await db.commit()
+    # 6. Log papers to prevent future duplicates (always, even if email failed)
+    for paper, _score in paper_score_pairs:
+        db.add(DigestLog(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            paper_id=paper.id,
+            digest_type=frequency,
+            podcast_id=podcast_record.id if podcast_record else None,
+        ))
+    await db.commit()
 
     return {
         "user": user.full_name,
@@ -306,6 +307,7 @@ async def send_digest_for_user(
         "shared": len(shared_papers),
         "podcast": podcast_record is not None,
         "sent": sent,
+        "email_failed": not sent,
     }
 
 
@@ -389,22 +391,26 @@ async def run_digests(
                 summary = await send_digest_for_user(db, user)
                 results.append(summary)
 
-                if summary.get("sent"):
-                    run.users_sent += 1
-                    step = "user_sent"
-                elif summary.get("papers", 0) == 0:
+                if summary.get("papers", 0) == 0:
                     run.users_skipped += 1
                     step = "user_skipped"
+                elif summary.get("sent"):
+                    run.users_sent += 1
+                    step = "user_sent"
                 else:
-                    run.users_failed += 1
-                    step = "user_failed"
+                    # Podcast/logs saved but email failed
+                    run.users_sent += 1
+                    step = "user_partial"
 
-                await _append_log(db, run, {
+                log_entry: dict[str, Any] = {
                     "step": step,
                     "user": user.full_name,
                     "papers": summary.get("papers", 0),
                     "podcast": summary.get("podcast", False),
-                })
+                }
+                if summary.get("email_failed"):
+                    log_entry["email_failed"] = True
+                await _append_log(db, run, log_entry)
 
             except Exception as e:
                 logger.exception(f"Digest failed for {user.full_name}: {e}")
