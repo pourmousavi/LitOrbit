@@ -5,6 +5,8 @@ import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 
+const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
+
 interface TTSVoice {
   id: string;
   name: string;
@@ -410,14 +412,14 @@ SAM: <dialogue>`;
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input
                       readOnly
-                      value={`${window.location.origin.replace('://app.', '://api.').replace(':5173', ':8000')}/api/v1/feed/${profile.podcast_feed_token}.xml`}
+                      value={`${API_BASE}/api/v1/feed/${profile.podcast_feed_token}.xml`}
                       className="flex-1 rounded-xl border border-border-default bg-bg-base text-xs text-text-secondary outline-none font-mono"
                       style={{ padding: '10px 16px' }}
                       onFocus={(e) => e.target.select()}
                     />
                     <button
                       onClick={() => {
-                        const url = `${window.location.origin.replace('://app.', '://api.').replace(':5173', ':8000')}/api/v1/feed/${profile.podcast_feed_token}.xml`;
+                        const url = `${API_BASE}/api/v1/feed/${profile.podcast_feed_token}.xml`;
                         navigator.clipboard.writeText(url);
                         setFeedCopied(true);
                         setTimeout(() => setFeedCopied(false), 2000);
