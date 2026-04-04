@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.digest_log import DigestLog
+from app.models.digest_run import DigestRun
 from app.models.paper import Paper
 from app.models.paper_score import PaperScore
 from app.models.podcast import Podcast
@@ -308,9 +309,16 @@ async def send_digest_for_user(
     }
 
 
+async def _append_log(db: AsyncSession, run: DigestRun, entry: dict) -> None:
+    """Append an entry to the digest run log and persist."""
+    run.run_log = [*run.run_log, entry]
+    await db.commit()
+
+
 async def run_digests(
     db: AsyncSession,
     frequency: str | None = None,
+    skip_day_check: bool = False,
 ) -> list[dict[str, Any]]:
     """Send digest emails to all eligible users.
 
@@ -318,38 +326,111 @@ async def run_digests(
         frequency: If provided, only send to users with this frequency setting.
                    If None, send to all users whose frequency matches
                    (daily users get daily, weekly users get weekly).
+        skip_day_check: If True, skip the weekly day-of-week filter (manual triggers).
     """
-    query = select(UserProfile).where(UserProfile.email_digest_enabled == True)
-    if frequency:
-        query = query.where(UserProfile.digest_frequency == frequency)
+    # Create a DigestRun record to track progress
+    run = DigestRun(
+        id=uuid.uuid4(),
+        frequency=frequency or "all",
+        started_at=datetime.now(timezone.utc),
+        status="running",
+        run_log=[],
+    )
+    db.add(run)
+    await db.commit()
 
-    result = await db.execute(query)
-    all_users = result.scalars().all()
+    try:
+        await _append_log(db, run, {"step": "querying_users", "detail": "Finding eligible users..."})
 
-    # Filter weekly users by their chosen digest day
-    today_name = datetime.now(timezone.utc).strftime("%A").lower()  # e.g. "monday"
-    users = []
-    for u in all_users:
-        if u.digest_frequency == "weekly":
-            user_day = (u.digest_day or "monday").lower()
-            if user_day != today_name:
-                logger.info(f"Skipping {u.full_name}: weekly digest day is {user_day}, today is {today_name}")
-                continue
-        users.append(u)
+        query = select(UserProfile).where(UserProfile.email_digest_enabled == True)
+        if frequency:
+            query = query.where(UserProfile.digest_frequency == frequency)
 
-    if not users:
-        logger.info("No users eligible for digest")
-        return []
+        result = await db.execute(query)
+        all_users = result.scalars().all()
 
-    results = []
-    for user in users:
-        try:
-            summary = await send_digest_for_user(db, user)
-            results.append(summary)
-        except Exception as e:
-            logger.exception(f"Digest failed for {user.full_name}: {e}")
-            results.append({"user": user.full_name, "error": str(e), "sent": False})
+        # Filter weekly users by their chosen digest day (unless manual trigger)
+        today_name = datetime.now(timezone.utc).strftime("%A").lower()
+        users = []
+        skipped_day = 0
+        for u in all_users:
+            if not skip_day_check and u.digest_frequency == "weekly":
+                user_day = (u.digest_day or "monday").lower()
+                if user_day != today_name:
+                    logger.info(f"Skipping {u.full_name}: weekly digest day is {user_day}, today is {today_name}")
+                    skipped_day += 1
+                    continue
+            users.append(u)
 
-    sent_count = sum(1 for r in results if r.get("sent"))
-    logger.info(f"Digest run complete: {sent_count}/{len(users)} emails sent")
-    return results
+        run.users_total = len(users)
+        await _append_log(db, run, {
+            "step": "users_found",
+            "eligible": len(users),
+            "skipped_day": skipped_day,
+        })
+
+        if not users:
+            logger.info("No users eligible for digest")
+            run.status = "success"
+            run.completed_at = datetime.now(timezone.utc)
+            await _append_log(db, run, {"step": "completed", "detail": "No eligible users"})
+            return []
+
+        results = []
+        for i, user in enumerate(users):
+            try:
+                await _append_log(db, run, {
+                    "step": "processing_user",
+                    "user": user.full_name,
+                    "index": i + 1,
+                    "total": len(users),
+                })
+
+                summary = await send_digest_for_user(db, user)
+                results.append(summary)
+
+                if summary.get("sent"):
+                    run.users_sent += 1
+                    step = "user_sent"
+                elif summary.get("papers", 0) == 0:
+                    run.users_skipped += 1
+                    step = "user_skipped"
+                else:
+                    run.users_failed += 1
+                    step = "user_failed"
+
+                await _append_log(db, run, {
+                    "step": step,
+                    "user": user.full_name,
+                    "papers": summary.get("papers", 0),
+                    "podcast": summary.get("podcast", False),
+                })
+
+            except Exception as e:
+                logger.exception(f"Digest failed for {user.full_name}: {e}")
+                results.append({"user": user.full_name, "error": str(e), "sent": False})
+                run.users_failed += 1
+                await _append_log(db, run, {
+                    "step": "user_error",
+                    "user": user.full_name,
+                    "error": str(e),
+                })
+
+        run.status = "success"
+        run.completed_at = datetime.now(timezone.utc)
+        sent_count = sum(1 for r in results if r.get("sent"))
+        await _append_log(db, run, {
+            "step": "completed",
+            "sent": sent_count,
+            "total": len(users),
+        })
+        logger.info(f"Digest run complete: {sent_count}/{len(users)} emails sent")
+        return results
+
+    except Exception as e:
+        run.status = "failed"
+        run.completed_at = datetime.now(timezone.utc)
+        run.error_message = str(e)
+        await db.commit()
+        logger.exception(f"Digest run failed: {e}")
+        raise

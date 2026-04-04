@@ -349,14 +349,44 @@ async def trigger_digest(
             if async_session_factory is None:
                 return
             async with async_session_factory() as session:
-                results = run_digests(session, frequency=req.frequency)
-                # run_digests is async
-                import asyncio
-                if asyncio.iscoroutine(results):
-                    results = await results
+                results = await run_digests(
+                    session,
+                    frequency=req.frequency,
+                    skip_day_check=True,
+                )
                 logger.info(f"Manual digest run: {results}")
         except Exception as e:
             logger.exception(f"Manual digest run failed: {e}")
 
     background_tasks.add_task(_run)
     return {"status": "triggered", "frequency": req.frequency or "all"}
+
+
+@router.get("/digest/runs")
+async def list_digest_runs(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List recent digest runs with status and progress."""
+    from app.models.digest_run import DigestRun
+
+    result = await db.execute(
+        select(DigestRun).order_by(DigestRun.started_at.desc()).limit(20)
+    )
+    runs = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "frequency": r.frequency,
+            "started_at": r.started_at.isoformat() if r.started_at else None,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+            "status": r.status,
+            "users_total": r.users_total,
+            "users_sent": r.users_sent,
+            "users_skipped": r.users_skipped,
+            "users_failed": r.users_failed,
+            "error_message": r.error_message,
+            "run_log": r.run_log,
+        }
+        for r in runs
+    ]

@@ -21,6 +21,7 @@ from app.models.rating import Rating
 from app.models.podcast import Podcast
 from app.models.share import Share
 from app.models.digest_log import DigestLog
+from app.models.digest_run import DigestRun
 
 # Use an in-memory SQLite for tests
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"

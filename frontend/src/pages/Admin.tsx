@@ -668,13 +668,89 @@ function GlobalKeywordsTab() {
   );
 }
 
+interface DigestRunItem {
+  id: string;
+  frequency: string;
+  started_at: string | null;
+  completed_at: string | null;
+  status: string;
+  users_total: number;
+  users_sent: number;
+  users_skipped: number;
+  users_failed: number;
+  error_message: string | null;
+  run_log: Record<string, unknown>[];
+}
+
+const DIGEST_STEP_LABELS: Record<string, string> = {
+  querying_users: 'Finding eligible users',
+  users_found: 'Users identified',
+  processing_user: 'Processing user',
+  user_sent: 'Digest sent',
+  user_skipped: 'Skipped (no papers)',
+  user_failed: 'Failed to send',
+  user_error: 'Error',
+  completed: 'Completed',
+};
+
+function DigestRunLogSteps({ log }: { log: Record<string, unknown>[] }) {
+  if (!log?.length) return null;
+  return (
+    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {log.map((entry, i) => {
+        const step = entry.step as string;
+        const label = DIGEST_STEP_LABELS[step] || step;
+        const isProcessing = step === 'processing_user';
+        const isError = step === 'user_error' || step === 'user_failed';
+        const details: string[] = [];
+        if (entry.user) details.push(entry.user as string);
+        if (entry.index) details.push(`${entry.index}/${entry.total}`);
+        if (entry.papers !== undefined) details.push(`${entry.papers} papers`);
+        if (entry.podcast) details.push('+ podcast');
+        if (entry.eligible !== undefined) details.push(`${entry.eligible} eligible`);
+        if (entry.skipped_day) details.push(`${entry.skipped_day} skipped (wrong day)`);
+        if (entry.sent !== undefined) details.push(`${entry.sent}/${entry.total} sent`);
+        if (entry.error) details.push(entry.error as string);
+        if (entry.detail) details.push(entry.detail as string);
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className={isProcessing ? 'text-warning' : isError ? 'text-danger' : 'text-success'} style={{ fontSize: 14, flexShrink: 0 }}>
+              {isProcessing ? '◦' : isError ? '✗' : '✓'}
+            </span>
+            <span className="font-mono text-text-secondary" style={{ fontSize: 12 }}>
+              {label}
+              {details.length > 0 && <span className="text-text-tertiary"> — {details.join(', ')}</span>}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function DigestTab() {
+  const queryClient = useQueryClient();
   const [frequency, setFrequency] = useState<'weekly' | 'daily'>('weekly');
+
+  const { data: runs, isLoading } = useQuery<DigestRunItem[]>({
+    queryKey: ['admin', 'digest-runs'],
+    queryFn: async () => (await api.get('/api/v1/admin/digest/runs')).data,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasRunning = data?.some((r) => r.status === 'running');
+      return hasRunning ? 3000 : false;
+    },
+  });
+
+  const isRunning = runs?.some((r) => r.status === 'running');
 
   const triggerMutation = useMutation({
     mutationFn: async (freq: string) => {
       const { data } = await api.post('/api/v1/admin/digest/trigger', { frequency: freq });
       return data as { status: string; frequency: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'digest-runs'] });
     },
   });
 
@@ -683,6 +759,7 @@ function DigestTab() {
       <p className="font-mono text-xs text-text-tertiary" style={{ lineHeight: 1.6 }}>
         Manually trigger a digest email (with optional podcast) for all eligible users.
         This is the same process that runs automatically after the daily pipeline.
+        Manual triggers ignore the day-of-week setting.
       </p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -706,24 +783,113 @@ function DigestTab() {
         {/* Trigger button */}
         <button
           onClick={() => triggerMutation.mutate(frequency)}
-          disabled={triggerMutation.isPending}
+          disabled={triggerMutation.isPending || !!isRunning}
           className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
           style={{ gap: 10, padding: '14px 24px' }}
         >
-          {triggerMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-          Send {frequency} digest
+          {triggerMutation.isPending || isRunning ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+          {isRunning ? 'Running...' : `Send ${frequency} digest`}
         </button>
+
+        {isRunning && (
+          <span className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
+            Auto-refreshing every 3s
+          </span>
+        )}
       </div>
 
-      {triggerMutation.isSuccess && (
-        <div className="rounded-xl bg-success/10 font-mono text-success" style={{ padding: '12px 16px', fontSize: 12 }}>
-          Digest triggered successfully ({triggerMutation.data?.frequency}). Emails and podcasts are being generated in the background.
-        </div>
-      )}
+      {/* Digest run history */}
+      {isLoading ? (
+        <LoadingState />
+      ) : !runs?.length ? (
+        <EmptyState title="No digest runs yet" description="Click the button above to send your first digest." />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {runs.map((run) => (
+            <div
+              key={run.id}
+              className={cn(
+                'rounded-2xl border',
+                run.status === 'running' ? 'border-warning/40 bg-bg-surface' :
+                run.status === 'failed' ? 'border-danger/30 bg-bg-surface' :
+                'border-border-default bg-bg-surface',
+              )}
+              style={{ padding: 20 }}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span
+                    className={cn(
+                      'rounded-full',
+                      run.status === 'success' && 'bg-success',
+                      run.status === 'failed' && 'bg-danger',
+                      run.status === 'running' && 'bg-warning animate-pulse',
+                    )}
+                    style={{ width: 10, height: 10 }}
+                  />
+                  <span className="font-mono font-medium capitalize text-text-primary" style={{ fontSize: 14 }}>
+                    {run.status === 'running' ? 'Running digest...' : run.status}
+                  </span>
+                  <span className="rounded-full bg-bg-elevated font-mono text-text-tertiary" style={{ fontSize: 11, padding: '2px 10px' }}>
+                    {run.frequency}
+                  </span>
+                </div>
+                <div className="font-mono text-text-tertiary" style={{ fontSize: 12, textAlign: 'right' }}>
+                  <div>{formatDate(run.started_at)}</div>
+                  {run.started_at && (
+                    <div style={{ marginTop: 2 }}>
+                      {run.status === 'running' ? 'Elapsed' : 'Duration'}: {formatElapsed(run.started_at, run.completed_at)}
+                    </div>
+                  )}
+                </div>
+              </div>
 
-      {triggerMutation.isError && (
-        <div className="rounded-xl bg-danger/10 font-mono text-danger" style={{ padding: '12px 16px', fontSize: 12 }}>
-          Failed to trigger digest. Check backend logs for details.
+              {/* Running progress */}
+              {run.status === 'running' && (
+                <div style={{ marginTop: 16 }}>
+                  <div className="rounded-full bg-border-default" style={{ height: 4, overflow: 'hidden' }}>
+                    <div
+                      className="bg-warning rounded-full transition-all"
+                      style={{
+                        height: '100%',
+                        width: run.users_total > 0
+                          ? `${Math.max(5, ((run.users_sent + run.users_skipped + run.users_failed) / run.users_total) * 100)}%`
+                          : '10%',
+                        ...(run.users_total === 0 ? { animation: 'pulse 2s infinite' } : {}),
+                      }}
+                    />
+                  </div>
+                  <div className="font-mono text-text-secondary" style={{ marginTop: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Loader2 size={13} className="animate-spin text-warning" />
+                    {run.users_total > 0
+                      ? `Processing ${run.users_sent + run.users_skipped + run.users_failed} / ${run.users_total} users...`
+                      : 'Initialising...'}
+                  </div>
+                </div>
+              )}
+
+              {/* Stats row */}
+              {run.status !== 'running' && run.users_total > 0 && (
+                <div className="font-mono text-text-secondary" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 14, fontSize: 13 }}>
+                  <span>Users: <strong className="text-text-primary">{run.users_total}</strong></span>
+                  <span>Sent: <strong className="text-success">{run.users_sent}</strong></span>
+                  {run.users_skipped > 0 && <span>Skipped: <strong className="text-text-tertiary">{run.users_skipped}</strong></span>}
+                  {run.users_failed > 0 && <span>Failed: <strong className="text-danger">{run.users_failed}</strong></span>}
+                </div>
+              )}
+
+              {/* Step log */}
+              {run.run_log && run.run_log.length > 0 && <DigestRunLogSteps log={run.run_log} />}
+
+              {/* Error */}
+              {run.error_message && (
+                <p className="rounded-xl bg-danger/10 font-mono text-danger" style={{ marginTop: 12, padding: '10px 14px', fontSize: 12 }}>
+                  {run.error_message}
+                </p>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
