@@ -1,4 +1,6 @@
-import { Play, Headphones, Trash2 } from 'lucide-react';
+import { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Play, Headphones, Trash2, Radio } from 'lucide-react';
 import { usePodcastList, useDeletePodcast } from '@/hooks/usePodcast';
 import { usePlayerStore } from '@/stores/playerStore';
 import { cn, formatDate } from '@/lib/utils';
@@ -8,8 +10,22 @@ export default function PodcastLibrary() {
   const deletePodcast = useDeletePodcast();
   const setTrack = usePlayerStore((s) => s.setTrack);
   const currentTrackUrl = usePlayerStore((s) => s.currentTrackUrl);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const apiBase = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
+
+  // Auto-play from ?play=<podcast_id> (used by digest email links)
+  useEffect(() => {
+    const playId = searchParams.get('play');
+    if (playId && podcasts) {
+      const target = podcasts.find((p) => p.id === playId);
+      if (target) {
+        const fullUrl = `${apiBase}${target.audio_url}`;
+        setTrack(fullUrl, target.paper_title, target.paper_journal);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [searchParams, podcasts]);
 
   if (isLoading) {
     return (
@@ -51,6 +67,7 @@ export default function PodcastLibrary() {
             {podcasts.map((podcast) => {
               const fullUrl = `${apiBase}${podcast.audio_url}`;
               const isPlaying = currentTrackUrl === fullUrl;
+              const isDigest = podcast.podcast_type === 'digest';
 
               return (
                 <article
@@ -58,14 +75,21 @@ export default function PodcastLibrary() {
                   className={cn(
                     'group cursor-pointer rounded-2xl border border-border-default bg-bg-surface transition hover:border-border-strong',
                     isPlaying && 'border-accent',
+                    isDigest && !isPlaying && 'border-purple-500/30',
                   )}
                   style={{ padding: 20 }}
                   onClick={() => setTrack(fullUrl, podcast.paper_title, podcast.paper_journal)}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary" style={{ padding: '4px 10px' }}>
-                      {podcast.voice_mode === 'dual' ? 'Dual voice' : 'Single voice'}
-                    </span>
+                    {isDigest ? (
+                      <span className="flex items-center gap-1.5 rounded-lg bg-purple-500/15 font-mono text-xs text-purple-400" style={{ padding: '4px 10px' }}>
+                        <Radio size={12} /> Digest
+                      </span>
+                    ) : (
+                      <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary" style={{ padding: '4px 10px' }}>
+                        {podcast.voice_mode === 'dual' ? 'Dual voice' : 'Single voice'}
+                      </span>
+                    )}
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button
                         onClick={(e) => {

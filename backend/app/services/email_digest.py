@@ -32,6 +32,10 @@ DIGEST_TEMPLATE = Template("""<!DOCTYPE html>
   .score-low { background: rgba(136, 136, 136, 0.15); color: #888888; }
   .shared-section { background: rgba(8, 145, 178, 0.08); border: 1px solid rgba(8, 145, 178, 0.2); border-radius: 12px; padding: 16px; margin-top: 24px; }
   .shared-label { font-family: 'Courier New', monospace; font-size: 11px; color: #0891b2; margin-bottom: 4px; }
+  .podcast-section { background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 12px; padding: 20px; margin: 24px 0; text-align: center; }
+  .podcast-title { font-family: 'Courier New', monospace; font-size: 13px; color: #a855f7; margin-bottom: 8px; }
+  .podcast-meta { font-family: 'Courier New', monospace; font-size: 11px; color: #888888; margin-bottom: 14px; }
+  .podcast-btn { display: inline-block; background: #a855f7; color: white; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; }
   .cta { display: block; text-align: center; background: #0891b2; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; margin: 24px 0; }
   .footer { text-align: center; padding: 24px 0; border-top: 1px solid #2a2a2a; margin-top: 24px; }
   .footer a { font-family: 'Courier New', monospace; font-size: 11px; color: #555555; text-decoration: underline; }
@@ -41,10 +45,20 @@ DIGEST_TEMPLATE = Template("""<!DOCTYPE html>
 <div class="container">
   <div class="header">
     <div class="logo">LitOrbit</div>
-    <div class="subtitle">Weekly Digest &mdash; {{ paper_count }} new papers for you</div>
+    <div class="subtitle">{{ frequency | capitalize }} Digest &mdash; {{ paper_count }} new papers for you</div>
   </div>
 
-  <h2>Top Papers This Week</h2>
+  {% if podcast %}
+  <div class="podcast-section">
+    <div class="podcast-title">{{ podcast.title }}</div>
+    <div class="podcast-meta">
+      {{ podcast.voice_label }} &middot; {{ podcast.duration_label }}
+    </div>
+    <a href="{{ podcast.play_url }}" class="podcast-btn">&#9654;&ensp;Listen Now</a>
+  </div>
+  {% endif %}
+
+  <h2>Top Papers This {{ "Day" if frequency == "daily" else "Week" }}</h2>
   {% for paper in papers %}
   <div class="paper">
     <div class="paper-title">{{ paper.title }}</div>
@@ -90,6 +104,8 @@ def generate_digest_html(
     shared_papers: list[dict[str, Any]],
     dashboard_url: str,
     unsubscribe_url: str,
+    frequency: str = "weekly",
+    podcast: dict[str, Any] | None = None,
 ) -> str:
     """Generate the HTML digest email."""
     return DIGEST_TEMPLATE.render(
@@ -99,6 +115,8 @@ def generate_digest_html(
         shared_papers=shared_papers,
         dashboard_url=dashboard_url,
         unsubscribe_url=unsubscribe_url,
+        frequency=frequency,
+        podcast=podcast,
     )
 
 

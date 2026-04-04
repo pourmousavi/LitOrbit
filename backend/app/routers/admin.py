@@ -321,3 +321,42 @@ async def update_keywords(
     from app.services.ranking import prefilter
     prefilter.MASTER_KEYWORDS = req.keywords
     return {"status": "updated", "count": len(req.keywords)}
+
+
+# --- Digest ---
+
+class DigestTrigger(BaseModel):
+    frequency: str | None = None  # "daily" | "weekly" | None (both)
+
+
+@router.post("/digest/trigger")
+async def trigger_digest(
+    req: DigestTrigger,
+    background_tasks: BackgroundTasks,
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> dict:
+    """Manually trigger digest emails for all eligible users."""
+
+    async def _run():
+        from app.database import init_db, async_session_factory
+        from app.services.digest_runner import run_digests
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            if async_session_factory is None:
+                init_db()
+            if async_session_factory is None:
+                return
+            async with async_session_factory() as session:
+                results = run_digests(session, frequency=req.frequency)
+                # run_digests is async
+                import asyncio
+                if asyncio.iscoroutine(results):
+                    results = await results
+                logger.info(f"Manual digest run: {results}")
+        except Exception as e:
+            logger.exception(f"Manual digest run failed: {e}")
+
+    background_tasks.add_task(_run)
+    return {"status": "triggered", "frequency": req.frequency or "all"}

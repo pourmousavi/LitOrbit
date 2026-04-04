@@ -18,6 +18,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"))
 
 from app.database import init_db, async_session_factory
 from app.pipeline.runner import run_discovery_pipeline
+from app.services.digest_runner import run_digests
 from app.services.discovery.journals_seed import JOURNALS_SEED
 from app.models.journal_config import JournalConfig
 
@@ -55,6 +56,15 @@ async def main():
     else:
         logger.error(f"Pipeline failed: {result}")
         sys.exit(1)
+
+    # Send digest emails after successful pipeline run
+    skip_digest = os.environ.get("SKIP_DIGEST", "").lower() in ("1", "true", "yes")
+    if not skip_digest:
+        logger.info("Running digest emails...")
+        async with async_session_factory() as db:
+            digest_results = await run_digests(db)
+            sent = sum(1 for r in digest_results if r.get("sent"))
+            logger.info(f"Digest complete: {sent}/{len(digest_results)} emails sent")
 
 
 if __name__ == "__main__":

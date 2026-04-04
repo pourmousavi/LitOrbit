@@ -384,16 +384,33 @@ async def list_podcasts(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """List all generated podcasts with collection info."""
-    result = await db.execute(
+    from sqlalchemy import or_
+
+    # Fetch paper-based podcasts (with join)
+    paper_result = await db.execute(
         select(Podcast, Paper.title, Paper.journal)
         .join(Paper, Podcast.paper_id == Paper.id)
-        .where(Podcast.audio_path.isnot(None))
+        .where(
+            Podcast.audio_path.isnot(None),
+            or_(Podcast.podcast_type == "paper", Podcast.podcast_type.is_(None)),
+        )
         .order_by(Podcast.generated_at.desc())
     )
-    rows = result.all()
+    paper_rows = paper_result.all()
 
-    # Bulk fetch collections for all podcast papers
-    paper_ids = list({podcast.paper_id for podcast, _, _ in rows})
+    # Fetch digest podcasts (no paper_id)
+    digest_result = await db.execute(
+        select(Podcast)
+        .where(
+            Podcast.audio_path.isnot(None),
+            Podcast.podcast_type == "digest",
+        )
+        .order_by(Podcast.generated_at.desc())
+    )
+    digest_rows = digest_result.scalars().all()
+
+    # Bulk fetch collections for paper-based podcasts
+    paper_ids = list({podcast.paper_id for podcast, _, _ in paper_rows if podcast.paper_id})
     collections_map: dict[str, list[dict]] = {}
     if paper_ids:
         col_result = await db.execute(
@@ -404,17 +421,36 @@ async def list_podcasts(
         for pid, cid, cname, ccolor in col_result.all():
             collections_map.setdefault(str(pid), []).append({"id": str(cid), "name": cname, "color": ccolor})
 
-    return [
-        {
+    items: list[dict] = []
+
+    # Digest podcasts first
+    for podcast in digest_rows:
+        items.append({
+            "id": str(podcast.id),
+            "paper_id": None,
+            "paper_title": podcast.title or "Digest Podcast",
+            "paper_journal": "",
+            "voice_mode": podcast.voice_mode,
+            "podcast_type": "digest",
+            "audio_url": f"/api/v1/podcasts/audio/{podcast.id}",
+            "duration_seconds": podcast.duration_seconds,
+            "generated_at": podcast.generated_at.isoformat() if podcast.generated_at else None,
+            "collections": [],
+        })
+
+    # Paper podcasts
+    for podcast, title, journal in paper_rows:
+        items.append({
             "id": str(podcast.id),
             "paper_id": str(podcast.paper_id),
             "paper_title": title,
             "paper_journal": journal,
             "voice_mode": podcast.voice_mode,
+            "podcast_type": "paper",
             "audio_url": f"/api/v1/podcasts/audio/{podcast.id}",
             "duration_seconds": podcast.duration_seconds,
             "generated_at": podcast.generated_at.isoformat() if podcast.generated_at else None,
             "collections": collections_map.get(str(podcast.paper_id), []),
-        }
-        for podcast, title, journal in rows
-    ]
+        })
+
+    return items

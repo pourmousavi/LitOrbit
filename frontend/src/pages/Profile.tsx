@@ -254,6 +254,69 @@ SAM: <dialogue>`;
                 </div>
               )}
 
+              {/* Digest podcast toggle */}
+              {profile.email_digest_enabled && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <p className="font-mono text-sm text-text-primary">Digest podcast</p>
+                    <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>Include an audio summary in your digest</p>
+                  </div>
+                  <button
+                    onClick={() => updateProfile.mutate({ digest_podcast_enabled: !profile.digest_podcast_enabled })}
+                    className={cn('transition', profile.digest_podcast_enabled ? 'text-success' : 'text-text-tertiary')}
+                    style={{ fontSize: 28 }}
+                  >
+                    {profile.digest_podcast_enabled ? '●' : '○'}
+                  </button>
+                </div>
+              )}
+
+              {/* Digest podcast voice mode */}
+              {profile.email_digest_enabled && profile.digest_podcast_enabled && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <p className="font-mono text-sm text-text-primary">Digest podcast voice</p>
+                  <div className="flex rounded-xl bg-bg-base" style={{ padding: 4, gap: 4 }}>
+                    {(['single', 'dual'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => updateProfile.mutate({ digest_podcast_voice_mode: mode })}
+                        className={cn(
+                          'rounded-lg font-mono text-xs transition',
+                          profile.digest_podcast_voice_mode === mode ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
+                        )}
+                        style={{ padding: '6px 14px' }}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Digest top papers count */}
+              {profile.email_digest_enabled && profile.digest_podcast_enabled && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <p className="font-mono text-sm text-text-primary">Digest papers count</p>
+                    <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
+                      Papers covered in digest podcast ({profile.digest_frequency === 'daily' ? 'default 3' : 'default 10'})
+                    </p>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={profile.digest_top_papers ?? (profile.digest_frequency === 'daily' ? 3 : 10)}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (val > 0 && val <= 20) updateProfile.mutate({ digest_top_papers: val });
+                    }}
+                    className="w-16 rounded-xl border border-border-default bg-bg-base text-center font-mono text-sm text-text-primary outline-none focus:border-accent"
+                    style={{ padding: '6px 8px' }}
+                  />
+                </div>
+              )}
+
               {/* Podcast voice */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <p className="font-mono text-sm text-text-primary">Default podcast voice</p>

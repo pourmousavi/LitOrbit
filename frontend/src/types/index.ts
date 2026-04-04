@@ -48,6 +48,9 @@ export interface UserProfile {
   podcast_preference: 'single' | 'dual';
   email_digest_enabled: boolean;
   digest_frequency: 'daily' | 'weekly';
+  digest_podcast_enabled: boolean;
+  digest_podcast_voice_mode: 'single' | 'dual';
+  digest_top_papers: number | null;
   scoring_prompt: string | null;
   single_voice_prompt: string | null;
   dual_voice_prompt: string | null;
@@ -74,8 +77,9 @@ export interface RatingResponse {
 
 export interface Podcast {
   id: string;
-  paper_id: string;
+  paper_id: string | null;
   voice_mode: 'single' | 'dual';
+  podcast_type: 'paper' | 'digest';
   audio_path: string | null;
   duration_seconds: number | null;
   generated_at: string;

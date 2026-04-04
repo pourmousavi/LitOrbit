@@ -58,10 +58,11 @@ export function useGeneratePodcast() {
 
 interface PodcastListItem {
   id: string;
-  paper_id: string;
+  paper_id: string | null;
   paper_title: string;
   paper_journal: string;
   voice_mode: string;
+  podcast_type: 'paper' | 'digest';
   audio_url: string;
   duration_seconds: number | null;
   generated_at: string;

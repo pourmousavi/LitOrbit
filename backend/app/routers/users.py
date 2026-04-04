@@ -19,6 +19,9 @@ class ProfileUpdate(BaseModel):
     podcast_preference: str | None = None
     email_digest_enabled: bool | None = None
     digest_frequency: str | None = None
+    digest_podcast_enabled: bool | None = None
+    digest_podcast_voice_mode: str | None = None
+    digest_top_papers: int | None = None
     scoring_prompt: str | None = None
     single_voice_prompt: str | None = None
     dual_voice_prompt: str | None = None
@@ -51,6 +54,9 @@ async def get_my_profile(
         "podcast_preference": profile.podcast_preference,
         "email_digest_enabled": profile.email_digest_enabled,
         "digest_frequency": profile.digest_frequency,
+        "digest_podcast_enabled": profile.digest_podcast_enabled,
+        "digest_podcast_voice_mode": profile.digest_podcast_voice_mode,
+        "digest_top_papers": profile.digest_top_papers,
         "scoring_prompt": profile.scoring_prompt,
         "single_voice_prompt": profile.single_voice_prompt,
         "dual_voice_prompt": profile.dual_voice_prompt,
@@ -84,6 +90,12 @@ async def update_my_profile(
         profile.email_digest_enabled = req.email_digest_enabled
     if req.digest_frequency is not None:
         profile.digest_frequency = req.digest_frequency
+    if req.digest_podcast_enabled is not None:
+        profile.digest_podcast_enabled = req.digest_podcast_enabled
+    if req.digest_podcast_voice_mode is not None:
+        profile.digest_podcast_voice_mode = req.digest_podcast_voice_mode
+    if req.digest_top_papers is not None:
+        profile.digest_top_papers = req.digest_top_papers if req.digest_top_papers > 0 else None
     if req.scoring_prompt is not None:
         profile.scoring_prompt = req.scoring_prompt if req.scoring_prompt.strip() else None
     if req.single_voice_prompt is not None:
