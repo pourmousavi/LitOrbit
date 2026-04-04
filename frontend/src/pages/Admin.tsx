@@ -702,7 +702,7 @@ function DigestRunLogSteps({ log }: { log: Record<string, unknown>[] }) {
         const step = entry.step as string;
         const label = DIGEST_STEP_LABELS[step] || step;
         const isProcessing = step === 'processing_user';
-        const isWarning = step === 'user_partial';
+        const isWarning = step === 'user_partial' || (step === 'completed' && (entry.email_failed || entry.skipped));
         const isError = step === 'user_error' || step === 'user_failed';
         const details: string[] = [];
         if (entry.user) details.push(entry.user as string);
@@ -712,7 +712,9 @@ function DigestRunLogSteps({ log }: { log: Record<string, unknown>[] }) {
         if (entry.email_failed) details.push('email failed');
         if (entry.eligible !== undefined) details.push(`${entry.eligible} eligible`);
         if (entry.skipped_day) details.push(`${entry.skipped_day} skipped (wrong day)`);
-        if (entry.sent !== undefined) details.push(`${entry.sent}/${entry.total} sent`);
+        if (entry.sent !== undefined && entry.total !== undefined) details.push(`${entry.sent}/${entry.total} sent`);
+        if (step === 'completed' && entry.email_failed) details.push(`${entry.email_failed} email failed`);
+        if (step === 'completed' && entry.skipped) details.push(`${entry.skipped} skipped`);
         if (entry.error) details.push(entry.error as string);
         if (entry.detail) details.push(entry.detail as string);
         return (
@@ -815,6 +817,7 @@ function DigestTab() {
                 'rounded-2xl border',
                 run.status === 'running' ? 'border-warning/40 bg-bg-surface' :
                 run.status === 'failed' ? 'border-danger/30 bg-bg-surface' :
+                run.status === 'partial' ? 'border-warning/30 bg-bg-surface' :
                 'border-border-default bg-bg-surface',
               )}
               style={{ padding: 20 }}
@@ -826,13 +829,14 @@ function DigestTab() {
                     className={cn(
                       'rounded-full',
                       run.status === 'success' && 'bg-success',
+                      run.status === 'partial' && 'bg-warning',
                       run.status === 'failed' && 'bg-danger',
                       run.status === 'running' && 'bg-warning animate-pulse',
                     )}
                     style={{ width: 10, height: 10 }}
                   />
                   <span className="font-mono font-medium capitalize text-text-primary" style={{ fontSize: 14 }}>
-                    {run.status === 'running' ? 'Running digest...' : run.status}
+                    {run.status === 'running' ? 'Running digest...' : run.status === 'partial' ? 'Partial Success' : run.status}
                   </span>
                   <span className="rounded-full bg-bg-elevated font-mono text-text-tertiary" style={{ fontSize: 11, padding: '2px 10px' }}>
                     {run.frequency}

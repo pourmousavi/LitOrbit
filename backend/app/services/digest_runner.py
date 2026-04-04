@@ -422,13 +422,24 @@ async def run_digests(
                     "error": str(e),
                 })
 
-        run.status = "success"
         run.completed_at = datetime.now(timezone.utc)
         sent_count = sum(1 for r in results if r.get("sent"))
+        email_failed_count = sum(1 for r in results if r.get("email_failed"))
+
+        # Determine final status
+        if run.users_failed > 0 or email_failed_count > 0:
+            run.status = "partial"
+        elif run.users_skipped == run.users_total:
+            run.status = "partial"
+        else:
+            run.status = "success"
+
         await _append_log(db, run, {
             "step": "completed",
             "sent": sent_count,
             "total": len(users),
+            "email_failed": email_failed_count,
+            "skipped": run.users_skipped,
         })
         logger.info(f"Digest run complete: {sent_count}/{len(users)} emails sent")
         return results
