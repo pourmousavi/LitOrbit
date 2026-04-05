@@ -75,6 +75,19 @@ async def get_existing_dois(db: AsyncSession) -> set[str]:
     return dois
 
 
+async def get_existing_titles(db: AsyncSession) -> set[str]:
+    """Get normalised titles of all papers in the database (for no-DOI dedup)."""
+    from app.models.deleted_paper import DeletedPaper
+
+    result = await db.execute(select(Paper.title).where(Paper.title.isnot(None)))
+    titles = {row[0].lower().strip() for row in result.all()}
+
+    deleted_result = await db.execute(select(DeletedPaper.title).where(DeletedPaper.title.isnot(None)))
+    titles.update(row[0].lower().strip() for row in deleted_result.all())
+
+    return titles
+
+
 async def save_papers(db: AsyncSession, papers: list[dict[str, Any]]) -> int:
     """Save new papers to the database. Returns count of papers saved."""
     saved = 0
@@ -408,7 +421,8 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
 
         # Deduplicate
         existing_dois = await get_existing_dois(db)
-        unique_papers = deduplicate_papers(all_papers, existing_dois)
+        existing_titles = await get_existing_titles(db)
+        unique_papers = deduplicate_papers(all_papers, existing_dois, existing_titles)
         run.papers_filtered = len(unique_papers)
 
         logger.info(f"After dedup: {len(unique_papers)} unique new papers (from {len(all_papers)} raw)")

@@ -832,20 +832,25 @@ function PipelineStatusTab() {
 
               {/* Stats row */}
               {run.status !== 'running' && (
-                <div className="font-mono text-text-secondary" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 14, fontSize: 13 }}>
-                  <span>Discovered: <strong className="text-text-primary">{run.papers_discovered}</strong></span>
-                  <span>New: <strong className="text-text-primary">{run.papers_filtered}</strong></span>
-                  <span>Processed: <strong className="text-text-primary">{run.papers_processed}</strong></span>
+                <div className={cn('font-mono text-text-secondary', run.status === 'deleted' && 'line-through')} style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 14, fontSize: 13 }}>
+                  <span>Discovered: <strong className={run.status === 'deleted' ? 'text-text-tertiary' : 'text-text-primary'}>{run.papers_discovered}</strong></span>
+                  <span>New: <strong className={run.status === 'deleted' ? 'text-text-tertiary' : 'text-text-primary'}>{run.papers_filtered}</strong></span>
+                  <span>Processed: <strong className={run.status === 'deleted' ? 'text-text-tertiary' : 'text-text-primary'}>{run.papers_processed}</strong></span>
                 </div>
               )}
 
-              {/* Step-by-step log */}
-              {run.run_log && run.run_log.length > 0 && <RunLogSteps log={run.run_log} />}
+              {/* Step-by-step log (hidden for deleted runs) */}
+              {run.status !== 'deleted' && run.run_log && run.run_log.length > 0 && <RunLogSteps log={run.run_log} />}
 
-              {/* Error message */}
+              {/* Error / info message */}
               {run.error_message && (
                 <p
-                  className="rounded-xl bg-danger/10 font-mono text-danger"
+                  className={cn(
+                    'rounded-xl font-mono',
+                    run.status === 'deleted'
+                      ? 'bg-bg-base text-text-tertiary'
+                      : 'bg-danger/10 text-danger',
+                  )}
                   style={{ marginTop: 12, padding: '10px 14px', fontSize: 12 }}
                 >
                   {run.error_message}
