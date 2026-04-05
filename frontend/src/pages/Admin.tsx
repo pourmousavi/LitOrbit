@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders } from 'lucide-react';
+import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders, AlertTriangle, Info } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
@@ -58,12 +58,32 @@ interface StorageUsage {
   warning: boolean;
 }
 
+interface SystemAlert {
+  severity: 'warning' | 'info';
+  title: string;
+  message: string;
+  action?: string;
+  count?: number;
+}
+
 export default function Admin() {
   const [tab, setTab] = useState<Tab>('journals');
+  const queryClient = useQueryClient();
   const { data: storage } = useQuery<StorageUsage>({
     queryKey: ['admin', 'storage'],
     queryFn: async () => (await api.get('/api/v1/admin/storage-usage')).data,
     staleTime: 60000,
+  });
+  const { data: alerts } = useQuery<SystemAlert[]>({
+    queryKey: ['admin', 'alerts'],
+    queryFn: async () => (await api.get('/api/v1/admin/alerts')).data,
+    staleTime: 60000,
+  });
+  const backfillMutation = useMutation({
+    mutationFn: async () => (await api.post('/api/v1/admin/backfill-embeddings')).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'alerts'] });
+    },
   });
 
   const tabs: { key: Tab; label: string; icon: typeof Settings }[] = [
@@ -133,6 +153,58 @@ export default function Admin() {
                 />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Embedding alerts */}
+        {alerts && alerts.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+            {alerts.map((alert, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'rounded-2xl border font-mono',
+                  alert.severity === 'warning'
+                    ? 'border-warning/40 bg-warning/5'
+                    : 'border-accent/30 bg-accent/5',
+                )}
+                style={{ padding: '14px 20px' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  {alert.severity === 'warning' ? (
+                    <AlertTriangle size={16} className="text-warning" style={{ marginTop: 2, flexShrink: 0 }} />
+                  ) : (
+                    <Info size={16} className="text-accent" style={{ marginTop: 2, flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div className={cn('text-sm font-medium', alert.severity === 'warning' ? 'text-warning' : 'text-accent')}>
+                      {alert.title}
+                    </div>
+                    <div className="text-xs text-text-secondary" style={{ marginTop: 4, lineHeight: 1.5 }}>
+                      {alert.message}
+                    </div>
+                    {alert.action === 'backfill-embeddings' && (
+                      <button
+                        onClick={() => backfillMutation.mutate()}
+                        disabled={backfillMutation.isPending}
+                        className="text-xs text-accent hover:text-accent-hover transition font-medium"
+                        style={{ marginTop: 8, padding: '4px 0' }}
+                      >
+                        {backfillMutation.isPending ? (
+                          <span className="flex items-center" style={{ gap: 6 }}>
+                            <Loader2 size={12} className="animate-spin" /> Running backfill...
+                          </span>
+                        ) : backfillMutation.isSuccess ? (
+                          'Backfill triggered — check back in a few minutes'
+                        ) : (
+                          'Run Backfill Now'
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

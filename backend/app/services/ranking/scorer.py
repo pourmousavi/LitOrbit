@@ -85,6 +85,10 @@ Name: {user.get('full_name', '')}
 Keywords of interest: {', '.join(user.get('interest_keywords', []))}
 Research focus areas: {', '.join(user.get('interest_categories', []))}"""
 
+    # Append semantic similarity if available (from embedding pre-filter)
+    if paper.get("cosine_similarity") is not None:
+        user_message += f"\nSEMANTIC SIMILARITY: {paper['cosine_similarity']}/1.0 (cosine similarity to researcher's reference papers)"
+
     for attempt in range(1, _MAX_RETRIES + 1):
         await _rate_limiter.acquire()
         try:

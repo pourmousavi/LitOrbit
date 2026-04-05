@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import papers, ratings, shares, users, podcasts, admin, collections, feed
+from app.routers import papers, ratings, shares, users, podcasts, admin, collections, feed, reference_papers
 
 settings = get_settings()
 
@@ -32,6 +32,7 @@ app.include_router(podcasts.router)
 app.include_router(admin.router)
 app.include_router(collections.router)
 app.include_router(feed.router)
+app.include_router(reference_papers.router)
 
 import logging
 logging.getLogger(__name__).info(f"Registered {len(app.routes)} routes")

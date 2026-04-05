@@ -5,7 +5,7 @@ from sqlalchemy import String, Text, Date, DateTime, Boolean, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
-from app.models.types import UUID, StringArray
+from app.models.types import UUID, StringArray, JSONB
 
 
 class Paper(Base):
@@ -29,4 +29,5 @@ class Paper(Base):
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("user_profiles.id"), nullable=True)
+    embedding: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

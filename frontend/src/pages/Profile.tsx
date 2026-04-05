@@ -1,13 +1,14 @@
-import { useState, useEffect, type KeyboardEvent } from 'react';
-import { Plus, X, Loader2, RotateCcw, Copy, Check, Rss, User, Bell, Mic, Brain } from 'lucide-react';
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
+import { Plus, X, Loader2, RotateCcw, Copy, Check, Rss, User, Bell, Mic, Brain, BookOpen, Upload, Search, FileText, AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
+import { useReferencePapers, useUploadReferencePaper, useAddReferencePaperByDOI, useAddReferencePaperManual, useDeleteReferencePaper } from '@/hooks/useReferencePapers';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
-type Tab = 'account' | 'digest' | 'podcast' | 'scoring';
+type Tab = 'account' | 'references' | 'digest' | 'podcast' | 'scoring';
 
 interface TTSVoice {
   id: string;
@@ -69,6 +70,7 @@ export default function Profile() {
 
   const tabs: { key: Tab; label: string; icon: typeof User }[] = [
     { key: 'account', label: 'Account', icon: User },
+    { key: 'references', label: 'References', icon: BookOpen },
     { key: 'digest', label: 'Digest', icon: Bell },
     { key: 'podcast', label: 'Podcast', icon: Mic },
     { key: 'scoring', label: 'Scoring', icon: Brain },
@@ -121,6 +123,7 @@ export default function Profile() {
         </div>
 
         {tab === 'account' && <AccountTab />}
+        {tab === 'references' && <ReferencePapersTab />}
         {tab === 'digest' && <DigestTab />}
         {tab === 'podcast' && <PodcastTab />}
         {tab === 'scoring' && <ScoringTab />}
@@ -820,6 +823,261 @@ Return ONLY valid JSON in this exact format:
           >
             Cancel
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function ReferencePapersTab() {
+  const { data: papers, isLoading } = useReferencePapers();
+  const uploadMutation = useUploadReferencePaper();
+  const doiMutation = useAddReferencePaperByDOI();
+  const manualMutation = useAddReferencePaperManual();
+  const deleteMutation = useDeleteReferencePaper();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<'idle' | 'doi' | 'manual'>('idle');
+  const [doi, setDoi] = useState('');
+  const [manualTitle, setManualTitle] = useState('');
+  const [manualAbstract, setManualAbstract] = useState('');
+
+  const count = papers?.length ?? 0;
+  const MAX = 10;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Only PDF files are accepted.');
+      return;
+    }
+    uploadMutation.mutate(file, { onSuccess: () => setMode('idle') });
+    e.target.value = '';
+  };
+
+  const handleDoiSubmit = () => {
+    const d = doi.trim();
+    if (!d) return;
+    doiMutation.mutate(d, { onSuccess: () => { setDoi(''); setMode('idle'); } });
+  };
+
+  const handleManualSubmit = () => {
+    const t = manualTitle.trim();
+    if (!t) return;
+    manualMutation.mutate(
+      { title: t, abstract: manualAbstract.trim() || undefined },
+      { onSuccess: () => { setManualTitle(''); setManualAbstract(''); setMode('idle'); } },
+    );
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Header */}
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <h2 className="font-mono text-sm font-semibold text-text-primary">
+            Reference Papers ({count}/{MAX})
+          </h2>
+        </div>
+        <p className="text-xs text-text-secondary" style={{ lineHeight: 1.6 }}>
+          Upload papers that represent your research interests. These are used to find semantically
+          similar new papers in your feed, replacing simple keyword matching with intelligent
+          relevance scoring.
+        </p>
+      </div>
+
+      {/* Add paper actions */}
+      {count < MAX && (
+        <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+          <h3 className="font-mono text-xs font-semibold text-text-secondary" style={{ marginBottom: 16 }}>
+            Add Reference Paper
+          </h3>
+
+          {mode === 'idle' && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadMutation.isPending}
+                className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-primary hover:border-accent transition"
+                style={{ gap: 8, padding: '10px 18px' }}
+              >
+                {uploadMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                {uploadMutation.isPending ? 'Uploading...' : 'Upload PDF'}
+              </button>
+              <button
+                onClick={() => setMode('doi')}
+                className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-primary hover:border-accent transition"
+                style={{ gap: 8, padding: '10px 18px' }}
+              >
+                <Search size={14} /> Lookup by DOI
+              </button>
+              <button
+                onClick={() => setMode('manual')}
+                className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-primary hover:border-accent transition"
+                style={{ gap: 8, padding: '10px 18px' }}
+              >
+                <FileText size={14} /> Enter Manually
+              </button>
+              <input ref={fileInputRef} type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
+            </div>
+          )}
+
+          {mode === 'doi' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input
+                type="text"
+                value={doi}
+                onChange={(e) => setDoi(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleDoiSubmit()}
+                placeholder="e.g. 10.1016/j.apenergy.2024.123456"
+                className="rounded-xl border border-border-default bg-bg-base px-4 py-3 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+              />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={handleDoiSubmit}
+                  disabled={!doi.trim() || doiMutation.isPending}
+                  className="flex items-center rounded-xl bg-accent px-4 py-2 font-mono text-sm text-white transition hover:bg-accent-hover disabled:opacity-40"
+                  style={{ gap: 6 }}
+                >
+                  {doiMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                  {doiMutation.isPending ? 'Looking up...' : 'Fetch'}
+                </button>
+                <button
+                  onClick={() => { setMode('idle'); setDoi(''); }}
+                  className="rounded-xl px-4 py-2 font-mono text-sm text-text-secondary hover:text-text-primary"
+                >
+                  Cancel
+                </button>
+              </div>
+              {doiMutation.isError && (
+                <p className="text-xs text-danger">
+                  {(doiMutation.error as any)?.response?.data?.detail || 'DOI lookup failed'}
+                </p>
+              )}
+            </div>
+          )}
+
+          {mode === 'manual' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input
+                type="text"
+                value={manualTitle}
+                onChange={(e) => setManualTitle(e.target.value)}
+                placeholder="Paper title"
+                className="rounded-xl border border-border-default bg-bg-base px-4 py-3 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+              />
+              <textarea
+                value={manualAbstract}
+                onChange={(e) => setManualAbstract(e.target.value)}
+                placeholder="Abstract (optional but recommended for better matching)"
+                rows={4}
+                className="rounded-xl border border-border-default bg-bg-base px-4 py-3 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none resize-none"
+              />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={handleManualSubmit}
+                  disabled={!manualTitle.trim() || manualMutation.isPending}
+                  className="flex items-center rounded-xl bg-accent px-4 py-2 font-mono text-sm text-white transition hover:bg-accent-hover disabled:opacity-40"
+                  style={{ gap: 6 }}
+                >
+                  {manualMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                  {manualMutation.isPending ? 'Adding...' : 'Add Paper'}
+                </button>
+                <button
+                  onClick={() => { setMode('idle'); setManualTitle(''); setManualAbstract(''); }}
+                  className="rounded-xl px-4 py-2 font-mono text-sm text-text-secondary hover:text-text-primary"
+                >
+                  Cancel
+                </button>
+              </div>
+              {manualMutation.isError && (
+                <p className="text-xs text-danger">
+                  {(manualMutation.error as any)?.response?.data?.detail || 'Failed to add paper'}
+                </p>
+              )}
+            </div>
+          )}
+
+          {uploadMutation.isError && (
+            <p className="text-xs text-danger" style={{ marginTop: 12 }}>
+              {(uploadMutation.error as any)?.response?.data?.detail || 'Upload failed'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Paper list */}
+      {isLoading ? (
+        <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="animate-pulse" style={{ marginBottom: 16 }}>
+              <div className="h-4 w-2/3 rounded bg-bg-elevated" />
+              <div className="mt-2 h-3 w-full rounded bg-bg-elevated" />
+            </div>
+          ))}
+        </div>
+      ) : papers && papers.length > 0 ? (
+        <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {papers.map((paper) => (
+              <div
+                key={paper.id}
+                className="rounded-xl border border-border-default bg-bg-base"
+                style={{ padding: '14px 18px' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="font-serif text-sm text-text-primary" style={{ lineHeight: 1.4 }}>
+                      {paper.title}
+                    </div>
+                    {paper.abstract_preview && (
+                      <p className="text-xs text-text-tertiary" style={{ marginTop: 6, lineHeight: 1.5 }}>
+                        {paper.abstract_preview}...
+                      </p>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                      <span className="rounded-md bg-bg-elevated px-2 py-0.5 font-mono text-[10px] text-text-tertiary">
+                        {paper.source === 'pdf_upload' ? 'PDF' : paper.source === 'doi_lookup' ? 'DOI' : 'Manual'}
+                      </span>
+                      {paper.doi && (
+                        <span className="font-mono text-[10px] text-text-tertiary">{paper.doi}</span>
+                      )}
+                      {!paper.has_embedding && (
+                        <span className="flex items-center text-[10px] text-warning font-mono" style={{ gap: 3 }}>
+                          <AlertCircle size={10} /> Embedding pending
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirm('Remove this reference paper?')) {
+                        deleteMutation.mutate(paper.id);
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                    className="text-text-tertiary hover:text-danger transition"
+                    style={{ padding: 4, flexShrink: 0 }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="rounded-2xl border border-border-default bg-bg-surface"
+          style={{ padding: '40px 24px', textAlign: 'center' }}
+        >
+          <BookOpen size={32} className="text-text-tertiary" style={{ margin: '0 auto 12px' }} />
+          <p className="font-mono text-sm text-text-secondary">No reference papers yet</p>
+          <p className="text-xs text-text-tertiary" style={{ marginTop: 4 }}>
+            Add papers to improve how we find relevant research for you
+          </p>
         </div>
       )}
     </div>

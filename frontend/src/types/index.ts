@@ -67,6 +67,16 @@ export interface UserProfile {
   podcast_feed_cover_url: string | null;
 }
 
+export interface ReferencePaper {
+  id: string;
+  title: string;
+  abstract_preview: string | null;
+  doi: string | null;
+  source: 'pdf_upload' | 'doi_lookup' | 'manual';
+  has_embedding: boolean;
+  created_at: string | null;
+}
+
 export interface Rating {
   id: string;
   paper_id: string;

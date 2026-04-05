@@ -668,3 +668,105 @@ async def list_digest_runs(
         }
         for r in runs
     ]
+
+
+# --- Embedding Alerts & Backfill ---
+
+@router.get("/alerts")
+async def get_alerts(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Return active system alerts (embedding quota, unembedded papers, etc.)."""
+    from app.models.paper import Paper
+    from app.services.ranking.embedder import get_quota_status
+
+    alerts = []
+
+    # 1. Check latest pipeline run for embedding quota exhaustion
+    latest_run = await db.execute(
+        select(PipelineRun)
+        .where(PipelineRun.status == "success")
+        .order_by(PipelineRun.started_at.desc())
+        .limit(1)
+    )
+    run_obj = latest_run.scalar_one_or_none()
+    if run_obj and run_obj.run_log:
+        for step in run_obj.run_log:
+            if isinstance(step, dict) and step.get("step") == "embedding" and step.get("quota_exhausted"):
+                alerts.append({
+                    "severity": "warning",
+                    "title": "Embedding Quota Exhausted",
+                    "message": step.get("message") or (
+                        f"Gemini Embedding API daily limit was reached during the last pipeline run. "
+                        f"{step.get('skipped', 0)} papers were not embedded and are using keyword "
+                        f"fallback for scoring. Use the 'Run Backfill' button below to retry after "
+                        f"the quota resets (midnight UTC), or wait for the next pipeline run."
+                    ),
+                    "action": "backfill-embeddings",
+                    "run_id": str(run_obj.id),
+                    "run_at": run_obj.started_at.isoformat() if run_obj.started_at else None,
+                })
+                break
+
+    # 2. Count unembedded papers
+    unembedded_result = await db.execute(
+        select(func.count()).select_from(Paper).where(Paper.embedding.is_(None))
+    )
+    unembedded_count = unembedded_result.scalar() or 0
+    if unembedded_count > 0:
+        alerts.append({
+            "severity": "info",
+            "title": "Papers Without Embeddings",
+            "message": (
+                f"{unembedded_count} paper(s) lack semantic embeddings. These papers use "
+                f"keyword fallback for relevance scoring, which is less accurate. "
+                f"Run backfill to generate embeddings, or they will be embedded on "
+                f"the next pipeline run."
+            ),
+            "action": "backfill-embeddings",
+            "count": unembedded_count,
+        })
+
+    # 3. Current quota status
+    quota = get_quota_status()
+    if quota["daily_remaining"] < 100:
+        alerts.append({
+            "severity": "info",
+            "title": "Embedding Quota Running Low",
+            "message": (
+                f"{quota['daily_remaining']} embedding requests remaining today "
+                f"(used {quota['daily_used']}/{quota['daily_limit']}). "
+                f"Quota resets at midnight."
+            ),
+        })
+
+    return alerts
+
+
+@router.post("/backfill-embeddings")
+async def backfill_embeddings(
+    background_tasks: BackgroundTasks,
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> dict:
+    """Trigger embedding backfill for papers missing embeddings."""
+
+    async def _run():
+        from app.database import init_db, async_session_factory
+        from app.pipeline.runner import embed_unembedded_papers
+        import logging
+        _logger = logging.getLogger(__name__)
+
+        try:
+            if async_session_factory is None:
+                init_db()
+            if async_session_factory is None:
+                return
+            async with async_session_factory() as session:
+                result = await embed_unembedded_papers(session)
+                _logger.info(f"Backfill embeddings: {result}")
+        except Exception as e:
+            _logger.exception(f"Backfill embeddings failed: {e}")
+
+    background_tasks.add_task(_run)
+    return {"status": "triggered"}

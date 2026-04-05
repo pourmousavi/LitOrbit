@@ -16,7 +16,12 @@ from app.services.discovery.scopus import fetch_all_scopus_journals
 from app.services.discovery.rss import fetch_all_rss_journals
 from app.services.discovery.deduplicator import deduplicate_papers
 from app.services.ranking.prefilter import prefilter_papers
-from app.services.ranking.scorer import score_paper_for_all_users
+from app.services.ranking.scorer import score_paper_for_user
+from app.services.ranking.embedder import (
+    embed_texts,
+    prepare_paper_text,
+    cosine_similarity,
+)
 from app.services.summariser import generate_summary
 
 logger = logging.getLogger(__name__)
@@ -116,6 +121,48 @@ async def save_scores(
     return saved
 
 
+async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
+    """Embed all papers that don't have embeddings yet.
+
+    Returns dict with counts and quota status.
+    """
+    result = await db.execute(
+        select(Paper).where(Paper.embedding.is_(None))
+    )
+    papers = result.scalars().all()
+
+    if not papers:
+        logger.info("No unembedded papers to process")
+        return {"embedded": 0, "skipped": 0, "quota_exhausted": False}
+
+    texts = [prepare_paper_text(p.title, p.abstract or "") for p in papers]
+    embeddings = await embed_texts(texts)
+
+    embedded = 0
+    skipped = 0
+    quota_exhausted = False
+
+    for paper, embedding in zip(papers, embeddings):
+        if embedding is not None:
+            paper.embedding = embedding
+            embedded += 1
+        else:
+            skipped += 1
+            quota_exhausted = True  # None means quota/rate issue
+
+    await db.commit()
+
+    if quota_exhausted:
+        logger.warning(
+            f"Embedding quota issue: {embedded} embedded, {skipped} skipped. "
+            f"Skipped papers will use keyword fallback for scoring."
+        )
+    else:
+        logger.info(f"Embedded {embedded} papers")
+
+    return {"embedded": embedded, "skipped": skipped, "quota_exhausted": quota_exhausted}
+
+
 async def score_and_summarise_papers(
     db: AsyncSession,
     run: PipelineRun,
@@ -137,7 +184,7 @@ async def score_and_summarise_papers(
         logger.info("No unscored papers to process")
         return {"prefiltered": 0, "scored": 0, "summarised": 0}
 
-    # Convert to dicts for prefilter
+    # Convert to dicts for scoring
     paper_dicts = [
         {
             "id": str(p.id),
@@ -146,35 +193,112 @@ async def score_and_summarise_papers(
             "authors": p.authors,
             "journal": p.journal,
             "keywords": p.keywords or [],
+            "embedding": p.embedding,
         }
         for p in unscored
     ]
-
-    # Prefilter
-    filtered = prefilter_papers(paper_dicts)
-    logger.info(f"Prefilter: {len(filtered)}/{len(paper_dicts)} papers passed")
 
     # Get users for scoring
     users = await get_all_users(db)
     if not users:
         logger.warning("No users found, skipping scoring")
-        return {"prefiltered": len(filtered), "scored": 0, "summarised": 0}
+        return {"prefiltered": 0, "scored": 0, "summarised": 0}
+
+    SIMILARITY_THRESHOLD = 0.35
+
+    # Per-user filtering: embedding similarity if available, keyword fallback otherwise
+    # Build a map of user_id -> papers to score for that user
+    user_papers_map: dict[str, list[dict]] = {}
+    keyword_fallback_count = 0
+    embedding_filter_count = 0
+
+    # Keyword-filtered papers (computed once, used as fallback)
+    keyword_filtered = prefilter_papers(paper_dicts)
+    keyword_filtered_ids = {p["id"] for p in keyword_filtered}
+
+    for user in users:
+        profile_embedding = user.get("interest_vector")
+        # interest_vector is a list when populated, empty dict {} when not
+        has_profile = isinstance(profile_embedding, list) and len(profile_embedding) > 0
+
+        if has_profile:
+            # Embedding-based per-user filter
+            matched = []
+            for pd in paper_dicts:
+                paper_emb = pd.get("embedding")
+                if isinstance(paper_emb, list) and len(paper_emb) > 0:
+                    sim = cosine_similarity(profile_embedding, paper_emb)
+                    if sim >= SIMILARITY_THRESHOLD:
+                        pd_copy = {**pd, "cosine_similarity": round(sim, 4)}
+                        matched.append(pd_copy)
+                elif pd["id"] in keyword_filtered_ids:
+                    # Paper has no embedding — fall back to keyword match
+                    matched.append(pd)
+            user_papers_map[user["id"]] = matched
+            embedding_filter_count += 1
+        else:
+            # No profile embedding — use keyword fallback
+            user_papers_map[user["id"]] = keyword_filtered
+            keyword_fallback_count += 1
+
+    logger.info(
+        f"Filtering: {embedding_filter_count} users with embedding filter, "
+        f"{keyword_fallback_count} users with keyword fallback"
+    )
 
     scored_count = 0
     summarised_count = 0
     import json as json_module
     import asyncio as aio
 
-    BATCH_SIZE = 5  # Process 5 papers concurrently
+    BATCH_SIZE = 5
 
-    async def _score_one(paper_dict: dict) -> tuple[dict, list[dict], float]:
-        """Score a single paper for all users. Returns (paper_dict, scores, max_score)."""
-        scores = await score_paper_for_all_users(paper_dict, users)
+    # Collect all (paper, user) pairs to score, then dedupe per paper
+    # Track which papers need scoring for which users
+    all_scores: dict[str, list[dict]] = {}  # paper_id -> list of score dicts
+
+    from google import genai as _genai
+    from app.config import get_settings as _get_settings
+    _settings = _get_settings()
+    _client = _genai.Client(api_key=_settings.gemini_api_key)
+
+    for user in users:
+        user_papers = user_papers_map.get(user["id"], [])
+        if not user_papers:
+            continue
+
+        for i in range(0, len(user_papers), BATCH_SIZE):
+            batch = user_papers[i:i + BATCH_SIZE]
+
+            async def _score(pd: dict, u: dict = user) -> tuple[str, dict]:
+                result = await score_paper_for_user(pd, u, _client, u.get("scoring_prompt"))
+                return pd["id"], {"user_id": u["id"], "score": result["score"], "reasoning": result["reasoning"]}
+
+            results = await aio.gather(*[_score(pd) for pd in batch])
+
+            for paper_id_str, score_data in results:
+                all_scores.setdefault(paper_id_str, []).append(score_data)
+                scored_count += 1
+
+    # Save all scores and determine which papers to summarise
+    papers_to_summarise = []
+    paper_dict_map = {pd["id"]: pd for pd in paper_dicts}
+
+    for paper_id_str, scores in all_scores.items():
+        paper_id = uuid.UUID(paper_id_str)
+        await save_scores(db, paper_id, scores)
         max_score = max(s["score"] for s in scores) if scores else 0
-        return paper_dict, scores, max_score
+        if max_score >= 5.0:
+            papers_to_summarise.append((paper_dict_map[paper_id_str], paper_id))
+        logger.info(f"Saved scores for paper {paper_id_str[:8]}...: max_score={max_score:.1f}")
 
+    await db.commit()
+
+    total_papers_with_scores = len(all_scores)
+    logger.info(f"Scored {scored_count} (paper, user) pairs across {total_papers_with_scores} papers")
+
+    # Phase 2: Summarise qualifying papers in batches
     async def _summarise_one(paper_dict: dict, paper_id: uuid.UUID) -> bool:
-        """Generate summary for one paper. Returns True if successful."""
         summary = await generate_summary(paper_dict)
         if summary:
             paper_obj = await db.get(Paper, paper_id)
@@ -185,23 +309,6 @@ async def score_and_summarise_papers(
                 return True
         return False
 
-    # Phase 1: Score all papers in batches
-    papers_to_summarise = []
-    for i in range(0, len(filtered), BATCH_SIZE):
-        batch = filtered[i:i + BATCH_SIZE]
-        results = await aio.gather(*[_score_one(p) for p in batch])
-
-        for paper_dict, scores, max_score in results:
-            paper_id = uuid.UUID(paper_dict["id"])
-            await save_scores(db, paper_id, scores)
-            scored_count += 1
-            if max_score >= 5.0:
-                papers_to_summarise.append((paper_dict, paper_id))
-            logger.info(f"Scored paper {scored_count}/{len(filtered)}: max_score={max_score:.1f}")
-
-    await db.commit()
-
-    # Phase 2: Summarise qualifying papers in batches
     for i in range(0, len(papers_to_summarise), BATCH_SIZE):
         batch = papers_to_summarise[i:i + BATCH_SIZE]
         results = await aio.gather(*[_summarise_one(pd, pid) for pd, pid in batch])
@@ -209,7 +316,13 @@ async def score_and_summarise_papers(
         await db.commit()
         logger.info(f"Summarised batch {i // BATCH_SIZE + 1}: {sum(1 for r in results if r)}/{len(batch)}")
 
-    return {"prefiltered": len(filtered), "scored": scored_count, "summarised": summarised_count}
+    return {
+        "prefiltered": total_papers_with_scores,
+        "scored": scored_count,
+        "summarised": summarised_count,
+        "embedding_users": embedding_filter_count,
+        "keyword_fallback_users": keyword_fallback_count,
+    }
 
 
 def _parse_date(date_str: str | None):
@@ -287,8 +400,22 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
         saved_count = await save_papers(db, unique_papers)
         run.papers_processed = saved_count
 
-        # Run prefilter → scorer → summariser
+        # Embed papers that don't have embeddings yet
+        embed_results = await embed_unembedded_papers(db)
+
+        # Run per-user filtering → scorer → summariser
         ai_results = await score_and_summarise_papers(db, run)
+
+        # Build embedding log message
+        embed_message = None
+        if embed_results["quota_exhausted"]:
+            embed_message = (
+                f"Gemini Embedding API daily limit (~1000 requests) reached. "
+                f"{embed_results['skipped']} papers were not embedded and will use "
+                f"keyword fallback for scoring. They will be embedded on the next "
+                f"pipeline run when quota resets. No action needed unless this happens "
+                f"regularly — consider reducing journal count or upgrading Gemini plan."
+            )
 
         run.status = "success"
         run.completed_at = datetime.now(timezone.utc)
@@ -297,8 +424,9 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
             {"step": "raw_papers", "count": len(all_papers)},
             {"step": "dedup", "unique": len(unique_papers)},
             {"step": "saved", "count": saved_count},
+            {"step": "embedding", "embedded": embed_results["embedded"], "skipped": embed_results["skipped"], "quota_exhausted": embed_results["quota_exhausted"], "message": embed_message},
+            {"step": "scoring", "scored": ai_results["scored"], "embedding_users": ai_results.get("embedding_users", 0), "keyword_fallback_users": ai_results.get("keyword_fallback_users", 0)},
             {"step": "prefilter", "passed": ai_results["prefiltered"]},
-            {"step": "scoring", "scored": ai_results["scored"]},
             {"step": "summarisation", "summarised": ai_results["summarised"]},
         ]
         await db.commit()
