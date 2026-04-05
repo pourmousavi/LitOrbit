@@ -775,7 +775,7 @@ function PipelineStatusTab() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {runs.map((run) => (
-            {run.status === 'deleted' ? (
+            run.status === 'deleted' ? (
               /* Collapsed deleted run */
               <div
                 key={run.id}
@@ -903,7 +903,7 @@ function PipelineStatusTab() {
                   </div>
                 )}
               </div>
-            )}
+            )
           ))}
         </div>
       )}
