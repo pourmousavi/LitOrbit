@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useProfile } from '@/hooks/useProfile';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -21,15 +22,18 @@ const navItems = [
   { to: '/shared', icon: Share2, label: 'Shared' },
   { to: '/podcasts', icon: Headphones, label: 'Podcasts' },
   { to: '/ratings', icon: Star, label: 'Ratings' },
-  { to: '/admin', icon: Shield, label: 'Admin' },
+  { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true },
 ];
 
 export default function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
+  const { data: profile } = useProfile();
   const expanded = useUIStore((s) => s.sidebarExpanded);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const navigate = useNavigate();
+  const isAdmin = profile?.role === 'admin';
+  const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   const handleLogout = async () => {
     await logout();
@@ -60,7 +64,7 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3" style={{ padding: '12px 8px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {navItems.map((item) => (
+          {visibleItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

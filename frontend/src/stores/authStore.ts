@@ -54,11 +54,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
     }
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.onAuthStateChange((event, session) => {
       set({
         user: session?.user ?? null,
         session,
       });
+
+      // Redirect invited users to set their password
+      if (event === 'SIGNED_IN' && session) {
+        const hash = window.location.hash;
+        if (hash.includes('type=invite') || hash.includes('type=magiclink')) {
+          window.location.href = '/update-password';
+        }
+      }
     });
   },
 }));

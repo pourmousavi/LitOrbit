@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useProfile } from '@/hooks/useProfile';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import ToastContainer from '@/components/ui/Toast';
 import Sidebar from '@/components/layout/Sidebar';
@@ -61,6 +62,13 @@ function ProtectedRoute() {
   return <AppLayout />;
 }
 
+function AdminRoute() {
+  const { data: profile, isLoading } = useProfile();
+  if (isLoading) return null;
+  if (profile?.role !== 'admin') return <Navigate to="/forbidden" replace />;
+  return <Admin />;
+}
+
 function AppLayout() {
   const sidebarExpanded = useUIStore((s) => s.sidebarExpanded);
   const isDesktop = useIsDesktop();
@@ -108,7 +116,7 @@ export default function App() {
             <Route path="/podcasts" element={<PodcastLibrary />} />
             <Route path="/ratings" element={<MyRatings />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin" element={<AdminRoute />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import api from '@/lib/api';
 
 export default function UpdatePassword() {
   const [password, setPassword] = useState('');
@@ -8,6 +9,7 @@ export default function UpdatePassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const isInvite = window.location.hash.includes('type=invite') || window.location.hash.includes('type=magiclink') || !document.referrer;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -32,6 +34,8 @@ export default function UpdatePassword() {
     if (updateError) {
       setError(updateError.message);
     } else {
+      // Record login event for first-time invite users
+      api.post('/api/v1/users/login-event').catch(() => {});
       navigate('/');
     }
   };
@@ -44,7 +48,7 @@ export default function UpdatePassword() {
             LitOrbit
           </h1>
           <p className="font-mono text-text-secondary" style={{ marginTop: 8, fontSize: 14 }}>
-            Set your new password
+            {isInvite ? 'Welcome! Set your password to get started' : 'Set your new password'}
           </p>
         </div>
 
