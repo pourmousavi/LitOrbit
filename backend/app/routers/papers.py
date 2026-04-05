@@ -8,10 +8,11 @@ from pydantic import BaseModel
 from sqlalchemy import select, func, desc, cast, ARRAY, String, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user
+from app.auth import get_current_user, check_owner_or_admin
 from app.database import get_db
 from app.models.paper import Paper
 from app.models.paper_score import PaperScore
+from app.models.user_profile import UserProfile
 
 router = APIRouter(prefix="/api/v1/papers", tags=["papers"])
 
@@ -30,12 +31,14 @@ async def list_papers(
     user_id = user["id"]
     offset = (page - 1) * per_page
 
-    # Build base query: papers LEFT JOIN scores for this user
+    # Build base query: papers LEFT JOIN scores for this user, LEFT JOIN creator
+    creator = select(UserProfile.full_name).where(UserProfile.id == Paper.created_by).correlate(Paper).scalar_subquery()
     query = (
         select(
             Paper,
             PaperScore.relevance_score,
             PaperScore.score_reasoning,
+            creator.label("created_by_name"),
         )
         .outerjoin(
             PaperScore,
@@ -89,7 +92,8 @@ async def list_papers(
             collections_map.setdefault(str(pid), []).append({"id": str(cid), "name": cname, "color": ccolor})
 
     papers = []
-    for paper, score, reasoning in results:
+    for row in results:
+        paper, score, reasoning, creator_name = row
         papers.append({
             "id": str(paper.id),
             "doi": paper.doi,
@@ -109,6 +113,7 @@ async def list_papers(
             "score_reasoning": reasoning,
             "created_at": paper.created_at.isoformat() if paper.created_at else None,
             "collections": collections_map.get(str(paper.id), []),
+            "created_by_name": creator_name or "System",
         })
 
     return {
@@ -133,11 +138,13 @@ async def get_paper(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid paper ID")
 
+    creator_sq = select(UserProfile.full_name).where(UserProfile.id == Paper.created_by).correlate(Paper).scalar_subquery()
     result = await db.execute(
         select(
             Paper,
             PaperScore.relevance_score,
             PaperScore.score_reasoning,
+            creator_sq.label("created_by_name"),
         )
         .outerjoin(
             PaperScore,
@@ -150,7 +157,7 @@ async def get_paper(
     if not row:
         raise HTTPException(status_code=404, detail="Paper not found")
 
-    paper, score, reasoning = row
+    paper, score, reasoning, creator_name = row
     return {
         "id": str(paper.id),
         "doi": paper.doi,
@@ -166,11 +173,12 @@ async def get_paper(
         "url": paper.url,
         "pdf_path": paper.pdf_path,
         "keywords": paper.keywords or [],
-            "categories": paper.categories,
+        "categories": paper.categories,
         "summary": paper.summary,
         "relevance_score": score,
         "score_reasoning": reasoning,
         "created_at": paper.created_at.isoformat() if paper.created_at else None,
+        "created_by_name": creator_name or "System",
     }
 
 
@@ -190,6 +198,8 @@ async def delete_paper(
     paper = result.scalar_one_or_none()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
+
+    check_owner_or_admin(paper.created_by, user)
 
     # Record deletion so it won't be re-fetched
     from app.models.deleted_paper import DeletedPaper
@@ -221,6 +231,8 @@ async def rescore_paper(
     paper = result.scalar_one_or_none()
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
+
+    check_owner_or_admin(paper.created_by, user)
 
     # Delete existing scores
     del_result = await db.execute(delete(PaperScore).where(PaperScore.paper_id == pid))
@@ -404,6 +416,7 @@ async def upload_new_paper(
         journal="Uploaded",
         journal_source="upload",
         full_text=full_text,
+        created_by=uuid.UUID(user["id"]),
     )
     db.add(paper)
     await db.commit()
@@ -458,6 +471,7 @@ async def doi_lookup(
             journal="Unknown",
             journal_source="doi_lookup",
             full_text=full_text,
+            created_by=uuid.UUID(user["id"]),
         )
         db.add(paper)
         await db.commit()

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func, desc, case, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user
+from app.auth import get_current_user, check_owner_or_admin
 from app.database import get_db
 from app.models.collection import Collection, CollectionPaper
 from app.models.paper import Paper
@@ -182,6 +182,8 @@ async def update_collection(
     if not col:
         raise HTTPException(status_code=404, detail="Collection not found")
 
+    check_owner_or_admin(col.created_by, user)
+
     if req.name is not None:
         col.name = req.name
     if req.description is not None:
@@ -204,6 +206,7 @@ async def delete_collection(
     col = result.scalar_one_or_none()
     if not col:
         raise HTTPException(status_code=404, detail="Collection not found")
+    check_owner_or_admin(col.created_by, user)
     await db.delete(col)
     await db.commit()
     return {"status": "deleted"}
@@ -217,10 +220,11 @@ async def add_paper_to_collection(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Add a paper to a collection."""
-    # Check collection exists
+    # Check collection exists and ownership
     col = (await db.execute(select(Collection).where(Collection.id == uuid.UUID(collection_id)))).scalar_one_or_none()
     if not col:
         raise HTTPException(status_code=404, detail="Collection not found")
+    check_owner_or_admin(col.created_by, user)
 
     # Check paper exists
     paper = (await db.execute(select(Paper).where(Paper.id == uuid.UUID(req.paper_id)))).scalar_one_or_none()
@@ -255,6 +259,12 @@ async def remove_paper_from_collection(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Remove a paper from a collection."""
+    # Check collection ownership
+    col = (await db.execute(select(Collection).where(Collection.id == uuid.UUID(collection_id)))).scalar_one_or_none()
+    if not col:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    check_owner_or_admin(col.created_by, user)
+
     result = await db.execute(
         select(CollectionPaper).where(
             CollectionPaper.collection_id == uuid.UUID(collection_id),

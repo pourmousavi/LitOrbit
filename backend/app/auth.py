@@ -74,3 +74,14 @@ async def require_admin(
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+def check_owner_or_admin(resource_owner_id: Any, user: dict[str, Any]) -> None:
+    """Raise 403 if user is neither the owner nor an admin.
+
+    If resource_owner_id is None (e.g. pipeline-created papers), only admins can modify.
+    """
+    if user.get("role") == "admin":
+        return
+    if resource_owner_id is None or str(resource_owner_id) != user["id"]:
+        raise HTTPException(status_code=403, detail="You don't have permission to modify this resource")

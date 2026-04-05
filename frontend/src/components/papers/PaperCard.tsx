@@ -82,6 +82,12 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
             </a>
           </>
         )}
+        {paper.created_by_name && (
+          <>
+            {' · '}
+            <span>Added by {paper.created_by_name}</span>
+          </>
+        )}
       </p>
 
       {/* Abstract preview */}

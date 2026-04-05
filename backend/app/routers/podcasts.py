@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user
+from app.auth import get_current_user, check_owner_or_admin
 from app.database import get_db, init_db
 import app.database as _db_module
 from app.models.collection import Collection, CollectionPaper
@@ -387,6 +387,8 @@ async def delete_podcast(
     if not podcast:
         raise HTTPException(status_code=404, detail="Podcast not found")
 
+    check_owner_or_admin(podcast.user_id, user)
+
     # Delete audio from Supabase Storage
     storage_key = f"{podcast_id}.mp3"
     await delete_audio(storage_key)
@@ -441,6 +443,20 @@ async def list_podcasts(
         for pid, cid, cname, ccolor in col_result.all():
             collections_map.setdefault(str(pid), []).append({"id": str(cid), "name": cname, "color": ccolor})
 
+    # Bulk fetch creator names
+    all_user_ids = list({
+        p.user_id for p, _, _ in paper_rows if p.user_id
+    } | {
+        p.user_id for p in digest_rows if p.user_id
+    })
+    creator_map: dict[str, str] = {}
+    if all_user_ids:
+        name_result = await db.execute(
+            select(UserProfile.id, UserProfile.full_name).where(UserProfile.id.in_(all_user_ids))
+        )
+        for uid, name in name_result.all():
+            creator_map[str(uid)] = name
+
     items: list[dict] = []
 
     # Digest podcasts first
@@ -456,6 +472,7 @@ async def list_podcasts(
             "duration_seconds": podcast.duration_seconds,
             "generated_at": podcast.generated_at.isoformat() if podcast.generated_at else None,
             "collections": [],
+            "created_by_name": creator_map.get(str(podcast.user_id), "System") if podcast.user_id else "System",
         })
 
     # Paper podcasts
@@ -471,6 +488,7 @@ async def list_podcasts(
             "duration_seconds": podcast.duration_seconds,
             "generated_at": podcast.generated_at.isoformat() if podcast.generated_at else None,
             "collections": collections_map.get(str(podcast.paper_id), []),
+            "created_by_name": creator_map.get(str(podcast.user_id), "System") if podcast.user_id else "System",
         })
 
     return items

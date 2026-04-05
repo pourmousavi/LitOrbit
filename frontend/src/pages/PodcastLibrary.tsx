@@ -135,6 +135,7 @@ export default function PodcastLibrary() {
                     {podcast.paper_journal}
                     {podcast.duration_seconds && ` · ${Math.floor(podcast.duration_seconds / 60)}m ${podcast.duration_seconds % 60}s`}
                     {podcast.generated_at && ` · ${formatDate(podcast.generated_at)}`}
+                    {podcast.created_by_name && ` · by ${podcast.created_by_name}`}
                   </p>
                 </article>
               );

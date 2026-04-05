@@ -18,6 +18,7 @@ export interface Paper {
   relevance_score: number | null;
   score_reasoning: string | null;
   created_at: string | null;
+  created_by_name: string | null;
   collections?: { id: string; name: string; color: string }[];
 }
 
