@@ -23,6 +23,7 @@ const mockPaper: Paper = {
   relevance_score: 8.5,
   score_reasoning: 'Highly relevant',
   created_at: '2024-03-15T00:00:00Z',
+  created_by_name: 'System',
   collections: [{ id: '1', name: 'Battery Research', color: '#0891b2' }],
 };
 

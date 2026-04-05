@@ -67,6 +67,7 @@ interface PodcastListItem {
   duration_seconds: number | null;
   generated_at: string;
   collections: { id: string; name: string; color: string }[];
+  created_by_name: string | null;
 }
 
 export function useDeletePodcast() {
