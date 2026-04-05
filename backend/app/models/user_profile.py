@@ -38,5 +38,9 @@ class UserProfile(Base):
     podcast_feed_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     podcast_feed_author: Mapped[str | None] = mapped_column(String, nullable=True)
     podcast_feed_cover_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Activity tracking
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    login_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

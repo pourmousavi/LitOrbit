@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -152,6 +153,25 @@ async def update_my_profile(
 
     await db.commit()
     return {"status": "updated"}
+
+
+@router.post("/login-event")
+async def record_login_event(
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Record a login event: update last_login_at, increment login_count, set accepted_at on first login."""
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.id == uuid.UUID(user["id"]))
+    )
+    profile = result.scalar_one_or_none()
+    if profile:
+        profile.last_login_at = datetime.now(timezone.utc)
+        profile.login_count = (profile.login_count or 0) + 1
+        if not profile.accepted_at:
+            profile.accepted_at = datetime.now(timezone.utc)
+        await db.commit()
+    return {"status": "ok"}
 
 
 @router.get("")

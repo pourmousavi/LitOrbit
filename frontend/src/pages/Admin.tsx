@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check } from 'lucide-react';
+import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
-type Tab = 'journals' | 'users' | 'pipeline' | 'keywords' | 'digest';
+type Tab = 'journals' | 'users' | 'pipeline' | 'keywords' | 'digest' | 'settings';
 
 interface Journal {
   id: string;
@@ -32,6 +32,23 @@ interface UserItem {
   full_name: string;
   role: string;
   email: string;
+  invited_at: string | null;
+  accepted_at: string | null;
+  last_login_at: string | null;
+  login_count: number;
+  ratings_count: number;
+  podcasts_generated: number;
+  podcasts_listened: number;
+  collections_count: number;
+  shares_sent: number;
+  digests_received: number;
+  last_active: string | null;
+}
+
+interface SystemSettingsData {
+  max_podcasts_per_user_per_month: number;
+  digest_podcast_enabled_global: boolean;
+  max_papers_per_digest: number;
 }
 
 interface StorageUsage {
@@ -55,6 +72,7 @@ export default function Admin() {
     { key: 'pipeline', label: 'Fetch Papers', icon: Activity },
     { key: 'keywords', label: 'Keywords', icon: Tags },
     { key: 'digest', label: 'Digest', icon: Mail },
+    { key: 'settings', label: 'Limits', icon: Sliders },
   ];
 
   return (
@@ -123,6 +141,7 @@ export default function Admin() {
         {tab === 'pipeline' && <PipelineStatusTab />}
         {tab === 'keywords' && <GlobalKeywordsTab />}
         {tab === 'digest' && <DigestTab />}
+        {tab === 'settings' && <UsageLimitsTab />}
       </div>
     </div>
   );
@@ -325,7 +344,7 @@ function UserManagementTab() {
 
   const { data: users, isLoading, isError } = useQuery<UserItem[]>({
     queryKey: ['admin', 'users'],
-    queryFn: async () => (await api.get('/api/v1/users')).data,
+    queryFn: async () => (await api.get('/api/v1/admin/users/stats')).data,
   });
 
   const inviteMutation = useMutation({
@@ -467,11 +486,11 @@ function UserManagementTab() {
             <div
               key={u.id}
               className="rounded-2xl border border-border-default bg-bg-surface"
-              style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}
+              style={{ padding: 20 }}
             >
               {editingId === u.id ? (
                 /* Inline edit mode */
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <input
                     value={editForm.full_name}
                     onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
@@ -508,38 +527,59 @@ function UserManagementTab() {
               ) : (
                 /* Display mode */
                 <>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <p className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{u.full_name}</p>
-                    <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 6 }}>{u.email}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{u.full_name}</p>
+                      <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 4 }}>{u.email}</p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <span
+                        className={cn(
+                          'rounded-full font-mono',
+                          u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-secondary',
+                        )}
+                        style={{ fontSize: 12, padding: '5px 14px' }}
+                      >
+                        {u.role}
+                      </span>
+                      <button
+                        onClick={() => startEditing(u)}
+                        className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-text-primary"
+                        title="Edit user"
+                        style={{ padding: 6 }}
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => { if (confirm(`Remove "${u.full_name}" from LitOrbit? This cannot be undone.`)) deleteMutation.mutate(u.id); }}
+                        disabled={deleteMutation.isPending}
+                        className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-danger"
+                        title="Remove user"
+                        style={{ padding: 6 }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <span
-                      className={cn(
-                        'rounded-full font-mono',
-                        u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-secondary',
-                      )}
-                      style={{ fontSize: 12, padding: '5px 14px' }}
-                    >
-                      {u.role}
-                    </span>
-                    <button
-                      onClick={() => startEditing(u)}
-                      className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-text-primary"
-                      title="Edit user"
-                      style={{ padding: 6 }}
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      onClick={() => { if (confirm(`Remove "${u.full_name}" from LitOrbit? This cannot be undone.`)) deleteMutation.mutate(u.id); }}
-                      disabled={deleteMutation.isPending}
-                      className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-danger"
-                      title="Remove user"
-                      style={{ padding: 6 }}
-                    >
-                      <Trash2 size={15} />
-                    </button>
+
+                  {/* Activity stats */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14 }}>
+                    <StatBadge label="Invited" value={u.invited_at ? new Date(u.invited_at).toLocaleDateString() : '—'} />
+                    <StatBadge label="Accepted" value={u.accepted_at ? new Date(u.accepted_at).toLocaleDateString() : 'Pending'} highlight={!u.accepted_at} />
+                    <StatBadge label="Last login" value={u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : 'Never'} />
+                    <StatBadge label="Logins" value={String(u.login_count)} />
+                    <StatBadge label="Ratings" value={String(u.ratings_count)} />
+                    <StatBadge label="Podcasts" value={String(u.podcasts_generated)} />
+                    <StatBadge label="Listens" value={String(u.podcasts_listened)} />
+                    <StatBadge label="Collections" value={String(u.collections_count)} />
+                    <StatBadge label="Shares" value={String(u.shares_sent)} />
+                    <StatBadge label="Digests" value={String(u.digests_received)} />
                   </div>
+                  {u.last_active && (
+                    <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginTop: 8 }}>
+                      Last active: {new Date(u.last_active).toLocaleDateString()}
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -1096,6 +1136,141 @@ function DigestTab() {
     </div>
   );
 }
+
+function StatBadge({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <span
+      className={cn(
+        'rounded-lg font-mono',
+        highlight ? 'bg-warning/10 text-warning' : 'bg-bg-elevated text-text-tertiary',
+      )}
+      style={{ fontSize: 11, padding: '4px 10px' }}
+    >
+      {label}: <span className={highlight ? 'text-warning' : 'text-text-secondary'}>{value}</span>
+    </span>
+  );
+}
+
+
+function UsageLimitsTab() {
+  const queryClient = useQueryClient();
+
+  const { data: settings, isLoading } = useQuery<SystemSettingsData>({
+    queryKey: ['admin', 'settings'],
+    queryFn: async () => (await api.get('/api/v1/admin/settings')).data,
+  });
+
+  const [form, setForm] = useState<SystemSettingsData | null>(null);
+
+  // Sync form with fetched data
+  const activeForm = form || settings;
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: Partial<SystemSettingsData>) => {
+      await api.put('/api/v1/admin/settings', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
+      setForm(null);
+    },
+  });
+
+  if (isLoading || !activeForm) return <LoadingState />;
+
+  const hasChanges = form !== null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <p className="font-mono text-xs text-text-tertiary" style={{ lineHeight: 1.6 }}>
+        Control costs by limiting AI-powered features. These limits apply to all users.
+      </p>
+
+      {/* Podcast generation limit */}
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
+        <label className="font-mono text-sm text-text-primary font-medium" style={{ display: 'block', marginBottom: 6 }}>
+          Max podcasts per user per month
+        </label>
+        <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginBottom: 12 }}>
+          Each on-demand podcast uses one Claude API call. Set to 0 to disable podcast generation entirely.
+        </p>
+        <input
+          type="number"
+          min={0}
+          value={activeForm.max_podcasts_per_user_per_month}
+          onChange={(e) => setForm({ ...activeForm, max_podcasts_per_user_per_month: parseInt(e.target.value) || 0 })}
+          className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
+          style={{ width: 120, padding: '10px 16px' }}
+        />
+      </div>
+
+      {/* Digest podcast toggle */}
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <label className="font-mono text-sm text-text-primary font-medium" style={{ display: 'block', marginBottom: 6 }}>
+              Digest podcasts
+            </label>
+            <p className="font-mono text-text-tertiary" style={{ fontSize: 11 }}>
+              Master switch for digest podcast generation. Each digest podcast uses one Claude API call per user.
+            </p>
+          </div>
+          <button
+            onClick={() => setForm({ ...activeForm, digest_podcast_enabled_global: !activeForm.digest_podcast_enabled_global })}
+            className={cn('transition', activeForm.digest_podcast_enabled_global ? 'text-success' : 'text-text-tertiary')}
+          >
+            {activeForm.digest_podcast_enabled_global ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Max papers per digest */}
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
+        <label className="font-mono text-sm text-text-primary font-medium" style={{ display: 'block', marginBottom: 6 }}>
+          Max papers per digest
+        </label>
+        <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginBottom: 12 }}>
+          Caps how many papers are included in each digest email and podcast. More papers = longer podcast script = more tokens.
+        </p>
+        <input
+          type="number"
+          min={1}
+          max={20}
+          value={activeForm.max_papers_per_digest}
+          onChange={(e) => setForm({ ...activeForm, max_papers_per_digest: parseInt(e.target.value) || 1 })}
+          className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
+          style={{ width: 120, padding: '10px 16px' }}
+        />
+      </div>
+
+      {/* Save button */}
+      {hasChanges && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => saveMutation.mutate(form)}
+            disabled={saveMutation.isPending}
+            className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+            style={{ gap: 8, padding: '14px 24px' }}
+          >
+            {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            Save Changes
+          </button>
+          <button
+            onClick={() => setForm(null)}
+            className="rounded-2xl font-mono text-sm text-text-secondary hover:text-text-primary"
+            style={{ padding: '14px 24px' }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {saveMutation.isError && (
+        <p className="font-mono text-danger" style={{ fontSize: 12 }}>Failed to save settings. Try again.</p>
+      )}
+    </div>
+  );
+}
+
 
 function LoadingState() {
   return (

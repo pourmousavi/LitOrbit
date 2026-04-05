@@ -14,6 +14,7 @@ from app.database import get_db
 from app.models.journal_config import JournalConfig
 from app.models.pipeline_run import PipelineRun
 from app.models.user_profile import UserProfile
+from app.services.settings import get_system_settings
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +270,144 @@ async def delete_user(
     await db.commit()
 
     return {"status": "deleted"}
+
+
+# --- System Settings ---
+
+class SystemSettingsUpdate(BaseModel):
+    max_podcasts_per_user_per_month: int | None = None
+    digest_podcast_enabled_global: bool | None = None
+    max_papers_per_digest: int | None = None
+
+
+@router.get("/settings")
+async def get_settings_endpoint(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get current system settings (usage limits)."""
+    s = await get_system_settings(db)
+    return {
+        "max_podcasts_per_user_per_month": s.max_podcasts_per_user_per_month,
+        "digest_podcast_enabled_global": s.digest_podcast_enabled_global,
+        "max_papers_per_digest": s.max_papers_per_digest,
+    }
+
+
+@router.put("/settings")
+async def update_settings_endpoint(
+    req: SystemSettingsUpdate,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update system settings (usage limits)."""
+    s = await get_system_settings(db)
+    if req.max_podcasts_per_user_per_month is not None:
+        s.max_podcasts_per_user_per_month = max(0, req.max_podcasts_per_user_per_month)
+    if req.digest_podcast_enabled_global is not None:
+        s.digest_podcast_enabled_global = req.digest_podcast_enabled_global
+    if req.max_papers_per_digest is not None:
+        s.max_papers_per_digest = max(1, req.max_papers_per_digest)
+    await db.commit()
+    return {"status": "updated"}
+
+
+# --- User Stats ---
+
+@router.get("/users/stats")
+async def get_user_stats(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List all users with activity stats."""
+    from app.models.rating import Rating
+    from app.models.podcast import Podcast
+    from app.models.collection import Collection
+    from app.models.share import Share
+    from app.models.digest_log import DigestLog
+
+    # Correlated subqueries for each stat
+    ratings_sq = (
+        select(func.count()).where(Rating.user_id == UserProfile.id)
+        .correlate(UserProfile).scalar_subquery()
+    )
+    podcasts_sq = (
+        select(func.count()).where(Podcast.user_id == UserProfile.id, Podcast.audio_path.isnot(None))
+        .correlate(UserProfile).scalar_subquery()
+    )
+    listens_sq = (
+        select(func.coalesce(func.sum(Podcast.listen_count), 0))
+        .where(Podcast.user_id == UserProfile.id)
+        .correlate(UserProfile).scalar_subquery()
+    )
+    collections_sq = (
+        select(func.count()).where(Collection.created_by == UserProfile.id)
+        .correlate(UserProfile).scalar_subquery()
+    )
+    shares_sq = (
+        select(func.count()).where(Share.shared_by == UserProfile.id)
+        .correlate(UserProfile).scalar_subquery()
+    )
+    digests_sq = (
+        select(func.count(func.distinct(func.date(DigestLog.sent_at))))
+        .where(DigestLog.user_id == UserProfile.id)
+        .correlate(UserProfile).scalar_subquery()
+    )
+    last_rating_sq = (
+        select(func.max(Rating.rated_at)).where(Rating.user_id == UserProfile.id)
+        .correlate(UserProfile).scalar_subquery()
+    )
+    last_podcast_sq = (
+        select(func.max(Podcast.generated_at)).where(Podcast.user_id == UserProfile.id)
+        .correlate(UserProfile).scalar_subquery()
+    )
+
+    result = await db.execute(
+        select(
+            UserProfile,
+            ratings_sq.label("ratings_count"),
+            podcasts_sq.label("podcasts_generated"),
+            listens_sq.label("podcasts_listened"),
+            collections_sq.label("collections_count"),
+            shares_sq.label("shares_sent"),
+            digests_sq.label("digests_received"),
+            last_rating_sq.label("last_rating_at"),
+            last_podcast_sq.label("last_podcast_at"),
+        ).order_by(UserProfile.full_name)
+    )
+    rows = result.all()
+
+    users = []
+    for row in rows:
+        u = row[0]
+        last_rating = row.last_rating_at
+        last_podcast = row.last_podcast_at
+        last_active = None
+        if last_rating and last_podcast:
+            last_active = max(last_rating, last_podcast)
+        elif last_rating:
+            last_active = last_rating
+        elif last_podcast:
+            last_active = last_podcast
+
+        users.append({
+            "id": str(u.id),
+            "full_name": u.full_name,
+            "role": u.role,
+            "email": u.email,
+            "invited_at": u.created_at.isoformat() if u.created_at else None,
+            "accepted_at": u.accepted_at.isoformat() if u.accepted_at else None,
+            "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+            "login_count": u.login_count or 0,
+            "ratings_count": row.ratings_count or 0,
+            "podcasts_generated": row.podcasts_generated or 0,
+            "podcasts_listened": row.podcasts_listened or 0,
+            "collections_count": row.collections_count or 0,
+            "shares_sent": row.shares_sent or 0,
+            "digests_received": row.digests_received or 0,
+            "last_active": last_active.isoformat() if last_active else None,
+        })
+    return users
 
 
 # --- Pipeline ---

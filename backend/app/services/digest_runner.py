@@ -218,8 +218,13 @@ async def send_digest_for_user(
 
     Returns a summary dict.
     """
+    from app.services.settings import get_system_settings
+    sys_settings = await get_system_settings(db)
+
     frequency = user.digest_frequency or "weekly"
     top_n = user.digest_top_papers or _default_top(frequency)
+    # Cap at admin-configured max
+    top_n = min(top_n, sys_settings.max_papers_per_digest)
 
     # 1. Fetch papers not previously sent
     paper_score_pairs = await _get_digest_papers(db, user.id, frequency, top_n)
@@ -253,7 +258,7 @@ async def send_digest_for_user(
     podcast_info = None
     podcast_record = None
 
-    if user.digest_podcast_enabled:
+    if user.digest_podcast_enabled and sys_settings.digest_podcast_enabled_global:
         logger.info(f"Generating digest podcast for {user.full_name} ({len(podcast_papers)} papers)")
         podcast_record = await _generate_and_upload_podcast(podcast_papers, user, frequency)
         if podcast_record:

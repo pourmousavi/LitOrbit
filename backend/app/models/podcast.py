@@ -22,3 +22,5 @@ class Podcast(Base):
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     generation_time_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    listen_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_listened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

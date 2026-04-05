@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import api from '@/lib/api';
 
 interface AuthState {
   user: User | null;
@@ -25,6 +26,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       return { error: error.message };
     }
     set({ user: data.user, session: data.session });
+    // Record login event (fire and forget)
+    api.post('/api/v1/users/login-event').catch(() => {});
     return { error: null };
   },
 
@@ -40,6 +43,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       session: data.session,
       loading: false,
     });
+
+    // Debounced login ping on session restore (once per hour)
+    if (data.session) {
+      const lastPing = localStorage.getItem('litorbit-last-login-ping');
+      const now = Date.now();
+      if (!lastPing || now - Number(lastPing) > 3600000) {
+        api.post('/api/v1/users/login-event').catch(() => {});
+        localStorage.setItem('litorbit-last-login-ping', String(now));
+      }
+    }
 
     supabase.auth.onAuthStateChange((_event, session) => {
       set({

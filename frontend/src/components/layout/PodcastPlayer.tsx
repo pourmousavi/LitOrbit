@@ -3,6 +3,7 @@ import { Howl } from 'howler';
 import { Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX } from 'lucide-react';
 import { usePlayerStore } from '@/stores/playerStore';
 import { useUIStore } from '@/stores/uiStore';
+import api from '@/lib/api';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -41,6 +42,12 @@ export default function PodcastPlayer() {
     });
     howlRef.current = howl;
     howl.play();
+
+    // Track listen event — extract podcast ID from URL
+    const podcastIdMatch = currentTrackUrl.match(/\/audio\/([^/?]+)/);
+    if (podcastIdMatch) {
+      api.post(`/api/v1/podcasts/${podcastIdMatch[1]}/listen`).catch(() => {});
+    }
 
     return () => {
       cancelAnimationFrame(rafRef.current);

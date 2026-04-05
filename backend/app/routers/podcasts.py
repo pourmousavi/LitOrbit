@@ -187,6 +187,26 @@ async def generate_podcast_endpoint(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Start podcast generation as a background task."""
+    from datetime import datetime, timezone
+    from app.services.settings import get_system_settings
+
+    # Check monthly podcast limit
+    sys_settings = await get_system_settings(db)
+    first_of_month = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    count_result = await db.execute(
+        select(func.count()).select_from(Podcast).where(
+            Podcast.user_id == uuid.UUID(user["id"]),
+            Podcast.generated_at >= first_of_month,
+            Podcast.audio_path.isnot(None),
+        )
+    )
+    current_count = count_result.scalar() or 0
+    if current_count >= sys_settings.max_podcasts_per_user_per_month:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Monthly podcast limit reached ({sys_settings.max_podcasts_per_user_per_month}). Contact admin to increase.",
+        )
+
     # Get paper
     paper_result = await db.execute(select(Paper).where(Paper.id == uuid.UUID(paper_id)))
     paper = paper_result.scalar_one_or_none()
@@ -454,3 +474,25 @@ async def list_podcasts(
         })
 
     return items
+
+
+@router.post("/{podcast_id}/listen")
+async def record_listen(
+    podcast_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Record a podcast listen event."""
+    from datetime import datetime, timezone
+    from sqlalchemy import update as sql_update
+
+    await db.execute(
+        sql_update(Podcast)
+        .where(Podcast.id == uuid.UUID(podcast_id))
+        .values(
+            listen_count=Podcast.listen_count + 1,
+            last_listened_at=datetime.now(timezone.utc),
+        )
+    )
+    await db.commit()
+    return {"status": "ok"}
