@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw, Download, Plus, X } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePaper } from '@/hooks/usePapers';
@@ -131,6 +131,23 @@ export default function PaperDetail() {
   const queryClient = useQueryClient();
 
   const [feedback, setFeedback] = useState<RatingResult | null>(null);
+
+  // Reset state when paper changes
+  useEffect(() => {
+    setFeedback(null);
+    ratingMutation.reset();
+  }, [selectedPaperId]);
+
+  // Fetch existing rating for this paper
+  const { data: existingRating } = useQuery<{ rating: number } | null>({
+    queryKey: ['my-rating', selectedPaperId],
+    queryFn: async () => {
+      const { data } = await api.get('/api/v1/ratings/history');
+      const match = data.find((r: any) => r.paper_id === selectedPaperId);
+      return match ? { rating: match.rating } : null;
+    },
+    enabled: !!selectedPaperId,
+  });
   const [showShareModal, setShowShareModal] = useState(false);
   const [voiceMode, setVoiceMode] = useState<'single' | 'dual'>('single');
   const { data: podcastStatus } = usePodcastStatus(selectedPaperId, voiceMode);
@@ -507,9 +524,16 @@ export default function PaperDetail() {
             </Section>
 
             {/* Rating */}
-            <Section title="Your Rating">
+            <Section title="Your Rating" key={`rating-${selectedPaperId}`}>
               <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
+                {existingRating && (
+                  <p className="font-mono text-xs text-text-secondary" style={{ textAlign: 'center', marginBottom: 12 }}>
+                    You rated this paper <strong>{existingRating.rating}/10</strong>
+                  </p>
+                )}
                 <RatingSlider
+                  key={selectedPaperId}
+                  initialValue={existingRating?.rating}
                   onSubmit={(value) => ratingMutation.mutate(value)}
                   loading={ratingMutation.isPending}
                 />
