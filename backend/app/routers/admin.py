@@ -455,6 +455,8 @@ async def delete_run_papers(
     run = result.scalar_one_or_none()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+    if run.status == "deleted":
+        raise HTTPException(status_code=400, detail="This batch has already been deleted")
     if not run.started_at:
         raise HTTPException(status_code=400, detail="Run has no start time")
 
@@ -498,6 +500,8 @@ async def rescore_run(
     run = result.scalar_one_or_none()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+    if run.status == "deleted":
+        raise HTTPException(status_code=400, detail="Cannot re-score a deleted batch")
     if not run.started_at:
         raise HTTPException(status_code=400, detail="Run has no start time")
 

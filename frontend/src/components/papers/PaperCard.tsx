@@ -1,6 +1,22 @@
-import { Headphones, Share2, Star } from 'lucide-react';
+import { Headphones, Info, Share2, Star } from 'lucide-react';
 import type { Paper } from '@/types';
 import { cn, getScoreColor, getScoreBgColor, formatDate } from '@/lib/utils';
+
+const SOURCE_LABELS: Record<string, string> = {
+  ieee: 'IEEE Xplore',
+  scopus: 'Scopus',
+  rss: 'RSS Feed',
+  manual: 'Manual Upload',
+};
+
+function formatDateTime(dateStr: string | null): string {
+  if (!dateStr) return 'Unknown';
+  const d = new Date(dateStr);
+  return d.toLocaleString('en-AU', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
 
 interface PaperCardProps {
   paper: Paper;
@@ -33,6 +49,18 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
               Early Access
             </span>
           )}
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <div className="peer rounded-lg text-text-tertiary transition hover:text-text-secondary" style={{ padding: 2, cursor: 'default' }}>
+              <Info size={14} />
+            </div>
+            <div
+              className="pointer-events-none invisible absolute left-0 top-full z-50 mt-1 rounded-xl border border-border-default bg-bg-surface font-mono text-xs text-text-secondary shadow-lg peer-hover:pointer-events-auto peer-hover:visible"
+              style={{ padding: '10px 14px', width: 260, lineHeight: 1.7 }}
+            >
+              <div>Fetched: <strong className="text-text-primary">{formatDateTime(paper.created_at)}</strong></div>
+              <div>Source: <strong className="text-text-primary">{SOURCE_LABELS[paper.journal_source] || paper.journal_source}</strong></div>
+            </div>
+          </div>
         </div>
         {paper.relevance_score !== null ? (
           <span
