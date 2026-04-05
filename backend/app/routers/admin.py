@@ -227,10 +227,12 @@ async def delete_user(
     if not profile:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Delete from Supabase Auth
+    # Delete from user_profiles FIRST (FK constraint: auth.users referenced by user_profiles)
+    await db.delete(profile)
+    await db.commit()
+
+    # Then delete from Supabase Auth
     settings = get_settings()
-    auth_deleted = False
-    auth_error = None
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.delete(
             f"{settings.supabase_url}/auth/v1/admin/users/{user_id}",
@@ -239,35 +241,8 @@ async def delete_user(
                 "apikey": settings.supabase_service_role_key,
             },
         )
-        if resp.status_code in (200, 204):
-            auth_deleted = True
-        elif resp.status_code == 404:
-            # Already gone from auth — that's fine
-            auth_deleted = True
-        else:
-            auth_error = f"Supabase returned {resp.status_code}"
-            logger.warning(f"Failed to delete auth user {user_id}: {resp.status_code} {resp.text}")
-            # Retry once — Supabase 500s can be transient
-            retry_resp = await client.delete(
-                f"{settings.supabase_url}/auth/v1/admin/users/{user_id}",
-                headers={
-                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
-                    "apikey": settings.supabase_service_role_key,
-                },
-            )
-            if retry_resp.status_code in (200, 204, 404):
-                auth_deleted = True
-                auth_error = None
-
-    if not auth_deleted:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to remove user from authentication system. {auth_error}",
-        )
-
-    # Delete from user_profiles
-    await db.delete(profile)
-    await db.commit()
+        if resp.status_code not in (200, 204, 404):
+            logger.warning(f"Profile deleted but auth user cleanup failed for {user_id}: {resp.status_code}")
 
     return {"status": "deleted"}
 
