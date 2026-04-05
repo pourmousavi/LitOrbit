@@ -163,6 +163,9 @@ export default function PaperDetail() {
       selectPaper(null);
       queryClient.invalidateQueries({ queryKey: ['papers'] });
     },
+    onError: (error: any) => {
+      alert(error?.response?.data?.detail || 'Failed to delete paper');
+    },
   });
 
   const rescoreMutation = useMutation({
@@ -368,7 +371,9 @@ export default function PaperDetail() {
             )}
             {rescoreMutation.isError && (
               <div className="rounded-2xl border border-danger/30 bg-danger/5" style={{ padding: 16 }}>
-                <p className="font-mono text-sm text-danger">Re-scoring failed. Try again.</p>
+                <p className="font-mono text-sm text-danger">
+                  {(rescoreMutation.error as any)?.response?.data?.detail || 'Re-scoring failed. Try again.'}
+                </p>
               </div>
             )}
 

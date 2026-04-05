@@ -101,11 +101,12 @@ export function useDeletePodcast() {
 
       return { previousList };
     },
-    onError: (_err, _podcastId, context) => {
+    onError: (err: any, _podcastId, context) => {
       // Rollback on error
       if (context?.previousList) {
         queryClient.setQueryData(['podcasts', 'list'], context.previousList);
       }
+      alert(err?.response?.data?.detail || 'Failed to delete podcast');
     },
     onSettled: (_data, _error, _podcastId, _context) => {
       // Refetch to ensure consistency
