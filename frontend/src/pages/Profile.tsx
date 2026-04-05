@@ -240,10 +240,10 @@ function DigestTab() {
   const updateProfile = useUpdateProfile();
   const [form, setForm] = useState<{
     email_digest_enabled: boolean;
-    digest_frequency: string;
+    digest_frequency: 'daily' | 'weekly';
     digest_day: string;
     digest_podcast_enabled: boolean;
-    digest_podcast_voice_mode: string;
+    digest_podcast_voice_mode: 'single' | 'dual';
     digest_top_papers: number | null;
   } | null>(null);
 
@@ -442,7 +442,7 @@ function PodcastTab() {
   const [feedCopied, setFeedCopied] = useState(false);
 
   const [form, setForm] = useState<{
-    podcast_preference: string;
+    podcast_preference: 'single' | 'dual';
     single_voice_id: string;
     dual_voice_alex_id: string;
     dual_voice_sam_id: string;
