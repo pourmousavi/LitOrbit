@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail } from 'lucide-react';
+import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
@@ -317,41 +317,235 @@ function JournalConfigTab() {
 }
 
 function UserManagementTab() {
+  const queryClient = useQueryClient();
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: '', full_name: '', role: 'researcher' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ full_name: '', role: '' });
+
   const { data: users, isLoading, isError } = useQuery<UserItem[]>({
     queryKey: ['admin', 'users'],
     queryFn: async () => (await api.get('/api/v1/users')).data,
   });
 
+  const inviteMutation = useMutation({
+    mutationFn: async (data: typeof inviteForm) => {
+      const resp = await api.post('/api/v1/admin/users/invite', data);
+      return resp.data as { id: string; status: string; email: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setInviteForm({ email: '', full_name: '', role: 'researcher' });
+      setShowInviteForm(false);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; full_name?: string; role?: string }) => {
+      await api.patch(`/api/v1/admin/users/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      setEditingId(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/api/v1/admin/users/${id}`);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+
+  const startEditing = (u: UserItem) => {
+    setEditingId(u.id);
+    setEditForm({ full_name: u.full_name, role: u.role });
+  };
+
   if (isLoading) return <LoadingState />;
   if (isError) return <ErrorState message="Failed to load users" />;
 
-  if (!users?.length) {
-    return <EmptyState title="No users found" description="Users who sign up will appear here." />;
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {users.map((u) => (
-        <div
-          key={u.id}
-          className="rounded-2xl border border-border-default bg-bg-surface"
-          style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Invite button / form */}
+      {!showInviteForm ? (
+        <button
+          onClick={() => setShowInviteForm(true)}
+          className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
+          style={{ gap: 10, padding: '14px 24px', width: 'fit-content' }}
         >
-          <div>
-            <p className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{u.full_name}</p>
-            <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 6 }}>{u.email}</p>
+          <UserPlus size={16} /> Invite User
+        </button>
+      ) : (
+        <div className="rounded-2xl border border-accent/30 bg-bg-surface" style={{ padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h3 className="font-mono font-medium text-text-primary" style={{ fontSize: 15 }}>Invite New User</h3>
+            <button onClick={() => setShowInviteForm(false)} className="text-text-tertiary hover:text-text-primary">
+              <X size={18} />
+            </button>
           </div>
-          <span
-            className={cn(
-              'rounded-full font-mono',
-              u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-secondary',
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Full Name</label>
+              <input
+                value={inviteForm.full_name}
+                onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
+                placeholder="e.g. Jane Smith"
+                className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+                style={{ width: '100%', padding: '10px 16px' }}
+              />
+            </div>
+
+            <div>
+              <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Email</label>
+              <input
+                type="email"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                placeholder="jane@university.edu.au"
+                className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+                style={{ width: '100%', padding: '10px 16px' }}
+              />
+            </div>
+
+            <div>
+              <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Role</label>
+              <div className="relative">
+                <select
+                  value={inviteForm.role}
+                  onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                  className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent appearance-none"
+                  style={{ width: '100%', padding: '10px 16px', paddingRight: 40 }}
+                >
+                  <option value="researcher">Researcher</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <ChevronDown size={16} className="text-text-tertiary" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button
+                onClick={() => inviteMutation.mutate(inviteForm)}
+                disabled={!inviteForm.full_name || !inviteForm.email || inviteMutation.isPending}
+                className="flex items-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                style={{ gap: 8, padding: '10px 20px' }}
+              >
+                {inviteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                Send Invite
+              </button>
+              <button
+                onClick={() => setShowInviteForm(false)}
+                className="rounded-xl font-mono text-sm text-text-secondary hover:text-text-primary"
+                style={{ padding: '10px 20px' }}
+              >
+                Cancel
+              </button>
+            </div>
+
+            {inviteMutation.isError && (
+              <p className="font-mono text-danger" style={{ fontSize: 12 }}>
+                {(inviteMutation.error as any)?.response?.data?.detail || 'Failed to invite user. Try again.'}
+              </p>
             )}
-            style={{ fontSize: 12, padding: '5px 14px', flexShrink: 0 }}
-          >
-            {u.role}
-          </span>
+            {inviteMutation.isSuccess && (
+              <p className="font-mono text-success" style={{ fontSize: 12 }}>
+                Invite sent to {inviteMutation.data?.email}
+              </p>
+            )}
+          </div>
         </div>
-      ))}
+      )}
+
+      {/* User list */}
+      {!users?.length && !showInviteForm ? (
+        <EmptyState title="No users found" description="Invite your first team member above." />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {users?.map((u) => (
+            <div
+              key={u.id}
+              className="rounded-2xl border border-border-default bg-bg-surface"
+              style={{ padding: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}
+            >
+              {editingId === u.id ? (
+                /* Inline edit mode */
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <input
+                    value={editForm.full_name}
+                    onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                    className="rounded-lg border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent"
+                    style={{ padding: '8px 12px' }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <select
+                      value={editForm.role}
+                      onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                      className="rounded-lg border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent appearance-none"
+                      style={{ padding: '8px 12px', paddingRight: 32 }}
+                    >
+                      <option value="researcher">Researcher</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <button
+                      onClick={() => updateMutation.mutate({ id: u.id, full_name: editForm.full_name, role: editForm.role })}
+                      disabled={updateMutation.isPending}
+                      className="rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50"
+                      style={{ padding: '8px 12px' }}
+                    >
+                      {updateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="rounded-lg text-text-tertiary hover:text-text-primary"
+                      style={{ padding: '8px 12px' }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Display mode */
+                <>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{u.full_name}</p>
+                    <p className="font-mono text-text-tertiary" style={{ fontSize: 12, marginTop: 6 }}>{u.email}</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span
+                      className={cn(
+                        'rounded-full font-mono',
+                        u.role === 'admin' ? 'bg-accent/15 text-accent' : 'bg-bg-elevated text-text-secondary',
+                      )}
+                      style={{ fontSize: 12, padding: '5px 14px' }}
+                    >
+                      {u.role}
+                    </span>
+                    <button
+                      onClick={() => startEditing(u)}
+                      className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-text-primary"
+                      title="Edit user"
+                      style={{ padding: 6 }}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => { if (confirm(`Remove "${u.full_name}" from LitOrbit? This cannot be undone.`)) deleteMutation.mutate(u.id); }}
+                      disabled={deleteMutation.isPending}
+                      className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-danger"
+                      title="Remove user"
+                      style={{ padding: 6 }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

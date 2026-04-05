@@ -1,15 +1,21 @@
+import logging
 import uuid
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, update, func
+from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_admin
+from app.config import get_settings
 from app.database import get_db
 from app.models.journal_config import JournalConfig
 from app.models.pipeline_run import PipelineRun
+from app.models.user_profile import UserProfile
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -104,6 +110,195 @@ async def delete_journal(
         raise HTTPException(status_code=404, detail="Journal not found")
     await db.delete(journal)
     await db.commit()
+    return {"status": "deleted"}
+
+
+# --- User Management ---
+
+class UserInvite(BaseModel):
+    email: str
+    full_name: str
+    role: str = "researcher"
+
+
+class UserUpdate(BaseModel):
+    full_name: str | None = None
+    role: str | None = None
+
+
+@router.post("/users/invite")
+async def invite_user(
+    req: UserInvite,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Invite a new user: creates Supabase Auth user + user_profiles row atomically."""
+    settings = get_settings()
+
+    if req.role not in ("admin", "researcher"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'researcher'")
+
+    # Check if email already exists in user_profiles
+    existing = await db.execute(
+        select(UserProfile).where(UserProfile.email == req.email)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="A user with this email already exists")
+
+    # Create user in Supabase Auth via Admin API (sends invite email automatically)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(
+            f"{settings.supabase_url}/auth/v1/admin/generate_link",
+            headers={
+                "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                "apikey": settings.supabase_service_role_key,
+                "Content-Type": "application/json",
+            },
+            json={
+                "type": "invite",
+                "email": req.email,
+                "data": {"full_name": req.full_name},
+            },
+        )
+
+    if resp.status_code not in (200, 201):
+        detail = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text
+        logger.error(f"Supabase invite failed: {resp.status_code} {detail}")
+        raise HTTPException(status_code=502, detail=f"Failed to create auth user: {resp.status_code}")
+
+    auth_data = resp.json()
+    user_id = auth_data.get("id")
+    if not user_id:
+        raise HTTPException(status_code=502, detail="Supabase did not return a user ID")
+
+    # Create matching user_profiles row
+    profile = UserProfile(
+        id=uuid.UUID(user_id),
+        full_name=req.full_name,
+        email=req.email,
+        role=req.role,
+    )
+    db.add(profile)
+    await db.commit()
+
+    # Send the invite email via Resend/SMTP
+    action_link = auth_data.get("action_link")
+    if action_link:
+        try:
+            await _send_invite_email(req.email, req.full_name, action_link, settings)
+        except Exception as e:
+            logger.warning(f"Failed to send invite email to {req.email}: {e}")
+
+    return {"id": user_id, "status": "invited", "email": req.email}
+
+
+async def _send_invite_email(email: str, full_name: str, action_link: str, settings: Any) -> None:
+    """Send an invite email with the Supabase magic link."""
+    subject = "You're invited to LitOrbit"
+    html = f"""
+    <div style="font-family: monospace; max-width: 500px; margin: 0 auto; padding: 40px 20px;">
+        <h2 style="margin-bottom: 24px;">Welcome to LitOrbit</h2>
+        <p>Hi {full_name},</p>
+        <p>You've been invited to join LitOrbit, a research intelligence platform.</p>
+        <p>Click the link below to set your password and get started:</p>
+        <p style="margin: 24px 0;">
+            <a href="{action_link}" style="background: #6366f1; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
+                Accept Invitation
+            </a>
+        </p>
+        <p style="color: #888; font-size: 12px;">This link will expire in 24 hours.</p>
+    </div>
+    """
+
+    if settings.resend_api_key:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+                json={
+                    "from": settings.resend_from,
+                    "to": [email],
+                    "subject": subject,
+                    "html": html,
+                },
+            )
+    elif settings.smtp_user and settings.smtp_password:
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = settings.smtp_user
+        msg["To"] = email
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            server.starttls()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.sendmail(settings.smtp_user, email, msg.as_string())
+
+
+@router.patch("/users/{user_id}")
+async def update_user(
+    user_id: str,
+    req: UserUpdate,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update a user's profile (name, role)."""
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.id == uuid.UUID(user_id))
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if req.full_name is not None:
+        profile.full_name = req.full_name
+    if req.role is not None:
+        if req.role not in ("admin", "researcher"):
+            raise HTTPException(status_code=400, detail="Role must be 'admin' or 'researcher'")
+        profile.role = req.role
+
+    await db.commit()
+    return {"status": "updated"}
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove a user from both user_profiles and Supabase Auth."""
+    if admin["id"] == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    result = await db.execute(
+        select(UserProfile).where(UserProfile.id == uuid.UUID(user_id))
+    )
+    profile = result.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Delete from Supabase Auth
+    settings = get_settings()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.delete(
+            f"{settings.supabase_url}/auth/v1/admin/users/{user_id}",
+            headers={
+                "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                "apikey": settings.supabase_service_role_key,
+            },
+        )
+    if resp.status_code not in (200, 204):
+        logger.warning(f"Failed to delete auth user {user_id}: {resp.status_code}")
+
+    # Delete from user_profiles
+    await db.delete(profile)
+    await db.commit()
+
     return {"status": "deleted"}
 
 

@@ -9,6 +9,8 @@ import Sidebar from '@/components/layout/Sidebar';
 import BottomNav from '@/components/layout/BottomNav';
 import PodcastPlayer from '@/components/layout/PodcastPlayer';
 import Login from '@/pages/Login';
+import ResetPassword from '@/pages/ResetPassword';
+import UpdatePassword from '@/pages/UpdatePassword';
 import Feed from '@/pages/Feed';
 import Categories from '@/pages/Categories';
 import SharedWithMe from '@/pages/SharedWithMe';
@@ -96,6 +98,8 @@ export default function App() {
         <ToastContainer />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
           <Route path="/forbidden" element={<Forbidden />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Feed />} />
