@@ -171,18 +171,35 @@ async def score_and_summarise_papers(
 
     Returns dict with counts.
     """
-    # Get all papers that haven't been scored yet
-    scored_paper_ids_q = select(PaperScore.paper_id).distinct()
-    scored_ids_result = await db.execute(scored_paper_ids_q)
-    scored_paper_ids = {row[0] for row in scored_ids_result.all()}
+    # Get all users for scoring
+    users = await get_all_users(db)
+    if not users:
+        logger.warning("No users found, skipping scoring")
+        return {"prefiltered": 0, "scored": 0, "summarised": 0}
+
+    # Build set of existing (paper_id, user_id) score pairs to avoid re-scoring
+    existing_scores_q = select(PaperScore.paper_id, PaperScore.user_id)
+    existing_scores_result = await db.execute(existing_scores_q)
+    existing_score_pairs: set[tuple] = {
+        (row[0], row[1]) for row in existing_scores_result.all()
+    }
 
     all_papers_result = await db.execute(select(Paper))
     all_papers = all_papers_result.scalars().all()
 
-    unscored = [p for p in all_papers if p.id not in scored_paper_ids]
-    if not unscored:
-        logger.info("No unscored papers to process")
+    # Find papers that need scoring for at least one user
+    user_ids = {uuid.UUID(u["id"]) for u in users}
+    papers_needing_scores = []
+    for p in all_papers:
+        missing_users = {uid for uid in user_ids if (p.id, uid) not in existing_score_pairs}
+        if missing_users:
+            papers_needing_scores.append(p)
+
+    if not papers_needing_scores:
+        logger.info("No papers need scoring for any user")
         return {"prefiltered": 0, "scored": 0, "summarised": 0}
+
+    logger.info(f"{len(papers_needing_scores)} papers need scoring for at least one user")
 
     # Convert to dicts for scoring
     paper_dicts = [
@@ -195,19 +212,13 @@ async def score_and_summarise_papers(
             "keywords": p.keywords or [],
             "embedding": p.embedding,
         }
-        for p in unscored
+        for p in papers_needing_scores
     ]
-
-    # Get users for scoring
-    users = await get_all_users(db)
-    if not users:
-        logger.warning("No users found, skipping scoring")
-        return {"prefiltered": 0, "scored": 0, "summarised": 0}
 
     SIMILARITY_THRESHOLD = 0.35
 
     # Per-user filtering: embedding similarity if available, keyword fallback otherwise
-    # Build a map of user_id -> papers to score for that user
+    # Build a map of user_id -> papers to score for that user (excluding already-scored pairs)
     user_papers_map: dict[str, list[dict]] = {}
     keyword_fallback_count = 0
     embedding_filter_count = 0
@@ -217,14 +228,20 @@ async def score_and_summarise_papers(
     keyword_filtered_ids = {p["id"] for p in keyword_filtered}
 
     for user in users:
+        uid = uuid.UUID(user["id"])
         profile_embedding = user.get("interest_vector")
         # interest_vector is a list when populated, empty dict {} when not
         has_profile = isinstance(profile_embedding, list) and len(profile_embedding) > 0
 
+        # Only include papers this user hasn't scored yet
+        user_unscored = [pd for pd in paper_dicts if (uuid.UUID(pd["id"]), uid) not in existing_score_pairs]
+        if not user_unscored:
+            continue
+
         if has_profile:
             # Embedding-based per-user filter
             matched = []
-            for pd in paper_dicts:
+            for pd in user_unscored:
                 paper_emb = pd.get("embedding")
                 if isinstance(paper_emb, list) and len(paper_emb) > 0:
                     sim = cosine_similarity(profile_embedding, paper_emb)
@@ -237,8 +254,8 @@ async def score_and_summarise_papers(
             user_papers_map[user["id"]] = matched
             embedding_filter_count += 1
         else:
-            # No profile embedding — use keyword fallback
-            user_papers_map[user["id"]] = keyword_filtered
+            # No profile embedding — use keyword fallback (only unscored papers)
+            user_papers_map[user["id"]] = [pd for pd in user_unscored if pd["id"] in keyword_filtered_ids]
             keyword_fallback_count += 1
 
     logger.info(
