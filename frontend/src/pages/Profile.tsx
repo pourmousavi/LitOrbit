@@ -847,13 +847,20 @@ function ReferencePapersTab() {
   const MAX = 20;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const nonPdf = files.filter((f) => !f.name.toLowerCase().endsWith('.pdf'));
+    if (nonPdf.length) {
       alert('Only PDF files are accepted.');
+      e.target.value = '';
       return;
     }
-    uploadMutation.mutate(file, { onSuccess: () => setMode('idle') });
+    if (count + files.length > MAX) {
+      alert(`You can only add ${MAX - count} more paper${MAX - count === 1 ? '' : 's'} (limit is ${MAX}).`);
+      e.target.value = '';
+      return;
+    }
+    files.forEach((file) => uploadMutation.mutate(file));
     e.target.value = '';
   };
 
@@ -920,7 +927,7 @@ function ReferencePapersTab() {
               >
                 <FileText size={14} /> Enter Manually
               </button>
-              <input ref={fileInputRef} type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
+              <input ref={fileInputRef} type="file" accept=".pdf" multiple className="hidden" onChange={handleFileChange} />
             </div>
           )}
 
