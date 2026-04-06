@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X, Plus, Upload, Link, Loader2 } from 'lucide-react';
+import { Search, X, Plus, Upload, Link, Loader2, ArrowUpDown } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/uiStore';
 import PaperFeed from '@/components/papers/PaperFeed';
@@ -13,6 +13,7 @@ export default function Feed() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showDoiInput, setShowDoiInput] = useState(false);
   const [doi, setDoi] = useState('');
+  const [sort, setSort] = useState('score');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -191,7 +192,31 @@ export default function Feed() {
             )}
           </div>
 
-          <PaperFeed search={debouncedSearch || undefined} />
+          {/* Sort options */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+            <ArrowUpDown size={13} className="text-text-tertiary" style={{ flexShrink: 0 }} />
+            {([
+              ['score', 'Highest Score'],
+              ['newest', 'Recently Fetched'],
+              ['published', 'Recently Published'],
+              ['oldest', 'Oldest First'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setSort(value)}
+                className={`rounded-lg font-mono text-xs transition ${
+                  sort === value
+                    ? 'bg-bg-elevated text-text-primary'
+                    : 'text-text-tertiary hover:text-text-secondary'
+                }`}
+                style={{ padding: '6px 12px' }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <PaperFeed search={debouncedSearch || undefined} sort={sort} />
         </div>
       </div>
 

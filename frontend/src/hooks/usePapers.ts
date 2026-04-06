@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type { PapersResponse, Paper } from '@/types';
 
-export function usePapers(filters?: { journal?: string; category?: string; search?: string }) {
+export function usePapers(filters?: { journal?: string; category?: string; search?: string; sort?: string }) {
   return useInfiniteQuery<PapersResponse>({
     queryKey: ['papers', filters],
     queryFn: async ({ pageParam }) => {
@@ -10,6 +10,7 @@ export function usePapers(filters?: { journal?: string; category?: string; searc
       if (filters?.journal) params.journal = filters.journal;
       if (filters?.category) params.category = filters.category;
       if (filters?.search) params.search = filters.search;
+      if (filters?.sort) params.sort = filters.sort;
       const { data } = await api.get('/api/v1/papers', { params });
       return data;
     },

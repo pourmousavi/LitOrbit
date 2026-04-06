@@ -26,11 +26,12 @@ interface PaperFeedProps {
   journal?: string;
   category?: string;
   search?: string;
+  sort?: string;
 }
 
-export default function PaperFeed({ journal, category, search }: PaperFeedProps) {
+export default function PaperFeed({ journal, category, search, sort }: PaperFeedProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } =
-    usePapers({ journal, category, search });
+    usePapers({ journal, category, search, sort });
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
   const selectPaper = useUIStore((s) => s.selectPaper);
   const sentinelRef = useRef<HTMLDivElement>(null);

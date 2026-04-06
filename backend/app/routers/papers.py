@@ -26,8 +26,9 @@ async def list_papers(
     journal: str | None = None,
     category: str | None = None,
     search: str | None = None,
+    sort: str | None = Query(None, regex="^(score|newest|oldest|published)$"),
 ) -> dict:
-    """List papers paginated and sorted by the current user's relevance score."""
+    """List papers paginated with configurable sort order."""
     user_id = user["id"]
     offset = (page - 1) * per_page
 
@@ -68,13 +69,17 @@ async def list_papers(
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar()
 
-    # Sort by relevance score descending (nulls last), then by created_at
-    query = (
-        query
-        .order_by(desc(PaperScore.relevance_score).nulls_last(), desc(Paper.created_at))
-        .offset(offset)
-        .limit(per_page)
-    )
+    # Sort
+    if sort == "newest":
+        query = query.order_by(desc(Paper.created_at))
+    elif sort == "oldest":
+        query = query.order_by(Paper.created_at)
+    elif sort == "published":
+        query = query.order_by(desc(Paper.published_date).nulls_last(), desc(Paper.created_at))
+    else:  # default: score
+        query = query.order_by(desc(PaperScore.relevance_score).nulls_last(), desc(Paper.created_at))
+
+    query = query.offset(offset).limit(per_page)
 
     results = (await db.execute(query)).all()
 
