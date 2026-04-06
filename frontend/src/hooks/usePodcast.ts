@@ -119,11 +119,16 @@ export function useDeletePodcast() {
   });
 }
 
-export function usePodcastList() {
+export function usePodcastList(filters?: { search?: string; podcast_type?: string; voice_mode?: string; sort?: string }) {
   return useQuery<PodcastListItem[]>({
-    queryKey: ['podcasts', 'list'],
+    queryKey: ['podcasts', 'list', filters],
     queryFn: async () => {
-      const { data } = await api.get('/api/v1/podcasts');
+      const params: Record<string, string> = {};
+      if (filters?.search) params.search = filters.search;
+      if (filters?.podcast_type) params.podcast_type = filters.podcast_type;
+      if (filters?.voice_mode) params.voice_mode = filters.voice_mode;
+      if (filters?.sort) params.sort = filters.sort;
+      const { data } = await api.get('/api/v1/podcasts', { params });
       return data;
     },
   });

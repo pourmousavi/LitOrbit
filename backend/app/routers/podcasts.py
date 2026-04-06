@@ -404,32 +404,67 @@ async def delete_podcast(
 async def list_podcasts(
     user: dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    search: str | None = None,
+    podcast_type: str | None = Query(None, pattern="^(paper|digest)$"),
+    voice_mode: str | None = Query(None, pattern="^(single|dual)$"),
+    sort: str | None = Query(None, pattern="^(newest|oldest|longest|shortest)$"),
 ) -> list[dict]:
     """List all generated podcasts with collection info."""
     from sqlalchemy import or_
 
+    # Build shared filters
+    base_filters = [Podcast.audio_path.isnot(None)]
+    if voice_mode:
+        base_filters.append(Podcast.voice_mode == voice_mode)
+
+    # Determine sort order
+    if sort == "oldest":
+        order = Podcast.generated_at.asc()
+    elif sort == "longest":
+        order = Podcast.duration_seconds.desc().nulls_last()
+    elif sort == "shortest":
+        order = Podcast.duration_seconds.asc().nulls_last()
+    else:  # newest (default)
+        order = Podcast.generated_at.desc()
+
     # Fetch paper-based podcasts (with join)
-    paper_result = await db.execute(
-        select(Podcast, Paper.title, Paper.journal)
-        .join(Paper, Podcast.paper_id == Paper.id)
-        .where(
-            Podcast.audio_path.isnot(None),
-            or_(Podcast.podcast_type == "paper", Podcast.podcast_type.is_(None)),
+    paper_rows = []
+    if podcast_type != "digest":
+        paper_query = (
+            select(Podcast, Paper.title, Paper.journal)
+            .join(Paper, Podcast.paper_id == Paper.id)
+            .where(
+                *base_filters,
+                or_(Podcast.podcast_type == "paper", Podcast.podcast_type.is_(None)),
+            )
         )
-        .order_by(Podcast.generated_at.desc())
-    )
-    paper_rows = paper_result.all()
+        if search:
+            term = f"%{search}%"
+            paper_query = paper_query.where(
+                Paper.title.ilike(term) | Paper.journal.ilike(term)
+            )
+        paper_query = paper_query.order_by(order)
+        paper_result = await db.execute(paper_query)
+        paper_rows = paper_result.all()
 
     # Fetch digest podcasts (no paper_id)
-    digest_result = await db.execute(
-        select(Podcast)
-        .where(
-            Podcast.audio_path.isnot(None),
-            Podcast.podcast_type == "digest",
+    digest_rows = []
+    if podcast_type != "paper":
+        digest_query = (
+            select(Podcast)
+            .where(
+                *base_filters,
+                Podcast.podcast_type == "digest",
+            )
         )
-        .order_by(Podcast.generated_at.desc())
-    )
-    digest_rows = digest_result.scalars().all()
+        if search:
+            term = f"%{search}%"
+            digest_query = digest_query.where(
+                Podcast.title.ilike(term)
+            )
+        digest_query = digest_query.order_by(order)
+        digest_result = await db.execute(digest_query)
+        digest_rows = digest_result.scalars().all()
 
     # Bulk fetch collections for paper-based podcasts
     paper_ids = list({podcast.paper_id for podcast, _, _ in paper_rows if podcast.paper_id})
@@ -459,7 +494,7 @@ async def list_podcasts(
 
     items: list[dict] = []
 
-    # Digest podcasts first
+    # Digest podcasts
     for podcast in digest_rows:
         items.append({
             "id": str(podcast.id),
@@ -490,6 +525,16 @@ async def list_podcasts(
             "collections": collections_map.get(str(podcast.paper_id), []),
             "created_by_name": creator_map.get(str(podcast.user_id), "System") if podcast.user_id else "System",
         })
+
+    # Re-sort combined list when mixing digest + paper results
+    if sort == "longest":
+        items.sort(key=lambda x: x["duration_seconds"] or 0, reverse=True)
+    elif sort == "shortest":
+        items.sort(key=lambda x: x["duration_seconds"] or 0)
+    elif sort == "oldest":
+        items.sort(key=lambda x: x["generated_at"] or "")
+    else:  # newest
+        items.sort(key=lambda x: x["generated_at"] or "", reverse=True)
 
     return items
 
