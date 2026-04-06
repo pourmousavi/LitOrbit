@@ -413,7 +413,7 @@ async def list_podcasts(
     from sqlalchemy import or_
 
     # Build shared filters
-    base_filters = [Podcast.audio_path.isnot(None)]
+    base_filters = [Podcast.audio_path.isnot(None), Podcast.user_id == user["id"]]
     if voice_mode:
         base_filters.append(Podcast.voice_mode == voice_mode)
 

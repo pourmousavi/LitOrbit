@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Play, Headphones, Trash2, Radio, Search, X, ArrowUpDown } from 'lucide-react';
 import { usePodcastList, useDeletePodcast } from '@/hooks/usePodcast';
@@ -17,12 +17,39 @@ export default function PodcastLibrary() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const { data: podcasts, isLoading } = usePodcastList({
-    search: debouncedSearch || undefined,
-    podcast_type: typeFilter || undefined,
-    voice_mode: voiceFilter || undefined,
-    sort,
-  });
+  const { data: allPodcasts, isLoading } = usePodcastList();
+
+  const podcasts = useMemo(() => {
+    if (!allPodcasts) return undefined;
+    let filtered = allPodcasts;
+
+    if (typeFilter) {
+      filtered = filtered.filter((p) => p.podcast_type === typeFilter);
+    }
+    if (voiceFilter) {
+      filtered = filtered.filter((p) => p.voice_mode === voiceFilter);
+    }
+    if (debouncedSearch) {
+      const term = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(
+        (p) =>
+          p.paper_title?.toLowerCase().includes(term) ||
+          p.paper_journal?.toLowerCase().includes(term),
+      );
+    }
+
+    const sorted = [...filtered];
+    if (sort === 'oldest') {
+      sorted.sort((a, b) => (a.generated_at || '').localeCompare(b.generated_at || ''));
+    } else if (sort === 'longest') {
+      sorted.sort((a, b) => (b.duration_seconds || 0) - (a.duration_seconds || 0));
+    } else if (sort === 'shortest') {
+      sorted.sort((a, b) => (a.duration_seconds || 0) - (b.duration_seconds || 0));
+    } else {
+      sorted.sort((a, b) => (b.generated_at || '').localeCompare(a.generated_at || ''));
+    }
+    return sorted;
+  }, [allPodcasts, typeFilter, voiceFilter, debouncedSearch, sort]);
   const deletePodcast = useDeletePodcast();
   const setTrack = usePlayerStore((s) => s.setTrack);
   const currentTrackUrl = usePlayerStore((s) => s.currentTrackUrl);
