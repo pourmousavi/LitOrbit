@@ -362,6 +362,7 @@ class TestPodcastListEndpoint:
         paper_podcast = Podcast(
             id=uuid.uuid4(),
             paper_id=paper.id,
+            user_id=user_id,
             voice_mode="single",
             podcast_type="paper",
             audio_path="https://example.com/paper.mp3",
@@ -373,6 +374,7 @@ class TestPodcastListEndpoint:
         digest_podcast = Podcast(
             id=uuid.uuid4(),
             paper_id=None,
+            user_id=user_id,
             voice_mode="dual",
             podcast_type="digest",
             title="Weekly Digest — Apr 04",
