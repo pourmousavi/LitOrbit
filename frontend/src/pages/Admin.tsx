@@ -1071,6 +1071,117 @@ const DIGEST_STEP_LABELS: Record<string, string> = {
   completed: 'Completed',
 };
 
+function DigestRunAccordion({ run }: { run: DigestRunItem }) {
+  const defaultExpanded = run.status === 'running';
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  return (
+    <div
+      className={cn(
+        'rounded-2xl border',
+        run.status === 'running' ? 'border-warning/40 bg-bg-surface' :
+        run.status === 'failed' ? 'border-danger/30 bg-bg-surface' :
+        run.status === 'partial' ? 'border-warning/30 bg-bg-surface' :
+        'border-border-default bg-bg-surface',
+      )}
+    >
+      {/* Accordion header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left"
+        style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span
+            className={cn(
+              'rounded-full',
+              run.status === 'success' && 'bg-success',
+              run.status === 'partial' && 'bg-warning',
+              run.status === 'failed' && 'bg-danger',
+              run.status === 'running' && 'bg-warning animate-pulse',
+            )}
+            style={{ width: 10, height: 10, flexShrink: 0 }}
+          />
+          <span className="font-mono font-medium capitalize text-text-primary" style={{ fontSize: 14 }}>
+            {run.status === 'running' ? 'Running digest...' : run.status === 'partial' ? 'Partial Success' : run.status}
+          </span>
+          <span className="rounded-full bg-bg-elevated font-mono text-text-tertiary" style={{ fontSize: 11, padding: '2px 10px' }}>
+            {run.frequency}
+          </span>
+          {!expanded && run.status !== 'running' && run.users_total > 0 && (
+            <span className="font-mono text-xs text-text-tertiary">
+              — {run.users_sent} sent, {run.users_total} users
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="font-mono text-text-tertiary" style={{ fontSize: 12, textAlign: 'right' }}>
+            <div>{formatDate(run.started_at)}</div>
+            {run.started_at && (
+              <div style={{ marginTop: 2 }}>
+                {run.status === 'running' ? 'Elapsed' : 'Duration'}: {formatElapsed(run.started_at, run.completed_at)}
+              </div>
+            )}
+          </div>
+          <ChevronDown
+            size={16}
+            className={cn('text-text-tertiary transition-transform', expanded && 'rotate-180')}
+          />
+        </div>
+      </button>
+
+      {/* Accordion body */}
+      {expanded && (
+        <div style={{ padding: '0 20px 16px' }}>
+          {/* Running progress */}
+          {run.status === 'running' && (
+            <div>
+              <div className="rounded-full bg-border-default" style={{ height: 4, overflow: 'hidden' }}>
+                <div
+                  className="bg-warning rounded-full transition-all"
+                  style={{
+                    height: '100%',
+                    width: run.users_total > 0
+                      ? `${Math.max(5, ((run.users_sent + run.users_skipped + run.users_failed) / run.users_total) * 100)}%`
+                      : '10%',
+                    ...(run.users_total === 0 ? { animation: 'pulse 2s infinite' } : {}),
+                  }}
+                />
+              </div>
+              <div className="font-mono text-text-secondary" style={{ marginTop: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Loader2 size={13} className="animate-spin text-warning" />
+                {run.users_total > 0
+                  ? `Processing ${run.users_sent + run.users_skipped + run.users_failed} / ${run.users_total} users...`
+                  : 'Initialising...'}
+              </div>
+            </div>
+          )}
+
+          {/* Stats row */}
+          {run.status !== 'running' && run.users_total > 0 && (
+            <div className="font-mono text-text-secondary" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, fontSize: 13 }}>
+              <span>Users: <strong className="text-text-primary">{run.users_total}</strong></span>
+              <span>Sent: <strong className="text-success">{run.users_sent}</strong></span>
+              {run.users_skipped > 0 && <span>Skipped: <strong className="text-text-tertiary">{run.users_skipped}</strong></span>}
+              {run.users_failed > 0 && <span>Failed: <strong className="text-danger">{run.users_failed}</strong></span>}
+            </div>
+          )}
+
+          {/* Step log */}
+          {run.run_log && run.run_log.length > 0 && <DigestRunLogSteps log={run.run_log} />}
+
+          {/* Error */}
+          {run.error_message && (
+            <p className="rounded-xl bg-danger/10 font-mono text-danger" style={{ marginTop: 12, padding: '10px 14px', fontSize: 12 }}>
+              {run.error_message}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DigestRunLogSteps({ log }: { log: Record<string, unknown>[] }) {
   if (!log?.length) return null;
   return (
@@ -1188,91 +1299,7 @@ function DigestTab() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {runs.map((run) => (
-            <div
-              key={run.id}
-              className={cn(
-                'rounded-2xl border',
-                run.status === 'running' ? 'border-warning/40 bg-bg-surface' :
-                run.status === 'failed' ? 'border-danger/30 bg-bg-surface' :
-                run.status === 'partial' ? 'border-warning/30 bg-bg-surface' :
-                'border-border-default bg-bg-surface',
-              )}
-              style={{ padding: 20 }}
-            >
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span
-                    className={cn(
-                      'rounded-full',
-                      run.status === 'success' && 'bg-success',
-                      run.status === 'partial' && 'bg-warning',
-                      run.status === 'failed' && 'bg-danger',
-                      run.status === 'running' && 'bg-warning animate-pulse',
-                    )}
-                    style={{ width: 10, height: 10 }}
-                  />
-                  <span className="font-mono font-medium capitalize text-text-primary" style={{ fontSize: 14 }}>
-                    {run.status === 'running' ? 'Running digest...' : run.status === 'partial' ? 'Partial Success' : run.status}
-                  </span>
-                  <span className="rounded-full bg-bg-elevated font-mono text-text-tertiary" style={{ fontSize: 11, padding: '2px 10px' }}>
-                    {run.frequency}
-                  </span>
-                </div>
-                <div className="font-mono text-text-tertiary" style={{ fontSize: 12, textAlign: 'right' }}>
-                  <div>{formatDate(run.started_at)}</div>
-                  {run.started_at && (
-                    <div style={{ marginTop: 2 }}>
-                      {run.status === 'running' ? 'Elapsed' : 'Duration'}: {formatElapsed(run.started_at, run.completed_at)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Running progress */}
-              {run.status === 'running' && (
-                <div style={{ marginTop: 16 }}>
-                  <div className="rounded-full bg-border-default" style={{ height: 4, overflow: 'hidden' }}>
-                    <div
-                      className="bg-warning rounded-full transition-all"
-                      style={{
-                        height: '100%',
-                        width: run.users_total > 0
-                          ? `${Math.max(5, ((run.users_sent + run.users_skipped + run.users_failed) / run.users_total) * 100)}%`
-                          : '10%',
-                        ...(run.users_total === 0 ? { animation: 'pulse 2s infinite' } : {}),
-                      }}
-                    />
-                  </div>
-                  <div className="font-mono text-text-secondary" style={{ marginTop: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Loader2 size={13} className="animate-spin text-warning" />
-                    {run.users_total > 0
-                      ? `Processing ${run.users_sent + run.users_skipped + run.users_failed} / ${run.users_total} users...`
-                      : 'Initialising...'}
-                  </div>
-                </div>
-              )}
-
-              {/* Stats row */}
-              {run.status !== 'running' && run.users_total > 0 && (
-                <div className="font-mono text-text-secondary" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 14, fontSize: 13 }}>
-                  <span>Users: <strong className="text-text-primary">{run.users_total}</strong></span>
-                  <span>Sent: <strong className="text-success">{run.users_sent}</strong></span>
-                  {run.users_skipped > 0 && <span>Skipped: <strong className="text-text-tertiary">{run.users_skipped}</strong></span>}
-                  {run.users_failed > 0 && <span>Failed: <strong className="text-danger">{run.users_failed}</strong></span>}
-                </div>
-              )}
-
-              {/* Step log */}
-              {run.run_log && run.run_log.length > 0 && <DigestRunLogSteps log={run.run_log} />}
-
-              {/* Error */}
-              {run.error_message && (
-                <p className="rounded-xl bg-danger/10 font-mono text-danger" style={{ marginTop: 12, padding: '10px 14px', fontSize: 12 }}>
-                  {run.error_message}
-                </p>
-              )}
-            </div>
+            <DigestRunAccordion key={run.id} run={run} />
           ))}
         </div>
       )}
