@@ -926,27 +926,29 @@ function ReferencePapersTab() {
 
           {mode === 'doi' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input
-                type="text"
-                value={doi}
-                onChange={(e) => setDoi(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleDoiSubmit()}
-                placeholder="e.g. 10.1016/j.apenergy.2024.123456"
-                className="rounded-xl border border-border-default bg-bg-base px-4 py-3 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
-              />
               <div style={{ display: 'flex', gap: 10 }}>
+                <input
+                  type="text"
+                  value={doi}
+                  onChange={(e) => setDoi(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleDoiSubmit()}
+                  placeholder="e.g. 10.1016/j.apenergy.2024.123456"
+                  className="rounded-xl border border-border-default bg-bg-base font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent outline-none"
+                  style={{ flex: 1, padding: '10px 16px' }}
+                />
                 <button
                   onClick={handleDoiSubmit}
                   disabled={!doi.trim() || doiMutation.isPending}
-                  className="flex items-center rounded-xl bg-accent px-4 py-2 font-mono text-sm text-white transition hover:bg-accent-hover disabled:opacity-40"
-                  style={{ gap: 6 }}
+                  className="flex items-center gap-2 rounded-xl bg-accent font-mono text-sm text-white hover:bg-accent-hover disabled:opacity-50"
+                  style={{ padding: '10px 16px' }}
                 >
                   {doiMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
                   {doiMutation.isPending ? 'Looking up...' : 'Fetch'}
                 </button>
                 <button
                   onClick={() => { setMode('idle'); setDoi(''); }}
-                  className="rounded-xl px-4 py-2 font-mono text-sm text-text-secondary hover:text-text-primary"
+                  className="rounded-xl font-mono text-sm text-text-secondary hover:text-text-primary"
+                  style={{ padding: '10px 16px' }}
                 >
                   Cancel
                 </button>
@@ -961,37 +963,40 @@ function ReferencePapersTab() {
 
           {mode === 'manual' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input
-                type="text"
-                value={manualTitle}
-                onChange={(e) => setManualTitle(e.target.value)}
-                placeholder="Paper title"
-                className="rounded-xl border border-border-default bg-bg-base px-4 py-3 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
-              />
-              <textarea
-                value={manualAbstract}
-                onChange={(e) => setManualAbstract(e.target.value)}
-                placeholder="Abstract (optional but recommended for better matching)"
-                rows={4}
-                className="rounded-xl border border-border-default bg-bg-base px-4 py-3 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none resize-none"
-              />
               <div style={{ display: 'flex', gap: 10 }}>
+                <input
+                  type="text"
+                  value={manualTitle}
+                  onChange={(e) => setManualTitle(e.target.value)}
+                  placeholder="Paper title"
+                  className="rounded-xl border border-border-default bg-bg-base font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent outline-none"
+                  style={{ flex: 1, padding: '10px 16px' }}
+                />
                 <button
                   onClick={handleManualSubmit}
                   disabled={!manualTitle.trim() || manualMutation.isPending}
-                  className="flex items-center rounded-xl bg-accent px-4 py-2 font-mono text-sm text-white transition hover:bg-accent-hover disabled:opacity-40"
-                  style={{ gap: 6 }}
+                  className="flex items-center gap-2 rounded-xl bg-accent font-mono text-sm text-white hover:bg-accent-hover disabled:opacity-50"
+                  style={{ padding: '10px 16px' }}
                 >
                   {manualMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                   {manualMutation.isPending ? 'Adding...' : 'Add Paper'}
                 </button>
                 <button
                   onClick={() => { setMode('idle'); setManualTitle(''); setManualAbstract(''); }}
-                  className="rounded-xl px-4 py-2 font-mono text-sm text-text-secondary hover:text-text-primary"
+                  className="rounded-xl font-mono text-sm text-text-secondary hover:text-text-primary"
+                  style={{ padding: '10px 16px' }}
                 >
                   Cancel
                 </button>
               </div>
+              <textarea
+                value={manualAbstract}
+                onChange={(e) => setManualAbstract(e.target.value)}
+                placeholder="Abstract (optional but recommended for better matching)"
+                rows={4}
+                className="rounded-xl border border-border-default bg-bg-base font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent outline-none resize-none"
+                style={{ padding: '10px 16px' }}
+              />
               {manualMutation.isError && (
                 <p className="text-xs text-danger">
                   {(manualMutation.error as any)?.response?.data?.detail || 'Failed to add paper'}
@@ -1029,7 +1034,7 @@ function ReferencePapersTab() {
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="font-serif text-sm text-text-primary" style={{ lineHeight: 1.4 }}>
+                    <div className="font-sans font-semibold text-sm text-text-primary" style={{ lineHeight: 1.4 }}>
                       {paper.title}
                     </div>
                     {paper.abstract_preview && (
