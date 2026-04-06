@@ -734,16 +734,12 @@ async def get_alerts(
     run_obj = latest_run.scalar_one_or_none()
     if run_obj and run_obj.run_log:
         for step in run_obj.run_log:
-            if isinstance(step, dict) and step.get("step") == "embedding" and step.get("quota_exhausted"):
+            if isinstance(step, dict) and step.get("step") == "embedding" and step.get("message"):
+                is_quota = step.get("quota_exhausted", False)
                 alerts.append({
                     "severity": "warning",
-                    "title": "Embedding Quota Exhausted",
-                    "message": step.get("message") or (
-                        f"Gemini Embedding API daily limit was reached during the last pipeline run. "
-                        f"{step.get('skipped', 0)} papers were not embedded and are using keyword "
-                        f"fallback for scoring. Use the 'Run Backfill' button below to retry after "
-                        f"the quota resets (midnight UTC), or wait for the next pipeline run."
-                    ),
+                    "title": "Embedding Quota Exhausted" if is_quota else "Embedding Error",
+                    "message": step["message"],
                     "action": "backfill-embeddings",
                     "run_id": str(run_obj.id),
                     "run_at": run_obj.started_at.isoformat() if run_obj.started_at else None,

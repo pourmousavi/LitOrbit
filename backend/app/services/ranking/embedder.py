@@ -133,19 +133,36 @@ async def embed_texts(texts: list[str]) -> list[list[float] | None]:
     """Embed multiple texts, respecting rate limits.
 
     Returns list of normalized vectors (or None for failed items).
+    Stops early on quota exhaustion (remaining items get None).
+    Raises EmbeddingAPIError for non-quota issues (bad key, network, etc).
     """
     client = _get_client()
     results: list[list[float] | None] = []
+    quota_hit = False
 
     for text in texts:
+        if quota_hit:
+            results.append(None)
+            continue
         embedding = await _embed_single(client, text)
         results.append(embedding)
+        if embedding is None:
+            quota_hit = True  # stop calling API, fill rest with None
 
     return results
 
 
+class EmbeddingAPIError(Exception):
+    """Non-quota API error — should stop retrying remaining papers."""
+    pass
+
+
 async def _embed_single(client: genai.Client, text: str) -> list[float] | None:
-    """Embed a single text with rate limiting and retries."""
+    """Embed a single text with rate limiting and retries.
+
+    Returns vector on success, None on quota exhaustion.
+    Raises EmbeddingAPIError for non-quota errors (bad key, network, etc).
+    """
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
             await _rate_limiter.acquire()
@@ -172,7 +189,7 @@ async def _embed_single(client: genai.Client, text: str) -> list[float] | None:
                     return None
             else:
                 logger.error(f"Gemini Embedding API error: {e}")
-                return None
+                raise EmbeddingAPIError(str(e)) from e
 
     return None
 

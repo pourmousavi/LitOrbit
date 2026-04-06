@@ -149,7 +149,12 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
         return {"embedded": 0, "skipped": 0, "quota_exhausted": False}
 
     texts = [prepare_paper_text(p.title, p.abstract or "") for p in papers]
-    embeddings = await embed_texts(texts)
+
+    try:
+        embeddings = await embed_texts(texts)
+    except Exception as e:
+        logger.error(f"Embedding failed (non-quota error): {e}")
+        return {"embedded": 0, "skipped": len(papers), "quota_exhausted": False, "error": str(e)}
 
     embedded = 0
     skipped = 0
@@ -161,13 +166,13 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
             embedded += 1
         else:
             skipped += 1
-            quota_exhausted = True  # None means quota/rate issue
+            quota_exhausted = True
 
     await db.commit()
 
     if quota_exhausted:
         logger.warning(
-            f"Embedding quota issue: {embedded} embedded, {skipped} skipped. "
+            f"Embedding quota exhausted: {embedded} embedded, {skipped} skipped. "
             f"Skipped papers will use keyword fallback for scoring."
         )
     else:
@@ -439,7 +444,13 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
 
         # Build embedding log message
         embed_message = None
-        if embed_results["quota_exhausted"]:
+        if embed_results.get("error"):
+            embed_message = (
+                f"Embedding failed: {embed_results['error']}. "
+                f"{embed_results['skipped']} papers were not embedded and will use "
+                f"keyword fallback for scoring."
+            )
+        elif embed_results["quota_exhausted"]:
             embed_message = (
                 f"Gemini Embedding API daily limit (~1000 requests) reached. "
                 f"{embed_results['skipped']} papers were not embedded and will use "
