@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/reference-papers", tags=["reference-papers"])
 
-MAX_REFERENCE_PAPERS = 10
+MAX_REFERENCE_PAPERS = 20
 
 
 async def _recompute_profile_embedding(db: AsyncSession, user_id: uuid.UUID):

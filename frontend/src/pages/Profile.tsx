@@ -844,7 +844,7 @@ function ReferencePapersTab() {
   const [manualAbstract, setManualAbstract] = useState('');
 
   const count = papers?.length ?? 0;
-  const MAX = 10;
+  const MAX = 20;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
