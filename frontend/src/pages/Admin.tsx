@@ -870,7 +870,7 @@ function PipelineStatusTab() {
                 )}
 
                 {/* Per-run actions */}
-                {run.status === 'success' && run.papers_processed > 0 && (
+                {run.status === 'success' && (
                   <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <button
                       onClick={() => { if (confirm(`Re-score ${run.papers_processed} papers from this batch?`)) rescoreMutation.mutate(run.id); }}
