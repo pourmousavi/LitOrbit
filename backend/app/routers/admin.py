@@ -724,34 +724,36 @@ async def get_alerts(
 
     alerts = []
 
-    # 1. Check latest pipeline run for embedding quota exhaustion
-    latest_run = await db.execute(
-        select(PipelineRun)
-        .where(PipelineRun.status == "success")
-        .order_by(PipelineRun.started_at.desc())
-        .limit(1)
-    )
-    run_obj = latest_run.scalar_one_or_none()
-    if run_obj and run_obj.run_log:
-        for step in run_obj.run_log:
-            if isinstance(step, dict) and step.get("step") == "embedding" and step.get("message"):
-                is_quota = step.get("quota_exhausted", False)
-                alerts.append({
-                    "severity": "warning",
-                    "title": "Embedding Quota Exhausted" if is_quota else "Embedding Error",
-                    "message": step["message"],
-                    "action": "backfill-embeddings",
-                    "run_id": str(run_obj.id),
-                    "run_at": run_obj.started_at.isoformat() if run_obj.started_at else None,
-                })
-                break
-
-    # 2. Count unembedded papers
+    # 1. Count unembedded papers
     unembedded_result = await db.execute(
         select(func.count()).select_from(Paper).where(Paper.embedding.is_(None))
     )
     unembedded_count = unembedded_result.scalar() or 0
+
+    # 2. Only show embedding error/quota alerts if papers still need embeddings
     if unembedded_count > 0:
+        # Check latest pipeline run for embedding issues
+        latest_run = await db.execute(
+            select(PipelineRun)
+            .where(PipelineRun.status == "success")
+            .order_by(PipelineRun.started_at.desc())
+            .limit(1)
+        )
+        run_obj = latest_run.scalar_one_or_none()
+        if run_obj and run_obj.run_log:
+            for step in run_obj.run_log:
+                if isinstance(step, dict) and step.get("step") == "embedding" and step.get("message"):
+                    is_quota = step.get("quota_exhausted", False)
+                    alerts.append({
+                        "severity": "warning",
+                        "title": "Embedding Quota Exhausted" if is_quota else "Embedding Error",
+                        "message": step["message"],
+                        "action": "backfill-embeddings",
+                        "run_id": str(run_obj.id),
+                        "run_at": run_obj.started_at.isoformat() if run_obj.started_at else None,
+                    })
+                    break
+
         alerts.append({
             "severity": "info",
             "title": "Papers Without Embeddings",
