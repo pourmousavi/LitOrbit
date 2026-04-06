@@ -49,12 +49,12 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
               Early Access
             </span>
           )}
-          <div className="relative" onClick={(e) => e.stopPropagation()}>
-            <div className="peer rounded-lg text-text-tertiary transition hover:text-text-secondary" style={{ padding: 2, cursor: 'default' }}>
+          <div className="group/info relative" onClick={(e) => e.stopPropagation()}>
+            <div className="rounded-lg text-text-tertiary transition hover:text-text-secondary" style={{ padding: 2, cursor: 'default' }}>
               <Info size={14} />
             </div>
             <div
-              className="pointer-events-none invisible absolute left-0 top-full z-50 mt-1 rounded-xl border border-border-default bg-bg-surface font-mono text-xs text-text-secondary shadow-lg peer-hover:pointer-events-auto peer-hover:visible"
+              className="pointer-events-none absolute left-0 top-full z-50 mt-1 rounded-xl border border-border-default bg-bg-surface font-mono text-xs text-text-secondary opacity-0 shadow-lg transition-opacity group-hover/info:pointer-events-auto group-hover/info:opacity-100"
               style={{ padding: '10px 14px', width: 260, lineHeight: 1.7 }}
             >
               <div>Fetched: <strong className="text-text-primary">{formatDateTime(paper.created_at)}</strong></div>
