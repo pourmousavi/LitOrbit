@@ -681,6 +681,150 @@ const STEP_LABELS: Record<string, string> = {
   summarisation: 'Generating AI summaries',
 };
 
+function RunAccordion({ run, rescoreMutation, deleteBatchMutation }: {
+  run: PipelineRun;
+  rescoreMutation: ReturnType<typeof useMutation<{ papers_count: number; scores_deleted: number }, Error, string>>;
+  deleteBatchMutation: ReturnType<typeof useMutation<{ papers_deleted: number }, Error, string>>;
+}) {
+  const isDeleted = run.status === 'deleted';
+  const [expanded, setExpanded] = useState(!isDeleted);
+
+  return (
+    <div
+      className={cn(
+        'rounded-2xl border',
+        run.status === 'running' ? 'border-warning/40 bg-bg-surface' :
+        isDeleted ? 'border-dashed border-border-default bg-bg-base' :
+        'border-border-default bg-bg-surface',
+      )}
+    >
+      {/* Accordion header — always visible, clickable */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left"
+        style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span
+            className={cn(
+              'rounded-full',
+              run.status === 'success' && 'bg-success',
+              run.status === 'failed' && 'bg-danger',
+              run.status === 'deleted' && 'bg-text-tertiary',
+              run.status === 'running' && 'bg-warning animate-pulse',
+            )}
+            style={{ width: 10, height: 10, flexShrink: 0 }}
+          />
+          <span className={cn('font-mono font-medium capitalize', isDeleted ? 'text-text-tertiary' : 'text-text-primary')} style={{ fontSize: 14 }}>
+            {run.status === 'running' ? 'Fetching papers...' : isDeleted ? 'Deleted' : run.status}
+          </span>
+          {isDeleted && (
+            <span className="font-mono text-xs text-text-tertiary">
+              — {run.error_message || `${run.papers_processed} papers removed`}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="font-mono text-text-tertiary" style={{ fontSize: 12, textAlign: 'right' }}>
+            <div>{formatDate(run.started_at)}</div>
+            {run.started_at && (
+              <div style={{ marginTop: 2 }}>
+                {run.status === 'running' ? 'Elapsed' : 'Duration'}: {formatElapsed(run.started_at, run.completed_at)}
+              </div>
+            )}
+          </div>
+          <ChevronDown
+            size={16}
+            className={cn('text-text-tertiary transition-transform', expanded && 'rotate-180')}
+          />
+        </div>
+      </button>
+
+      {/* Accordion body */}
+      {expanded && (
+        <div style={{ padding: '0 20px 16px' }}>
+          {/* Running progress indicator */}
+          {run.status === 'running' && (
+            <div>
+              <div className="rounded-full bg-border-default" style={{ height: 4, overflow: 'hidden' }}>
+                <div
+                  className="bg-warning animate-pulse rounded-full"
+                  style={{ height: '100%', width: '60%', transition: 'width 0.5s' }}
+                />
+              </div>
+              <div className="font-mono text-text-secondary" style={{ marginTop: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Loader2 size={13} className="animate-spin text-warning" />
+                {run.papers_discovered > 0
+                  ? `Found ${run.papers_discovered} papers so far, processing...`
+                  : 'Connecting to journal sources and fetching papers...'}
+              </div>
+            </div>
+          )}
+
+          {/* Stats row */}
+          {run.status !== 'running' && (
+            <div className={cn('font-mono text-text-secondary', isDeleted && 'line-through')} style={{ display: 'flex', flexWrap: 'wrap', gap: 20, fontSize: 13 }}>
+              <span>Discovered: <strong className={isDeleted ? 'text-text-tertiary' : 'text-text-primary'}>{run.papers_discovered}</strong></span>
+              <span>New: <strong className={isDeleted ? 'text-text-tertiary' : 'text-text-primary'}>{run.papers_filtered}</strong></span>
+              <span>Processed: <strong className={isDeleted ? 'text-text-tertiary' : 'text-text-primary'}>{run.papers_processed}</strong></span>
+            </div>
+          )}
+
+          {/* Step-by-step log */}
+          {run.run_log && run.run_log.length > 0 && <RunLogSteps log={run.run_log} />}
+
+          {/* Error / info message */}
+          {run.error_message && (
+            <p
+              className={cn(
+                'rounded-xl font-mono',
+                isDeleted ? 'bg-bg-base text-text-tertiary' : 'bg-danger/10 text-danger',
+              )}
+              style={{ marginTop: 12, padding: '10px 14px', fontSize: 12 }}
+            >
+              {run.error_message}
+            </p>
+          )}
+
+          {/* Per-run actions */}
+          {run.status === 'success' && (
+            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { if (confirm(`Re-score ${run.papers_processed} papers from this batch?`)) rescoreMutation.mutate(run.id); }}
+                disabled={rescoreMutation.isPending}
+                className="flex items-center rounded-xl border border-border-default font-mono text-xs text-text-secondary transition hover:border-accent hover:text-accent disabled:opacity-50"
+                style={{ gap: 6, padding: '8px 14px' }}
+              >
+                {rescoreMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Activity size={13} />}
+                Re-score
+              </button>
+              <button
+                onClick={() => { if (confirm(`Delete all ${run.papers_processed} papers from this batch? This cannot be undone.`)) deleteBatchMutation.mutate(run.id); }}
+                disabled={deleteBatchMutation.isPending}
+                className="flex items-center rounded-xl border border-border-default font-mono text-xs text-text-secondary transition hover:border-danger hover:text-danger disabled:opacity-50"
+                style={{ gap: 6, padding: '8px 14px' }}
+              >
+                {deleteBatchMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                Delete batch
+              </button>
+              {rescoreMutation.isSuccess && rescoreMutation.variables === run.id && (
+                <span className="font-mono text-success" style={{ fontSize: 11 }}>
+                  Re-scoring {rescoreMutation.data?.papers_count} papers...
+                </span>
+              )}
+              {deleteBatchMutation.isSuccess && deleteBatchMutation.variables === run.id && (
+                <span className="font-mono text-success" style={{ fontSize: 11 }}>
+                  Deleted {deleteBatchMutation.data?.papers_deleted} papers
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RunLogSteps({ log }: { log: Record<string, unknown>[] }) {
   if (!log?.length) return null;
   return (
@@ -775,135 +919,7 @@ function PipelineStatusTab() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {runs.map((run) => (
-            run.status === 'deleted' ? (
-              /* Collapsed deleted run */
-              <div
-                key={run.id}
-                className="rounded-2xl border border-dashed border-border-default bg-bg-base"
-                style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Trash2 size={13} className="text-text-tertiary" />
-                  <span className="font-mono text-xs text-text-tertiary">
-                    Deleted — {run.error_message || `${run.papers_processed} papers removed`}
-                  </span>
-                </div>
-                <span className="font-mono text-text-tertiary" style={{ fontSize: 11, flexShrink: 0 }}>
-                  {formatDate(run.started_at)}
-                </span>
-              </div>
-            ) : (
-              /* Active run card */
-              <div
-                key={run.id}
-                className={cn(
-                  'rounded-2xl border',
-                  run.status === 'running' ? 'border-warning/40 bg-bg-surface' :
-                  'border-border-default bg-bg-surface',
-                )}
-                style={{ padding: 20 }}
-              >
-                {/* Header row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span
-                      className={cn(
-                        'rounded-full',
-                        run.status === 'success' && 'bg-success',
-                        run.status === 'failed' && 'bg-danger',
-                        run.status === 'running' && 'bg-warning animate-pulse',
-                      )}
-                      style={{ width: 10, height: 10 }}
-                    />
-                    <span className="font-mono font-medium capitalize text-text-primary" style={{ fontSize: 14 }}>
-                      {run.status === 'running' ? 'Fetching papers...' : run.status}
-                    </span>
-                  </div>
-                  <div className="font-mono text-text-tertiary" style={{ fontSize: 12, textAlign: 'right' }}>
-                    <div>{formatDate(run.started_at)}</div>
-                    {run.started_at && (
-                      <div style={{ marginTop: 2 }}>
-                        {run.status === 'running' ? 'Elapsed' : 'Duration'}: {formatElapsed(run.started_at, run.completed_at)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Running progress indicator */}
-                {run.status === 'running' && (
-                  <div style={{ marginTop: 16 }}>
-                    <div className="rounded-full bg-border-default" style={{ height: 4, overflow: 'hidden' }}>
-                      <div
-                        className="bg-warning animate-pulse rounded-full"
-                        style={{ height: '100%', width: '60%', transition: 'width 0.5s' }}
-                      />
-                    </div>
-                    <div className="font-mono text-text-secondary" style={{ marginTop: 10, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Loader2 size={13} className="animate-spin text-warning" />
-                      {run.papers_discovered > 0
-                        ? `Found ${run.papers_discovered} papers so far, processing...`
-                        : 'Connecting to journal sources and fetching papers...'}
-                    </div>
-                  </div>
-                )}
-
-                {/* Stats row */}
-                {run.status !== 'running' && (
-                  <div className="font-mono text-text-secondary" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, marginTop: 14, fontSize: 13 }}>
-                    <span>Discovered: <strong className="text-text-primary">{run.papers_discovered}</strong></span>
-                    <span>New: <strong className="text-text-primary">{run.papers_filtered}</strong></span>
-                    <span>Processed: <strong className="text-text-primary">{run.papers_processed}</strong></span>
-                  </div>
-                )}
-
-                {/* Step-by-step log */}
-                {run.run_log && run.run_log.length > 0 && <RunLogSteps log={run.run_log} />}
-
-                {/* Error message */}
-                {run.error_message && (
-                  <p
-                    className="rounded-xl bg-danger/10 font-mono text-danger"
-                    style={{ marginTop: 12, padding: '10px 14px', fontSize: 12 }}
-                  >
-                    {run.error_message}
-                  </p>
-                )}
-
-                {/* Per-run actions */}
-                {run.status === 'success' && (
-                  <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => { if (confirm(`Re-score ${run.papers_processed} papers from this batch?`)) rescoreMutation.mutate(run.id); }}
-                      disabled={rescoreMutation.isPending}
-                      className="flex items-center rounded-xl border border-border-default font-mono text-xs text-text-secondary transition hover:border-accent hover:text-accent disabled:opacity-50"
-                      style={{ gap: 6, padding: '8px 14px' }}
-                    >
-                      {rescoreMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Activity size={13} />}
-                      Re-score
-                    </button>
-                    <button
-                      onClick={() => { if (confirm(`Delete all ${run.papers_processed} papers from this batch? This cannot be undone.`)) deleteBatchMutation.mutate(run.id); }}
-                      disabled={deleteBatchMutation.isPending}
-                      className="flex items-center rounded-xl border border-border-default font-mono text-xs text-text-secondary transition hover:border-danger hover:text-danger disabled:opacity-50"
-                      style={{ gap: 6, padding: '8px 14px' }}
-                    >
-                      {deleteBatchMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                      Delete batch
-                    </button>
-                    {rescoreMutation.isSuccess && rescoreMutation.variables === run.id && (
-                      <span className="font-mono text-success" style={{ fontSize: 11 }}>
-                        Re-scoring {rescoreMutation.data?.papers_count} papers...
-                      </span>
-                    )}
-                    {deleteBatchMutation.isSuccess && deleteBatchMutation.variables === run.id && (
-                      <span className="font-mono text-success" style={{ fontSize: 11 }}>
-                        Deleted {deleteBatchMutation.data?.papers_deleted} papers
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
+            <RunAccordion key={run.id} run={run} rescoreMutation={rescoreMutation} deleteBatchMutation={deleteBatchMutation} />
           ))}
         </div>
       )}
