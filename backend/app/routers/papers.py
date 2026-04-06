@@ -26,7 +26,7 @@ async def list_papers(
     journal: str | None = None,
     category: str | None = None,
     search: str | None = None,
-    sort: str | None = Query(None, regex="^(score|newest|oldest|published)$"),
+    sort: str | None = Query(None, pattern="^(score|newest|oldest|published)$"),
 ) -> dict:
     """List papers paginated with configurable sort order."""
     user_id = user["id"]
