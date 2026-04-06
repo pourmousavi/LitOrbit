@@ -83,7 +83,7 @@ def _get_client() -> genai.Client:
             raise RuntimeError("GEMINI_API_KEY not set")
         _client = genai.Client(
             api_key=settings.gemini_api_key,
-            http_options={"api_version": "v1"},
+            http_options={"apiVersion": "v1"},
         )
     return _client
 
