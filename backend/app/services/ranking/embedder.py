@@ -11,8 +11,8 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL = "text-embedding-004"
-EMBEDDING_DIMS = 768
+EMBEDDING_MODEL = "gemini-embedding-001"
+EMBEDDING_DIMS = 3072
 
 # Gemini Embedding free tier: 100 RPM, 1000 RPD, 30K TPM.
 # Safety margins to avoid hitting hard limits.
@@ -81,10 +81,7 @@ def _get_client() -> genai.Client:
         settings = get_settings()
         if not settings.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY not set")
-        _client = genai.Client(
-            api_key=settings.gemini_api_key,
-            http_options={"apiVersion": "v1"},
-        )
+        _client = genai.Client(api_key=settings.gemini_api_key)
     return _client
 
 
@@ -126,7 +123,7 @@ def compute_centroid(vectors: list[list[float]]) -> list[float]:
 async def embed_text(text: str) -> list[float] | None:
     """Embed a single text using Gemini Embedding API.
 
-    Returns normalized 768-dim vector, or None on quota exhaustion.
+    Returns normalized vector, or None on quota exhaustion.
     """
     result = await embed_texts([text])
     return result[0] if result else None
