@@ -136,8 +136,8 @@ export default function Admin() {
           ))}
         </div>
 
-        {/* Knowledge base stats */}
-        {kbStats && (
+        {/* Knowledge base stats — Fetch Papers tab only */}
+        {tab === 'pipeline' && kbStats && (
           <div
             className="rounded-2xl border border-border-default bg-bg-surface font-mono"
             style={{ padding: '14px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}
@@ -162,8 +162,8 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Storage usage */}
-        {storage && storage.used_mb > 0 && (
+        {/* Storage usage — Digest tab only */}
+        {tab === 'digest' && storage && storage.used_mb > 0 && (
           <div
             className={cn(
               'rounded-2xl border font-mono',
@@ -193,8 +193,8 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Embedding alerts */}
-        {alerts && alerts.length > 0 && (
+        {/* Embedding alerts — Fetch Papers tab only */}
+        {tab === 'pipeline' && alerts && alerts.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
             {alerts.map((alert, i) => (
               <div
