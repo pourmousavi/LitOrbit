@@ -543,6 +543,43 @@ async def rescore_run(
     return {"status": "triggered", "papers_count": len(paper_ids), "scores_deleted": count}
 
 
+# --- Knowledge base stats ---
+
+@router.get("/kb-stats")
+async def get_kb_stats(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get knowledge base statistics."""
+    from app.models.paper import Paper
+    from app.models.paper_score import PaperScore
+
+    total_papers = (await db.execute(select(func.count()).select_from(Paper))).scalar()
+    scored_papers = (await db.execute(
+        select(func.count(func.distinct(PaperScore.paper_id)))
+    )).scalar()
+    total_runs = (await db.execute(
+        select(func.count()).select_from(PipelineRun)
+    )).scalar()
+    successful_runs = (await db.execute(
+        select(func.count()).select_from(PipelineRun).where(PipelineRun.status == "success")
+    )).scalar()
+    latest_run = (await db.execute(
+        select(PipelineRun.completed_at)
+        .where(PipelineRun.status == "success")
+        .order_by(PipelineRun.completed_at.desc())
+        .limit(1)
+    )).scalar()
+
+    return {
+        "total_papers": total_papers,
+        "scored_papers": scored_papers,
+        "total_runs": total_runs,
+        "successful_runs": successful_runs,
+        "last_fetch": latest_run.isoformat() if latest_run else None,
+    }
+
+
 # --- Storage usage ---
 
 @router.get("/storage-usage")

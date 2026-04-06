@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders, AlertTriangle, Info } from 'lucide-react';
+import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders, AlertTriangle, Info, BookOpen } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
@@ -69,6 +69,17 @@ interface SystemAlert {
 export default function Admin() {
   const [tab, setTab] = useState<Tab>('journals');
   const queryClient = useQueryClient();
+  const { data: kbStats } = useQuery<{
+    total_papers: number;
+    scored_papers: number;
+    total_runs: number;
+    successful_runs: number;
+    last_fetch: string | null;
+  }>({
+    queryKey: ['admin', 'kb-stats'],
+    queryFn: async () => (await api.get('/api/v1/admin/kb-stats')).data,
+    staleTime: 60000,
+  });
   const { data: storage } = useQuery<StorageUsage>({
     queryKey: ['admin', 'storage'],
     queryFn: async () => (await api.get('/api/v1/admin/storage-usage')).data,
@@ -124,6 +135,32 @@ export default function Admin() {
             </button>
           ))}
         </div>
+
+        {/* Knowledge base stats */}
+        {kbStats && (
+          <div
+            className="rounded-2xl border border-border-default bg-bg-surface font-mono"
+            style={{ padding: '14px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}
+          >
+            <BookOpen size={16} className="text-text-tertiary" style={{ flexShrink: 0 }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, flex: 1 }}>
+              <span className="text-xs text-text-secondary">
+                Papers: <strong className="text-text-primary">{kbStats.total_papers}</strong>
+              </span>
+              <span className="text-xs text-text-secondary">
+                Scored: <strong className="text-text-primary">{kbStats.scored_papers}</strong>
+              </span>
+              <span className="text-xs text-text-secondary">
+                Fetches: <strong className="text-text-primary">{kbStats.successful_runs}</strong>/{kbStats.total_runs}
+              </span>
+              {kbStats.last_fetch && (
+                <span className="text-xs text-text-secondary">
+                  Last: <strong className="text-text-primary">{formatDate(kbStats.last_fetch)}</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Storage usage */}
         {storage && storage.used_mb > 0 && (
