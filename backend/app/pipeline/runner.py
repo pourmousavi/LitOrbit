@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select, text
@@ -397,6 +397,25 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
     Returns:
         Summary dict with counts and status.
     """
+    # Sweep orphaned runs left as 'running' by previous processes that died
+    # before reaching the except/cleanup block (e.g. GH Actions timeout, OOM,
+    # forced cancel). Anything still 'running' after 2 hours is considered dead.
+    orphan_cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+    orphan_result = await db.execute(
+        select(PipelineRun).where(
+            PipelineRun.status == "running",
+            PipelineRun.started_at < orphan_cutoff,
+        )
+    )
+    orphans = orphan_result.scalars().all()
+    for orphan in orphans:
+        orphan.status = "failed"
+        orphan.completed_at = datetime.now(timezone.utc)
+        orphan.error_message = "Orphaned run — process died before cleanup (auto-marked failed on next pipeline start)"
+    if orphans:
+        logger.warning(f"Auto-marked {len(orphans)} orphaned pipeline run(s) as failed")
+        await db.commit()
+
     run = PipelineRun(
         id=uuid.uuid4(),
         started_at=datetime.now(timezone.utc),
