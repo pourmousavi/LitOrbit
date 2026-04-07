@@ -241,8 +241,13 @@ async def score_and_summarise_papers(
     keyword_fallback_count = 0
     embedding_filter_count = 0
 
+    # Load admin-managed platform-scope keywords from system_settings
+    from app.models.system_settings import SystemSettings
+    settings_row = (await db.execute(select(SystemSettings).where(SystemSettings.id == 1))).scalar_one_or_none()
+    platform_keywords = (settings_row.platform_keywords if settings_row and settings_row.platform_keywords else None)
+
     # Keyword-filtered papers (computed once, used as fallback)
-    keyword_filtered = prefilter_papers(paper_dicts)
+    keyword_filtered = prefilter_papers(paper_dicts, keywords=platform_keywords)
     keyword_filtered_ids = {p["id"] for p in keyword_filtered}
 
     for user in users:

@@ -632,19 +632,27 @@ class KeywordsUpdate(BaseModel):
 
 @router.get("/keywords")
 async def get_keywords(
+    db: AsyncSession = Depends(get_db),
     _admin: dict[str, Any] = Depends(require_admin),
 ) -> dict:
-    from app.services.ranking.prefilter import MASTER_KEYWORDS
-    return {"keywords": MASTER_KEYWORDS}
+    settings = await get_system_settings(db)
+    keywords = settings.platform_keywords
+    if not keywords:
+        # First-run fallback before migration seed has populated the row
+        from app.services.ranking.prefilter import MASTER_KEYWORDS
+        keywords = MASTER_KEYWORDS
+    return {"keywords": keywords}
 
 
 @router.put("/keywords")
 async def update_keywords(
     req: KeywordsUpdate,
+    db: AsyncSession = Depends(get_db),
     _admin: dict[str, Any] = Depends(require_admin),
 ) -> dict:
-    from app.services.ranking import prefilter
-    prefilter.MASTER_KEYWORDS = req.keywords
+    settings = await get_system_settings(db)
+    settings.platform_keywords = req.keywords
+    await db.commit()
     return {"status": "updated", "count": len(req.keywords)}
 
 

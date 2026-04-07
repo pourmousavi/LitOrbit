@@ -101,7 +101,7 @@ export default function Admin() {
     { key: 'journals', label: 'Journals', icon: Settings },
     { key: 'users', label: 'Users', icon: Users },
     { key: 'pipeline', label: 'Fetch Papers', icon: Activity },
-    { key: 'keywords', label: 'Keywords', icon: Tags },
+    { key: 'keywords', label: 'Platform Scope', icon: Tags },
     { key: 'digest', label: 'Digest', icon: Mail },
     { key: 'settings', label: 'Limits', icon: Sliders },
   ];
@@ -1119,7 +1119,7 @@ function GlobalKeywordsTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <p className="font-mono text-xs text-text-tertiary" style={{ lineHeight: 1.6 }}>
-        Global pre-filter applied to all discovered papers before scoring. A paper must match at least one of these keywords in its title or abstract to enter the pipeline. This saves API costs by discarding out-of-domain papers early.
+        <strong>Platform scope keywords</strong> — the hard topical boundary for LitOrbit. A discovered paper must match at least one of these in its title or abstract to enter <em>any</em> user's pipeline. This is the global on-topic gate, not a per-user preference: it defines what LitOrbit is <em>about</em>, and saves API cost by discarding out-of-domain papers before scoring. Edits persist across restarts.
       </p>
       <div style={{ display: 'flex', gap: 12 }}>
         <input
