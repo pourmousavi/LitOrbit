@@ -231,7 +231,7 @@ function AccountTab() {
         <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 20 }}>
           Built from your ratings — positive (green) means more relevant, negative (red) means less
         </p>
-        <InterestChart vector={profile.interest_vector} />
+        <InterestChart vector={profile.category_weights} />
       </section>
     </div>
   );

@@ -46,6 +46,7 @@ export interface UserProfile {
   interest_keywords: string[];
   interest_categories: string[];
   interest_vector: Record<string, number>;
+  category_weights: Record<string, number>;
   podcast_preference: 'single' | 'dual';
   email_digest_enabled: boolean;
   digest_frequency: 'daily' | 'weekly';

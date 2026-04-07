@@ -50,16 +50,20 @@ def get_follow_up(rating_value: int) -> tuple[str | None, list[str] | None]:
         )
 
 
-async def update_interest_vector(
+async def update_category_weights(
     db: AsyncSession,
     user_id: str,
     paper_categories: list[str],
     rating_value: int,
 ) -> None:
-    """Update user's interest vector based on rating.
+    """Update user's category_weights based on rating.
 
     Increment category weight by (rating - 5) * 0.1.
     Normalise to stay in [-1.0, 1.0].
+
+    Note: this writes to ``category_weights`` (the human-readable field powering
+    the Interest Profile chart), NOT ``interest_vector`` (which holds the
+    reference-paper embedding centroid used by the pipeline pre-filter).
     """
     result = await db.execute(
         select(UserProfile).where(UserProfile.id == uuid.UUID(user_id))
@@ -68,15 +72,15 @@ async def update_interest_vector(
     if not user:
         return
 
-    vector = dict(user.interest_vector) if user.interest_vector else {}
+    weights = dict(user.category_weights) if user.category_weights else {}
     delta = (rating_value - 5) * 0.1
 
     for cat in paper_categories:
-        current = vector.get(cat, 0.0)
+        current = weights.get(cat, 0.0)
         new_val = max(-1.0, min(1.0, current + delta))
-        vector[cat] = round(new_val, 3)
+        weights[cat] = round(new_val, 3)
 
-    user.interest_vector = vector
+    user.category_weights = weights
     await db.commit()
 
 
@@ -120,7 +124,7 @@ async def submit_rating(
     await db.commit()
 
     # Update interest vector
-    await update_interest_vector(db, user_id, paper.categories or [], req.rating)
+    await update_category_weights(db, user_id, paper.categories or [], req.rating)
 
     # Get follow-up
     question, options = get_follow_up(req.rating)

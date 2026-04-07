@@ -17,7 +17,12 @@ class UserProfile(Base):
     email: Mapped[str] = mapped_column(Text, nullable=False)
     interest_keywords: Mapped[list[str]] = mapped_column(StringArray(), default=list)
     interest_categories: Mapped[list[str]] = mapped_column(StringArray(), default=list)
+    # Embedding centroid of reference papers — used by the pipeline pre-filter.
+    # Stored as a JSON list under the hood; values are floats indexed by position.
     interest_vector: Mapped[dict] = mapped_column(JSONB(), default=dict)
+    # Human-readable {category_name: weight in [-1, 1]} learned from user ratings.
+    # Powers the Interest Profile chart in the UI.
+    category_weights: Mapped[dict] = mapped_column(JSONB(), default=dict)
     podcast_preference: Mapped[str] = mapped_column(String, default="single")
     email_digest_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     digest_frequency: Mapped[str] = mapped_column(String, default="weekly")

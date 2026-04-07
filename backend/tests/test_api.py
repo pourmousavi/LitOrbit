@@ -185,8 +185,8 @@ async def test_rating_9_to_10_question(test_client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_interest_vector_updated(test_client, db_session):
-    """After rating=9, user's interest vector for paper's categories should increase."""
+async def test_category_weights_updated(test_client, db_session):
+    """After rating=9, user's category_weights for paper's categories should increase."""
     from app.auth import get_current_user
     from app.main import app
     from app.models.user_profile import UserProfile
@@ -194,7 +194,7 @@ async def test_interest_vector_updated(test_client, db_session):
     user_id = uuid.uuid4()
     fake_user = {"id": str(user_id), "email": "test@test.com", "role": "researcher"}
 
-    profile = UserProfile(id=user_id, full_name="Test User", email="test@test.com", role="researcher", interest_vector={})
+    profile = UserProfile(id=user_id, full_name="Test User", email="test@test.com", role="researcher", interest_vector={}, category_weights={})
     db_session.add(profile)
     paper = Paper(id=uuid.uuid4(), title="Battery Paper", authors=["A"], journal="J", journal_source="rss", categories=["battery", "degradation"])
     db_session.add(paper)
@@ -209,9 +209,9 @@ async def test_interest_vector_updated(test_client, db_session):
     assert resp.status_code == 200
 
     await db_session.refresh(profile)
-    vector = profile.interest_vector
-    assert vector.get("battery", 0) > 0
-    assert vector.get("degradation", 0) > 0
+    weights = profile.category_weights
+    assert weights.get("battery", 0) > 0
+    assert weights.get("degradation", 0) > 0
 
     del app.dependency_overrides[get_current_user]
 

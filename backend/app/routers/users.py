@@ -67,6 +67,7 @@ async def get_my_profile(
         "interest_keywords": profile.interest_keywords,
         "interest_categories": profile.interest_categories,
         "interest_vector": profile.interest_vector,
+        "category_weights": profile.category_weights,
         "podcast_preference": profile.podcast_preference,
         "email_digest_enabled": profile.email_digest_enabled,
         "digest_frequency": profile.digest_frequency,
