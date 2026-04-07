@@ -47,11 +47,30 @@ async def fetch_ieee_papers(
             resp.raise_for_status()
             data = resp.json()
         except httpx.HTTPStatusError as e:
-            logger.error(f"IEEE API error for pub {publication_number}: {e.response.status_code}")
+            status = e.response.status_code
+            if status == 429:
+                logger.warning(
+                    f"IEEE API rate limit hit (429) for pub {publication_number}. "
+                    "Per-second throttle exceeded; backing off this run."
+                )
+            elif status == 403:
+                logger.error(
+                    f"IEEE API quota/permission error (403) for pub {publication_number}. "
+                    "Likely daily 400-call quota exhausted or key inactive."
+                )
+            else:
+                logger.error(f"IEEE API error for pub {publication_number}: {status}")
             return []
         except httpx.RequestError as e:
             logger.error(f"IEEE API request error for pub {publication_number}: {e}")
             return []
+
+    total_records = data.get("total_records", 0)
+    if total_records > 25:
+        logger.warning(
+            f"IEEE pub {publication_number}: {total_records} records available "
+            f"but only 25 fetched (no pagination). Consider shorter lookback or paginate."
+        )
 
     articles = data.get("articles", [])
     papers = []

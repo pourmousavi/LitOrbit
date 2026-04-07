@@ -315,6 +315,10 @@ async def score_and_summarise_papers(
                 all_scores.setdefault(paper_id_str, []).append(score_data)
                 scored_count += 1
 
+    # Release any stale pooled connection held idle during long LLM scoring loop.
+    # Supabase pooler reaps idle conns; next DB op will check out a fresh, pre-pinged one.
+    await db.close()
+
     # Save all scores and determine which papers to summarise
     papers_to_summarise = []
     paper_dict_map = {pd["id"]: pd for pd in paper_dicts}
@@ -326,30 +330,40 @@ async def score_and_summarise_papers(
         if max_score >= 5.0:
             papers_to_summarise.append((paper_dict_map[paper_id_str], paper_id))
         logger.info(f"Saved scores for paper {paper_id_str[:8]}...: max_score={max_score:.1f}")
-
-    await db.commit()
+        # Commit per paper so the connection is returned to the pool between writes
+        # rather than held across the whole scoring-save phase.
+        await db.commit()
 
     total_papers_with_scores = len(all_scores)
     logger.info(f"Scored {scored_count} (paper, user) pairs across {total_papers_with_scores} papers")
 
-    # Phase 2: Summarise qualifying papers in batches
-    async def _summarise_one(paper_dict: dict, paper_id: uuid.UUID) -> bool:
-        summary = await generate_summary(paper_dict)
-        if summary:
+    # Phase 2: Summarise qualifying papers in batches.
+    # Run LLM calls *without* holding a DB connection, then write results sequentially.
+    async def _summarise_llm_only(paper_dict: dict) -> dict | None:
+        return await generate_summary(paper_dict)
+
+    for i in range(0, len(papers_to_summarise), BATCH_SIZE):
+        batch = papers_to_summarise[i:i + BATCH_SIZE]
+
+        # Release any pooled conn before the long LLM gather
+        await db.close()
+
+        summaries = await aio.gather(*[_summarise_llm_only(pd) for pd, _pid in batch])
+
+        # Now do brief DB writes
+        batch_written = 0
+        for (_pd, paper_id), summary in zip(batch, summaries):
+            if not summary:
+                continue
             paper_obj = await db.get(Paper, paper_id)
             if paper_obj:
                 paper_obj.summary = json_module.dumps(summary)
                 paper_obj.categories = summary.get("categories", [])
                 paper_obj.summary_generated_at = datetime.now(timezone.utc)
-                return True
-        return False
-
-    for i in range(0, len(papers_to_summarise), BATCH_SIZE):
-        batch = papers_to_summarise[i:i + BATCH_SIZE]
-        results = await aio.gather(*[_summarise_one(pd, pid) for pd, pid in batch])
-        summarised_count += sum(1 for r in results if r)
+                batch_written += 1
         await db.commit()
-        logger.info(f"Summarised batch {i // BATCH_SIZE + 1}: {sum(1 for r in results if r)}/{len(batch)}")
+        summarised_count += batch_written
+        logger.info(f"Summarised batch {i // BATCH_SIZE + 1}: {batch_written}/{len(batch)}")
 
     return {
         "prefiltered": total_papers_with_scores,
