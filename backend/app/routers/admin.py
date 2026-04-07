@@ -33,6 +33,8 @@ class JournalCreate(BaseModel):
 
 class JournalUpdate(BaseModel):
     name: str | None = None
+    publisher: str | None = None
+    source_type: str | None = None
     source_identifier: str | None = None
     is_active: bool | None = None
 
@@ -90,6 +92,10 @@ async def update_journal(
 
     if req.name is not None:
         journal.name = req.name
+    if req.publisher is not None:
+        journal.publisher = req.publisher
+    if req.source_type is not None:
+        journal.source_type = req.source_type
     if req.source_identifier is not None:
         journal.source_identifier = req.source_identifier
     if req.is_active is not None:

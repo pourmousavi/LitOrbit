@@ -23,7 +23,7 @@ JOURNALS_SEED = [
         "name": "IEEE Trans. Power Systems",
         "publisher": "ieee",
         "source_type": "ieee_api",
-        "source_identifier": "61",
+        "source_identifier": "59",
     },
     {
         "name": "IEEE Trans. Sustainable Energy",

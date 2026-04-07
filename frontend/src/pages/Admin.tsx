@@ -260,6 +260,8 @@ function JournalConfigTab() {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({ name: '', publisher: '', source_type: 'scopus_api', source_identifier: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', publisher: '', source_type: 'scopus_api', source_identifier: '' });
 
   const { data: journals, isLoading, isError } = useQuery<Journal[]>({
     queryKey: ['admin', 'journals'],
@@ -290,6 +292,37 @@ function JournalConfigTab() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'journals'] }),
   });
+
+  const editMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof editForm }) => {
+      await api.patch(`/api/v1/admin/journals/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'journals'] });
+      setEditingId(null);
+    },
+  });
+
+  const startEdit = (j: Journal) => {
+    setEditingId(j.id);
+    setEditForm({
+      name: j.name,
+      publisher: j.publisher,
+      source_type: j.source_type,
+      source_identifier: j.source_identifier,
+    });
+  };
+
+  const cancelEdit = () => setEditingId(null);
+
+  const editActiveHint = (() => {
+    const hints: Record<string, string> = {
+      ieee_api: 'Publication number (e.g. 59)',
+      scopus_api: 'ISSN (e.g. ISSN:0306-2619)',
+      rss: 'Full RSS URL',
+    };
+    return hints[editForm.source_type] || '';
+  })();
 
   if (isLoading) return <LoadingState />;
   if (isError) return <ErrorState message="Failed to load journals" />;
@@ -407,7 +440,87 @@ function JournalConfigTab() {
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {journals?.map((j) => (
+          {journals?.map((j) => editingId === j.id ? (
+            <div
+              key={j.id}
+              className="rounded-2xl border border-accent/30 bg-bg-surface"
+              style={{ padding: 20 }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Journal Name</label>
+                  <input
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+                    style={{ width: '100%', padding: '10px 16px' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Publisher</label>
+                  <input
+                    value={editForm.publisher}
+                    onChange={(e) => setEditForm({ ...editForm, publisher: e.target.value })}
+                    className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+                    style={{ width: '100%', padding: '10px 16px' }}
+                  />
+                </div>
+
+                <div>
+                  <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Source Type</label>
+                  <div className="relative">
+                    <select
+                      value={editForm.source_type}
+                      onChange={(e) => setEditForm({ ...editForm, source_type: e.target.value })}
+                      className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent appearance-none"
+                      style={{ width: '100%', padding: '10px 16px', paddingRight: 40 }}
+                    >
+                      {sourceTypes.map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={16} className="text-text-tertiary" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-mono text-xs text-text-secondary" style={{ display: 'block', marginBottom: 6 }}>Source Identifier</label>
+                  <input
+                    value={editForm.source_identifier}
+                    onChange={(e) => setEditForm({ ...editForm, source_identifier: e.target.value })}
+                    placeholder={editActiveHint}
+                    className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+                    style={{ width: '100%', padding: '10px 16px' }}
+                  />
+                  <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginTop: 6 }}>{editActiveHint}</p>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                  <button
+                    onClick={() => editMutation.mutate({ id: j.id, data: editForm })}
+                    disabled={!editForm.name || !editForm.publisher || !editForm.source_identifier || editMutation.isPending}
+                    className="flex items-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                    style={{ gap: 8, padding: '10px 20px' }}
+                  >
+                    {editMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    Save
+                  </button>
+                  <button
+                    onClick={cancelEdit}
+                    className="rounded-xl font-mono text-sm text-text-secondary hover:text-text-primary"
+                    style={{ padding: '10px 20px' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                {editMutation.isError && (
+                  <p className="font-mono text-danger" style={{ fontSize: 12 }}>Failed to update journal. Try again.</p>
+                )}
+              </div>
+            </div>
+          ) : (
             <div
               key={j.id}
               className="rounded-2xl border border-border-default bg-bg-surface"
@@ -426,6 +539,14 @@ function JournalConfigTab() {
                   title={j.is_active ? 'Active — click to disable' : 'Disabled — click to enable'}
                 >
                   {j.is_active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+                </button>
+                <button
+                  onClick={() => startEdit(j)}
+                  className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-text-primary"
+                  title="Edit journal"
+                  style={{ padding: 6 }}
+                >
+                  <Pencil size={16} />
                 </button>
                 <button
                   onClick={() => { if (confirm(`Remove "${j.name}"?`)) deleteMutation.mutate(j.id); }}
