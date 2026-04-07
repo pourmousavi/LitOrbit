@@ -181,7 +181,7 @@ function AccountTab() {
           Interest Keywords
         </h2>
         <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 16, lineHeight: 1.6 }}>
-          Your personal research interests, sent to the AI when scoring papers for you.
+          Your personal research interests. These do two things: (1) they're sent to the AI as context when it scores each paper for you, and (2) any paper whose title or abstract mentions one of these keywords is surfaced in your feed even if it didn't pass the embedding similarity filter from your reference papers — so add a keyword for any topic your reference set might miss.
         </p>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>

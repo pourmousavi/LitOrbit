@@ -262,17 +262,39 @@ async def score_and_summarise_papers(
             continue
 
         if has_profile:
-            # Embedding-based per-user filter
+            # Embedding-based per-user filter, with the user's own keyword list
+            # acting as an additive escape hatch (Phase 2 / Option C): a paper
+            # passes if its embedding is similar enough OR its title/abstract
+            # mentions one of the keywords this user explicitly cares about.
+            user_kw_ids: set[str] = set()
+            user_kws = user.get("interest_keywords") or []
+            if user_kws:
+                from app.services.ranking.prefilter import prefilter_papers as _pf
+                user_kw_ids = {p["id"] for p in _pf(user_unscored, keywords=user_kws)}
+
             matched = []
             for pd in user_unscored:
                 paper_emb = pd.get("embedding")
+                passed_by_embedding = False
+                sim_value: float | None = None
                 if isinstance(paper_emb, list) and len(paper_emb) > 0:
                     sim = cosine_similarity(profile_embedding, paper_emb)
+                    sim_value = sim
                     if sim >= SIMILARITY_THRESHOLD:
-                        pd_copy = {**pd, "cosine_similarity": round(sim, 4)}
-                        matched.append(pd_copy)
-                elif pd["id"] in keyword_filtered_ids:
-                    # Paper has no embedding — fall back to keyword match
+                        passed_by_embedding = True
+
+                if passed_by_embedding:
+                    pd_copy = {**pd, "cosine_similarity": round(sim_value, 4)}
+                    matched.append(pd_copy)
+                elif pd["id"] in user_kw_ids:
+                    # Personal-keyword escape hatch — keep semantic similarity
+                    # in the payload if we computed one, so the LLM still sees it.
+                    pd_copy = {**pd}
+                    if sim_value is not None:
+                        pd_copy["cosine_similarity"] = round(sim_value, 4)
+                    matched.append(pd_copy)
+                elif sim_value is None and pd["id"] in keyword_filtered_ids:
+                    # Paper has no embedding at all — fall back to platform-scope match
                     matched.append(pd)
             user_papers_map[user["id"]] = matched
             embedding_filter_count += 1
