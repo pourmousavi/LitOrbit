@@ -76,6 +76,18 @@ async def score_paper_for_user(
     if '{"score"' not in system_prompt:
         system_prompt += '\n\nReturn ONLY valid JSON: {"score": 7.5, "reasoning": "..."}'
 
+    # Render rating-derived category weights as a "learned preferences" line.
+    # Positive weights = user has rated papers in this category highly;
+    # negative weights = user has down-rated them. Only show non-trivial signal.
+    learned_line = ""
+    cw = user.get("category_weights") or {}
+    if isinstance(cw, dict) and cw:
+        significant = [(c, w) for c, w in cw.items() if isinstance(w, (int, float)) and abs(w) >= 0.2]
+        significant.sort(key=lambda x: x[1], reverse=True)
+        if significant:
+            rendered = ", ".join(f"{c} ({w:+.1f})" for c, w in significant[:10])
+            learned_line = f"\nLearned preferences from past ratings (positive=liked, negative=disliked): {rendered}"
+
     user_message = f"""PAPER TITLE: {paper.get('title', '')}
 ABSTRACT: {paper.get('abstract', '')}
 PAPER KEYWORDS: {paper_keywords}
@@ -83,7 +95,7 @@ PAPER KEYWORDS: {paper_keywords}
 RESEARCHER PROFILE:
 Name: {user.get('full_name', '')}
 Keywords of interest: {', '.join(user.get('interest_keywords', []))}
-Research focus areas: {', '.join(user.get('interest_categories', []))}"""
+Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_line}"""
 
     # Append semantic similarity if available (from embedding pre-filter)
     if paper.get("cosine_similarity") is not None:

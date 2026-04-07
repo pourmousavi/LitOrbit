@@ -253,6 +253,7 @@ async def rescore_paper(
             "interest_keywords": u.interest_keywords or [],
             "interest_categories": u.interest_categories or [],
             "interest_vector": u.interest_vector or {},
+            "category_weights": u.category_weights or {},
             "scoring_prompt": u.scoring_prompt,
         }
         for u in users_result.scalars().all()
