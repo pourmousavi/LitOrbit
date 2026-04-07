@@ -1098,7 +1098,16 @@ function GlobalKeywordsTab() {
     mutationFn: async (keywords: string[]) => {
       await api.put('/api/v1/admin/keywords', { keywords });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'keywords'] }),
+    onMutate: async (keywords: string[]) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'keywords'] });
+      const previous = queryClient.getQueryData<{ keywords: string[] }>(['admin', 'keywords']);
+      queryClient.setQueryData(['admin', 'keywords'], { keywords });
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'keywords'], ctx.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin', 'keywords'] }),
   });
 
   const addKeyword = () => {
