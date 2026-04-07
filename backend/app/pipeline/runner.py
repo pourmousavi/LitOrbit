@@ -297,6 +297,13 @@ async def score_and_summarise_papers(
     _settings = _get_settings()
     _client = _genai.Client(api_key=_settings.gemini_api_key)
 
+    # Finalize any implicit transaction left open by earlier SELECTs and return
+    # the connection to the pool BEFORE the long LLM scoring phase. Doing this
+    # while the connection is still alive avoids a later cleanup-on-dead-conn
+    # crash if Supabase's pooler reaps it during the idle gap. The next DB op
+    # will auto-begin a new transaction with a fresh, pre-pinged checkout.
+    await db.commit()
+
     for user in users:
         user_papers = user_papers_map.get(user["id"], [])
         if not user_papers:
@@ -314,10 +321,6 @@ async def score_and_summarise_papers(
             for paper_id_str, score_data in results:
                 all_scores.setdefault(paper_id_str, []).append(score_data)
                 scored_count += 1
-
-    # Release any stale pooled connection held idle during long LLM scoring loop.
-    # Supabase pooler reaps idle conns; next DB op will check out a fresh, pre-pinged one.
-    await db.close()
 
     # Save all scores and determine which papers to summarise
     papers_to_summarise = []
@@ -345,8 +348,10 @@ async def score_and_summarise_papers(
     for i in range(0, len(papers_to_summarise), BATCH_SIZE):
         batch = papers_to_summarise[i:i + BATCH_SIZE]
 
-        # Release any pooled conn before the long LLM gather
-        await db.close()
+        # Finalize any open implicit txn and release the conn to the pool BEFORE
+        # the long LLM gather, while the conn is still alive. See note above the
+        # scoring loop for the rationale.
+        await db.commit()
 
         summaries = await aio.gather(*[_summarise_llm_only(pd) for pd, _pid in batch])
 
