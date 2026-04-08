@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface RatingSliderProps {
@@ -9,6 +9,10 @@ interface RatingSliderProps {
 
 export default function RatingSlider({ initialValue = 5, onSubmit, loading }: RatingSliderProps) {
   const [value, setValue] = useState(initialValue);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
