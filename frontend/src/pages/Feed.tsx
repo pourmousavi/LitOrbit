@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, X, Plus, Upload, Link, Loader2, ArrowUpDown } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/uiStore';
+import { usePapers } from '@/hooks/usePapers';
 import PaperFeed from '@/components/papers/PaperFeed';
 import PaperDetail from '@/components/papers/PaperDetail';
 import api from '@/lib/api';
@@ -16,6 +17,10 @@ export default function Feed() {
   const [sort, setSort] = useState('score');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+
+  // Total paper count from current filtered query (shares cache with PaperFeed)
+  const { data: papersData } = usePapers({ search: debouncedSearch || undefined, sort });
+  const totalPapers = papersData?.pages?.[0]?.total ?? null;
 
   // Debounce search input by 400ms
   useEffect(() => {
@@ -63,8 +68,13 @@ export default function Feed() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 600 }} className="font-mono text-text-primary">
+            <h1 style={{ fontSize: 22, fontWeight: 600, display: 'flex', alignItems: 'baseline', gap: 10 }} className="font-mono text-text-primary">
               Paper Feed
+              {totalPapers !== null && (
+                <span className="font-mono text-text-tertiary" style={{ fontSize: 13, fontWeight: 400 }}>
+                  {totalPapers.toLocaleString()} {totalPapers === 1 ? 'paper' : 'papers'}
+                </span>
+              )}
             </h1>
 
             {/* Add Paper button */}

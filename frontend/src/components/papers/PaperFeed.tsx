@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { usePapers } from '@/hooks/usePapers';
 import { useUIStore } from '@/stores/uiStore';
 import PaperCard from './PaperCard';
+import type { PapersResponse } from '@/types';
 
 function SkeletonCard() {
   return (
@@ -34,7 +36,23 @@ export default function PaperFeed({ journal, category, search, sort }: PaperFeed
     usePapers({ journal, category, search, sort });
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
   const selectPaper = useUIStore((s) => s.selectPaper);
+  const queryClient = useQueryClient();
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const handleSelectPaper = (id: string) => {
+    selectPaper(id);
+    // Optimistically mark this paper as opened in the cached feed pages
+    queryClient.setQueriesData<InfiniteData<PapersResponse>>({ queryKey: ['papers'] }, (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          papers: page.papers.map((p) => (p.id === id ? { ...p, is_opened: true } : p)),
+        })),
+      };
+    });
+  };
 
   useEffect(() => {
     if (!sentinelRef.current) return;
@@ -95,7 +113,7 @@ export default function PaperFeed({ journal, category, search, sort }: PaperFeed
           key={paper.id}
           paper={paper}
           isSelected={selectedPaperId === paper.id}
-          onClick={() => selectPaper(paper.id)}
+          onClick={() => handleSelectPaper(paper.id)}
         />
       ))}
 

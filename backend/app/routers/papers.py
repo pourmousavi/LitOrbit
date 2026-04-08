@@ -12,6 +12,7 @@ from app.auth import get_current_user, check_owner_or_admin
 from app.database import get_db
 from app.models.paper import Paper
 from app.models.paper_score import PaperScore
+from app.models.paper_view import PaperView
 from app.models.user_profile import UserProfile
 
 router = APIRouter(prefix="/api/v1/papers", tags=["papers"])
@@ -40,10 +41,15 @@ async def list_papers(
             PaperScore.relevance_score,
             PaperScore.score_reasoning,
             creator.label("created_by_name"),
+            PaperView.viewed_at.label("viewed_at"),
         )
         .outerjoin(
             PaperScore,
             (PaperScore.paper_id == Paper.id) & (PaperScore.user_id == user_id),
+        )
+        .outerjoin(
+            PaperView,
+            (PaperView.paper_id == Paper.id) & (PaperView.user_id == user_id),
         )
     )
 
@@ -98,7 +104,7 @@ async def list_papers(
 
     papers = []
     for row in results:
-        paper, score, reasoning, creator_name = row
+        paper, score, reasoning, creator_name, viewed_at = row
         papers.append({
             "id": str(paper.id),
             "doi": paper.doi,
@@ -119,6 +125,7 @@ async def list_papers(
             "created_at": paper.created_at.isoformat() if paper.created_at else None,
             "collections": collections_map.get(str(paper.id), []),
             "created_by_name": creator_name or "System",
+            "is_opened": viewed_at is not None,
         })
 
     return {
@@ -163,6 +170,16 @@ async def get_paper(
         raise HTTPException(status_code=404, detail="Paper not found")
 
     paper, score, reasoning, creator_name = row
+
+    # Record that this user has opened the paper (idempotent)
+    existing_view = await db.execute(
+        select(PaperView).where(
+            (PaperView.paper_id == pid) & (PaperView.user_id == uuid.UUID(user_id))
+        )
+    )
+    if existing_view.scalar_one_or_none() is None:
+        db.add(PaperView(paper_id=pid, user_id=uuid.UUID(user_id)))
+        await db.commit()
     return {
         "id": str(paper.id),
         "doi": paper.doi,

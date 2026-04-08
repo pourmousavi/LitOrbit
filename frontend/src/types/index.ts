@@ -20,6 +20,7 @@ export interface Paper {
   created_at: string | null;
   created_by_name: string | null;
   collections?: { id: string; name: string; color: string }[];
+  is_opened?: boolean;
 }
 
 export interface PaperSummary {

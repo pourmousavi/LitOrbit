@@ -1,4 +1,4 @@
-import { Headphones, Info, Share2, Star } from 'lucide-react';
+import { Check, Headphones, Info, Share2, Star } from 'lucide-react';
 import type { Paper } from '@/types';
 import { cn, getScoreColor, getScoreBgColor, formatDate } from '@/lib/utils';
 
@@ -35,6 +35,7 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
         'group cursor-pointer rounded-2xl border border-border-default bg-bg-surface transition-all',
         'hover:border-border-strong',
         isSelected && 'border-accent bg-bg-elevated',
+        paper.is_opened && !isSelected && 'opacity-60 hover:opacity-100',
       )}
       style={{ padding: 20 }}
     >
@@ -44,6 +45,15 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
           <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary" style={{ padding: '4px 10px' }}>
             {paper.journal}
           </span>
+          {paper.is_opened && (
+            <span
+              className="flex items-center rounded-lg bg-bg-elevated font-mono text-xs text-text-tertiary"
+              style={{ padding: '4px 10px', gap: 4 }}
+              title="You've already opened this paper"
+            >
+              <Check size={11} /> Read
+            </span>
+          )}
           {paper.early_access && (
             <span className="rounded-lg bg-warning/15 font-mono text-xs text-warning" style={{ padding: '4px 10px' }}>
               Early Access
