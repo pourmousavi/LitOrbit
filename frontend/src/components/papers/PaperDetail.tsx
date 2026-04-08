@@ -625,6 +625,7 @@ function CollectionAssigner({ paperId }: { paperId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['paper-collections', paperId] });
       queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
     },
   });
 
@@ -635,6 +636,7 @@ function CollectionAssigner({ paperId }: { paperId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['paper-collections', paperId] });
       queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
     },
   });
 
