@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FolderOpen, Plus, X, Trash2, Edit2, Check } from 'lucide-react';
+import { FolderOpen, Plus, X, Trash2, Edit2, Check, Lock, Users } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 import PaperCard from '@/components/papers/PaperCard';
@@ -13,6 +13,8 @@ interface Collection {
   name: string;
   description: string | null;
   color: string;
+  visibility: 'shared' | 'private';
+  is_owner: boolean;
   paper_count: number;
   podcast_count_single: number;
   podcast_count_dual: number;
@@ -32,6 +34,7 @@ export default function Categories() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState(COLORS[0]);
+  const [newVisibility, setNewVisibility] = useState<'shared' | 'private'>('private');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
 
@@ -48,7 +51,7 @@ export default function Categories() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      await api.post('/api/v1/collections', { name: newName.trim(), color: newColor });
+      await api.post('/api/v1/collections', { name: newName.trim(), color: newColor, visibility: newVisibility });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collections'] });
@@ -152,8 +155,8 @@ export default function Categories() {
             </button>
           </div>
 
-          {/* Selected collection actions */}
-          {selectedCollection && collections && (
+          {/* Selected collection actions (owner only) */}
+          {selectedCollection && collections && collections.find(c => c.id === selectedCollection)?.is_owner && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 20, marginTop: 8 }}>
               <button
                 onClick={() => { const col = collections.find(c => c.id === selectedCollection); if (col) { setEditName(col.name); setEditingId(col.id); } }}
@@ -197,7 +200,7 @@ export default function Categories() {
                   <X size={16} />
                 </button>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
                 {COLORS.map((c) => (
                   <button
                     key={c}
@@ -206,6 +209,30 @@ export default function Categories() {
                     style={{ width: 24, height: 24, backgroundColor: c }}
                   />
                 ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setNewVisibility('private')}
+                  className={cn(
+                    'flex items-center rounded-lg font-mono text-xs transition',
+                    newVisibility === 'private' ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
+                  )}
+                  style={{ gap: 6, padding: '6px 12px' }}
+                  title="Only you can see and edit this collection"
+                >
+                  <Lock size={12} /> Private
+                </button>
+                <button
+                  onClick={() => setNewVisibility('shared')}
+                  className={cn(
+                    'flex items-center rounded-lg font-mono text-xs transition',
+                    newVisibility === 'shared' ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
+                  )}
+                  style={{ gap: 6, padding: '6px 12px' }}
+                  title="All users can see this collection and add papers; only you can rename or delete it"
+                >
+                  <Users size={12} /> Shared
+                </button>
               </div>
             </div>
           )}
@@ -235,6 +262,14 @@ export default function Categories() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                         <div className="rounded-full" style={{ width: 12, height: 12, backgroundColor: col.color, flexShrink: 0 }} />
                         <span className="font-mono font-medium text-text-primary" style={{ fontSize: 14 }}>{col.name}</span>
+                        <span
+                          className="flex items-center font-mono text-text-tertiary"
+                          style={{ fontSize: 10, gap: 3 }}
+                          title={col.visibility === 'private' ? 'Private (only you)' : 'Shared with all users'}
+                        >
+                          {col.visibility === 'private' ? <Lock size={10} /> : <Users size={10} />}
+                          {col.visibility}
+                        </span>
                       </div>
 
                       {/* Stats row */}

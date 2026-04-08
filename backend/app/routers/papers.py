@@ -13,6 +13,7 @@ from app.database import get_db
 from app.models.paper import Paper
 from app.models.paper_score import PaperScore
 from app.models.paper_view import PaperView
+from app.models.paper_favorite import PaperFavorite
 from app.models.user_profile import UserProfile
 
 router = APIRouter(prefix="/api/v1/papers", tags=["papers"])
@@ -28,6 +29,7 @@ async def list_papers(
     category: str | None = None,
     search: str | None = None,
     sort: str | None = Query(None, pattern="^(score|newest|oldest|published)$"),
+    favorites: bool = False,
 ) -> dict:
     """List papers paginated with configurable sort order."""
     user_id = user["id"]
@@ -42,6 +44,7 @@ async def list_papers(
             PaperScore.score_reasoning,
             creator.label("created_by_name"),
             PaperView.viewed_at.label("viewed_at"),
+            PaperFavorite.favorited_at.label("favorited_at"),
         )
         .outerjoin(
             PaperScore,
@@ -51,7 +54,14 @@ async def list_papers(
             PaperView,
             (PaperView.paper_id == Paper.id) & (PaperView.user_id == user_id),
         )
+        .outerjoin(
+            PaperFavorite,
+            (PaperFavorite.paper_id == Paper.id) & (PaperFavorite.user_id == user_id),
+        )
     )
+
+    if favorites:
+        query = query.where(PaperFavorite.favorited_at.isnot(None))
 
     # Filters
     if journal:
@@ -97,14 +107,17 @@ async def list_papers(
         col_result = await db.execute(
             select(CollectionPaper.paper_id, Collection.id, Collection.name, Collection.color)
             .join(Collection, Collection.id == CollectionPaper.collection_id)
-            .where(CollectionPaper.paper_id.in_(paper_ids_in_page))
+            .where(
+                CollectionPaper.paper_id.in_(paper_ids_in_page),
+                (Collection.visibility == "shared") | (Collection.created_by == uuid.UUID(user_id)),
+            )
         )
         for pid, cid, cname, ccolor in col_result.all():
             collections_map.setdefault(str(pid), []).append({"id": str(cid), "name": cname, "color": ccolor})
 
     papers = []
     for row in results:
-        paper, score, reasoning, creator_name, viewed_at = row
+        paper, score, reasoning, creator_name, viewed_at, favorited_at = row
         papers.append({
             "id": str(paper.id),
             "doi": paper.doi,
@@ -126,6 +139,7 @@ async def list_papers(
             "collections": collections_map.get(str(paper.id), []),
             "created_by_name": creator_name or "System",
             "is_opened": viewed_at is not None,
+            "is_favorite": favorited_at is not None,
         })
 
     return {
@@ -180,6 +194,13 @@ async def get_paper(
     if existing_view.scalar_one_or_none() is None:
         db.add(PaperView(paper_id=pid, user_id=uuid.UUID(user_id)))
         await db.commit()
+
+    fav_result = await db.execute(
+        select(PaperFavorite).where(
+            (PaperFavorite.paper_id == pid) & (PaperFavorite.user_id == uuid.UUID(user_id))
+        )
+    )
+    is_favorite = fav_result.scalar_one_or_none() is not None
     return {
         "id": str(paper.id),
         "doi": paper.doi,
@@ -201,7 +222,55 @@ async def get_paper(
         "score_reasoning": reasoning,
         "created_at": paper.created_at.isoformat() if paper.created_at else None,
         "created_by_name": creator_name or "System",
+        "is_favorite": is_favorite,
     }
+
+
+@router.post("/{paper_id}/favorite")
+async def add_favorite(
+    paper_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Mark a paper as favorite for the current user (idempotent)."""
+    try:
+        pid = uuid.UUID(paper_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid paper ID")
+
+    uid = uuid.UUID(user["id"])
+    existing = await db.execute(
+        select(PaperFavorite).where(
+            (PaperFavorite.paper_id == pid) & (PaperFavorite.user_id == uid)
+        )
+    )
+    if existing.scalar_one_or_none() is None:
+        db.add(PaperFavorite(paper_id=pid, user_id=uid))
+        await db.commit()
+    return {"status": "favorited"}
+
+
+@router.delete("/{paper_id}/favorite")
+async def remove_favorite(
+    paper_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Remove a paper from the current user's favorites (idempotent)."""
+    try:
+        pid = uuid.UUID(paper_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid paper ID")
+
+    uid = uuid.UUID(user["id"])
+    from sqlalchemy import delete
+    await db.execute(
+        delete(PaperFavorite).where(
+            (PaperFavorite.paper_id == pid) & (PaperFavorite.user_id == uid)
+        )
+    )
+    await db.commit()
+    return {"status": "unfavorited"}
 
 
 @router.delete("/{paper_id}")

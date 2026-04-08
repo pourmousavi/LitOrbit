@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useQueryClient, useMutation, type InfiniteData } from '@tanstack/react-query';
 import { usePapers } from '@/hooks/usePapers';
 import { useUIStore } from '@/stores/uiStore';
 import PaperCard from './PaperCard';
+import api from '@/lib/api';
 import type { PapersResponse } from '@/types';
 
 function SkeletonCard() {
@@ -29,15 +30,49 @@ interface PaperFeedProps {
   category?: string;
   search?: string;
   sort?: string;
+  favorites?: boolean;
 }
 
-export default function PaperFeed({ journal, category, search, sort }: PaperFeedProps) {
+export default function PaperFeed({ journal, category, search, sort, favorites }: PaperFeedProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } =
-    usePapers({ journal, category, search, sort });
+    usePapers({ journal, category, search, sort, favorites });
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
   const selectPaper = useUIStore((s) => s.selectPaper);
   const queryClient = useQueryClient();
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const setFavoriteInCache = (id: string, value: boolean) => {
+    queryClient.setQueriesData<InfiniteData<PapersResponse>>({ queryKey: ['papers'] }, (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          papers: page.papers.map((p) => (p.id === id ? { ...p, is_favorite: value } : p)),
+        })),
+      };
+    });
+  };
+
+  const favoriteMutation = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      if (value) await api.post(`/api/v1/papers/${id}/favorite`);
+      else await api.delete(`/api/v1/papers/${id}/favorite`);
+    },
+    onMutate: ({ id, value }) => {
+      const prev = queryClient.getQueriesData<InfiniteData<PapersResponse>>({ queryKey: ['papers'] });
+      setFavoriteInCache(id, value);
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      // rollback
+      ctx?.prev?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
+  });
+
+  const handleToggleFavorite = (paperId: string, current: boolean) => {
+    favoriteMutation.mutate({ id: paperId, value: !current });
+  };
 
   const handleSelectPaper = (id: string) => {
     selectPaper(id);
@@ -114,6 +149,7 @@ export default function PaperFeed({ journal, category, search, sort }: PaperFeed
           paper={paper}
           isSelected={selectedPaperId === paper.id}
           onClick={() => handleSelectPaper(paper.id)}
+          onToggleFavorite={() => handleToggleFavorite(paper.id, !!paper.is_favorite)}
         />
       ))}
 

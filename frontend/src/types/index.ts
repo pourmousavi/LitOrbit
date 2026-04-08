@@ -21,6 +21,7 @@ export interface Paper {
   created_by_name: string | null;
   collections?: { id: string; name: string; color: string }[];
   is_opened?: boolean;
+  is_favorite?: boolean;
 }
 
 export interface PaperSummary {

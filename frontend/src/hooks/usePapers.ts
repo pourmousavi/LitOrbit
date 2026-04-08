@@ -2,15 +2,16 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type { PapersResponse, Paper } from '@/types';
 
-export function usePapers(filters?: { journal?: string; category?: string; search?: string; sort?: string }) {
+export function usePapers(filters?: { journal?: string; category?: string; search?: string; sort?: string; favorites?: boolean }) {
   return useInfiniteQuery<PapersResponse>({
     queryKey: ['papers', filters],
     queryFn: async ({ pageParam }) => {
-      const params: Record<string, string | number> = { page: pageParam as number, per_page: 20 };
+      const params: Record<string, string | number | boolean> = { page: pageParam as number, per_page: 20 };
       if (filters?.journal) params.journal = filters.journal;
       if (filters?.category) params.category = filters.category;
       if (filters?.search) params.search = filters.search;
       if (filters?.sort) params.sort = filters.sort;
+      if (filters?.favorites) params.favorites = true;
       const { data } = await api.get('/api/v1/papers', { params });
       return data;
     },

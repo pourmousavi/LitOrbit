@@ -1,4 +1,4 @@
-import { Check, Headphones, Info, Share2, Star } from 'lucide-react';
+import { Bookmark, Check, Headphones, Info, Share2, Star } from 'lucide-react';
 import type { Paper } from '@/types';
 import { cn, getScoreColor, getScoreBgColor, formatDate } from '@/lib/utils';
 
@@ -22,9 +22,10 @@ interface PaperCardProps {
   paper: Paper;
   isSelected?: boolean;
   onClick?: () => void;
+  onToggleFavorite?: () => void;
 }
 
-export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps) {
+export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite }: PaperCardProps) {
   const scoreColor = getScoreColor(paper.relevance_score);
   const scoreBg = getScoreBgColor(paper.relevance_score);
 
@@ -183,6 +184,17 @@ export default function PaperCard({ paper, isSelected, onClick }: PaperCardProps
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button
+            className={cn(
+              'rounded-lg transition hover:bg-bg-elevated',
+              paper.is_favorite ? 'text-accent' : 'text-text-tertiary hover:text-accent',
+            )}
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite?.(); }}
+            title={paper.is_favorite ? 'Remove from favorites' : 'Save for later'}
+            style={{ padding: 8 }}
+          >
+            <Bookmark size={16} fill={paper.is_favorite ? 'currentColor' : 'none'} />
+          </button>
           <button
             className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
             onClick={(e) => { e.stopPropagation(); onClick?.(); }}

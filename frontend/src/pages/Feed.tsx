@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X, Plus, Upload, Link, Loader2, ArrowUpDown } from 'lucide-react';
+import { Search, X, Plus, Upload, Link, Loader2, ArrowUpDown, Bookmark } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/uiStore';
 import { usePapers } from '@/hooks/usePapers';
@@ -15,11 +15,12 @@ export default function Feed() {
   const [showDoiInput, setShowDoiInput] = useState(false);
   const [doi, setDoi] = useState('');
   const [sort, setSort] = useState('score');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   // Total paper count from current filtered query (shares cache with PaperFeed)
-  const { data: papersData } = usePapers({ search: debouncedSearch || undefined, sort });
+  const { data: papersData } = usePapers({ search: debouncedSearch || undefined, sort, favorites: favoritesOnly });
   const totalPapers = papersData?.pages?.[0]?.total ?? null;
 
   // Debounce search input by 400ms
@@ -224,9 +225,22 @@ export default function Feed() {
                 {label}
               </button>
             ))}
+            <button
+              onClick={() => setFavoritesOnly((v) => !v)}
+              className={`flex items-center rounded-lg font-mono text-xs transition ${
+                favoritesOnly
+                  ? 'bg-accent text-white'
+                  : 'text-text-tertiary hover:text-text-secondary'
+              }`}
+              style={{ padding: '6px 12px', gap: 4, marginLeft: 4 }}
+              title="Show only favorites"
+            >
+              <Bookmark size={12} fill={favoritesOnly ? 'currentColor' : 'none'} />
+              Favorites
+            </button>
           </div>
 
-          <PaperFeed search={debouncedSearch || undefined} sort={sort} />
+          <PaperFeed search={debouncedSearch || undefined} sort={sort} favorites={favoritesOnly} />
         </div>
       </div>
 

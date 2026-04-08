@@ -20,12 +20,14 @@ class CollectionCreate(BaseModel):
     name: str
     description: str | None = None
     color: str = "#0891b2"
+    visibility: str = "shared"  # 'shared' | 'private'
 
 
 class CollectionUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     color: str | None = None
+    visibility: str | None = None
 
 
 class AddPaperRequest(BaseModel):
@@ -41,12 +43,17 @@ async def list_collections(
     user_id = user["id"]
 
     # Base query: collection + paper count
+    # Only show shared collections plus the user's own private collections
     result = await db.execute(
         select(
             Collection,
             func.count(CollectionPaper.id).label("paper_count"),
         )
         .outerjoin(CollectionPaper, CollectionPaper.collection_id == Collection.id)
+        .where(
+            (Collection.visibility == "shared")
+            | (Collection.created_by == uuid.UUID(user_id))
+        )
         .group_by(Collection.id)
         .order_by(Collection.name)
     )
@@ -137,6 +144,8 @@ async def list_collections(
             "name": col.name,
             "description": col.description,
             "color": col.color,
+            "visibility": col.visibility,
+            "is_owner": str(col.created_by) == user_id,
             "paper_count": count,
             "podcast_count_single": podcast_map.get(str(col.id), {}).get("single", 0),
             "podcast_count_dual": podcast_map.get(str(col.id), {}).get("dual", 0),
@@ -157,11 +166,14 @@ async def create_collection(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Create a new collection."""
+    if req.visibility not in ("shared", "private"):
+        raise HTTPException(status_code=400, detail="visibility must be 'shared' or 'private'")
     col = Collection(
         id=uuid.uuid4(),
         name=req.name,
         description=req.description,
         color=req.color,
+        visibility=req.visibility,
         created_by=uuid.UUID(user["id"]),
     )
     db.add(col)
@@ -190,6 +202,10 @@ async def update_collection(
         col.description = req.description
     if req.color is not None:
         col.color = req.color
+    if req.visibility is not None:
+        if req.visibility not in ("shared", "private"):
+            raise HTTPException(status_code=400, detail="visibility must be 'shared' or 'private'")
+        col.visibility = req.visibility
 
     await db.commit()
     return {"status": "updated"}
@@ -219,12 +235,12 @@ async def add_paper_to_collection(
     user: dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Add a paper to a collection."""
-    # Check collection exists and ownership
+    """Add a paper to a collection. Shared collections accept contributions from any user; private collections are owner-only."""
     col = (await db.execute(select(Collection).where(Collection.id == uuid.UUID(collection_id)))).scalar_one_or_none()
     if not col:
         raise HTTPException(status_code=404, detail="Collection not found")
-    check_owner_or_admin(col.created_by, user)
+    if col.visibility == "private":
+        check_owner_or_admin(col.created_by, user)
 
     # Check paper exists
     paper = (await db.execute(select(Paper).where(Paper.id == uuid.UUID(req.paper_id)))).scalar_one_or_none()
@@ -258,12 +274,12 @@ async def remove_paper_from_collection(
     user: dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Remove a paper from a collection."""
-    # Check collection ownership
+    """Remove a paper from a collection. Shared collections accept removals from any user; private collections are owner-only."""
     col = (await db.execute(select(Collection).where(Collection.id == uuid.UUID(collection_id)))).scalar_one_or_none()
     if not col:
         raise HTTPException(status_code=404, detail="Collection not found")
-    check_owner_or_admin(col.created_by, user)
+    if col.visibility == "private":
+        check_owner_or_admin(col.created_by, user)
 
     result = await db.execute(
         select(CollectionPaper).where(
@@ -287,6 +303,13 @@ async def list_collection_papers(
 ) -> dict:
     """List papers in a collection with scores."""
     user_id = user["id"]
+
+    # Visibility check
+    col = (await db.execute(select(Collection).where(Collection.id == uuid.UUID(collection_id)))).scalar_one_or_none()
+    if not col:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    if col.visibility == "private" and str(col.created_by) != user_id:
+        raise HTTPException(status_code=404, detail="Collection not found")
 
     result = await db.execute(
         select(Paper, PaperScore.relevance_score, PaperScore.score_reasoning)
@@ -330,15 +353,19 @@ async def get_paper_collections(
     user: dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-    """Get all collections a paper belongs to."""
+    """Get all collections a paper belongs to that the current user can see."""
+    user_id = user["id"]
     result = await db.execute(
         select(Collection)
         .join(CollectionPaper, CollectionPaper.collection_id == Collection.id)
-        .where(CollectionPaper.paper_id == uuid.UUID(paper_id))
+        .where(
+            CollectionPaper.paper_id == uuid.UUID(paper_id),
+            (Collection.visibility == "shared") | (Collection.created_by == uuid.UUID(user_id)),
+        )
         .order_by(Collection.name)
     )
     collections = result.scalars().all()
     return [
-        {"id": str(c.id), "name": c.name, "color": c.color}
+        {"id": str(c.id), "name": c.name, "color": c.color, "visibility": c.visibility, "is_owner": str(c.created_by) == user_id}
         for c in collections
     ]

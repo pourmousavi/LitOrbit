@@ -15,6 +15,7 @@ class Collection(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     color: Mapped[str] = mapped_column(String, nullable=False, default="#0891b2")
+    visibility: Mapped[str] = mapped_column(String, nullable=False, default="shared")
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(), ForeignKey("user_profiles.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
