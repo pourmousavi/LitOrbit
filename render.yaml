@@ -2,7 +2,10 @@ services:
   - type: web
     name: litorbit-api
     runtime: python
-    region: singapore
+    # Note: region must be one of Render's Gemini-API-compatible regions
+    # (Oregon / Ohio / Virginia). Singapore and Frankfurt return
+    # FAILED_PRECONDITION: User location is not supported.
+    region: oregon
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt

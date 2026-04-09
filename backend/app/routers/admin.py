@@ -469,23 +469,25 @@ async def run_scheduled_pipeline(
         raise HTTPException(status_code=401, detail="Invalid pipeline secret")
 
     async def _run():
-        from app.database import init_db, async_session_factory
+        # Import the module (not the attribute) so we always read the
+        # current value of async_session_factory after init_db() sets it.
+        from app import database as db_module
         from app.pipeline.runner import run_discovery_pipeline
         from app.services.digest_runner import run_digests
 
         try:
-            if async_session_factory is None:
-                init_db()
-            if async_session_factory is None:
+            if db_module.async_session_factory is None:
+                db_module.init_db()
+            if db_module.async_session_factory is None:
                 logger.error("Scheduled pipeline: no DB session factory")
                 return
 
-            async with async_session_factory() as session:
+            async with db_module.async_session_factory() as session:
                 result = await run_discovery_pipeline(session)
                 logger.info(f"Scheduled pipeline run: {result}")
 
             if result.get("status") == "success":
-                async with async_session_factory() as session:
+                async with db_module.async_session_factory() as session:
                     digest_results = await run_digests(session)
                     sent = sum(1 for r in digest_results if r.get("sent"))
                     logger.info(
