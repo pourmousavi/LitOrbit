@@ -22,6 +22,7 @@ export interface Paper {
   collections?: { id: string; name: string; color: string }[];
   is_opened?: boolean;
   is_favorite?: boolean;
+  user_rating?: number | null;
 }
 
 export interface PaperSummary {

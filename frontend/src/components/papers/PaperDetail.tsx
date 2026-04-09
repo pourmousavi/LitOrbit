@@ -166,6 +166,8 @@ export default function PaperDetail() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ratings'] });
+      queryClient.invalidateQueries({ queryKey: ['my-rating', selectedPaperId] });
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
       if (data.follow_up_question && data.follow_up_options) {
         setFeedback(data);
       }

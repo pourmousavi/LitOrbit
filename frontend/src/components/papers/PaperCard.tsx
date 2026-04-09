@@ -212,12 +212,15 @@ export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite
             <Share2 size={16} />
           </button>
           <button
-            className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-warning"
+            className={cn(
+              'rounded-lg transition hover:bg-bg-elevated',
+              paper.user_rating != null ? 'text-warning' : 'text-text-tertiary hover:text-warning',
+            )}
             onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-            title="Rate"
+            title={paper.user_rating != null ? `Your rating: ${paper.user_rating}/10` : 'Rate'}
             style={{ padding: 8 }}
           >
-            <Star size={16} />
+            <Star size={16} fill={paper.user_rating != null ? 'currentColor' : 'none'} />
           </button>
         </div>
       </div>

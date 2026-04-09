@@ -14,6 +14,7 @@ from app.models.paper import Paper
 from app.models.paper_score import PaperScore
 from app.models.paper_view import PaperView
 from app.models.paper_favorite import PaperFavorite
+from app.models.rating import Rating
 from app.models.user_profile import UserProfile
 
 router = APIRouter(prefix="/api/v1/papers", tags=["papers"])
@@ -45,6 +46,7 @@ async def list_papers(
             creator.label("created_by_name"),
             PaperView.viewed_at.label("viewed_at"),
             PaperFavorite.favorited_at.label("favorited_at"),
+            Rating.rating.label("user_rating"),
         )
         .outerjoin(
             PaperScore,
@@ -57,6 +59,10 @@ async def list_papers(
         .outerjoin(
             PaperFavorite,
             (PaperFavorite.paper_id == Paper.id) & (PaperFavorite.user_id == user_id),
+        )
+        .outerjoin(
+            Rating,
+            (Rating.paper_id == Paper.id) & (Rating.user_id == user_id),
         )
     )
 
@@ -117,7 +123,7 @@ async def list_papers(
 
     papers = []
     for row in results:
-        paper, score, reasoning, creator_name, viewed_at, favorited_at = row
+        paper, score, reasoning, creator_name, viewed_at, favorited_at, user_rating = row
         papers.append({
             "id": str(paper.id),
             "doi": paper.doi,
@@ -140,6 +146,7 @@ async def list_papers(
             "created_by_name": creator_name or "System",
             "is_opened": viewed_at is not None,
             "is_favorite": favorited_at is not None,
+            "user_rating": user_rating,
         })
 
     return {
