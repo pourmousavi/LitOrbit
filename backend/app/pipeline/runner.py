@@ -320,10 +320,8 @@ async def score_and_summarise_papers(
     # Track which papers need scoring for which users
     all_scores: dict[str, list[dict]] = {}  # paper_id -> list of score dicts
 
-    from google import genai as _genai
-    from app.config import get_settings as _get_settings
-    _settings = _get_settings()
-    _client = _genai.Client(api_key=_settings.gemini_api_key)
+    from app.services.gemini_client import make_genai_client
+    _client = make_genai_client()
 
     # Finalize any implicit transaction left open by earlier SELECTs and return
     # the connection to the pool BEFORE the long LLM scoring phase. Doing this

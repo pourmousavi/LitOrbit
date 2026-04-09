@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     # to authenticate scheduled pipeline runs without a user JWT.
     pipeline_trigger_secret: str = ""
 
+    # Optional base URL for the Gemini API. When set, all google-genai
+    # client calls are routed through this URL instead of
+    # https://generativelanguage.googleapis.com. Used to proxy through a
+    # Cloudflare Worker so calls originate from a CF edge POP rather than
+    # Render's egress IP (which Google's geo-restriction list still blocks
+    # even on paid tier).
+    gemini_api_base: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

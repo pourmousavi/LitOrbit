@@ -67,7 +67,8 @@ async def score_paper_for_user(
         if not settings.gemini_api_key:
             logger.warning("GEMINI_API_KEY not set, returning default score")
             return {"score": 5.0, "reasoning": "API key not configured"}
-        client = genai.Client(api_key=settings.gemini_api_key)
+        from app.services.gemini_client import make_genai_client
+        client = make_genai_client()
 
     paper_keywords = ', '.join(paper.get('keywords', [])) if paper.get('keywords') else 'None provided'
 
@@ -186,8 +187,8 @@ async def score_paper_for_all_users(
     Returns:
         List of dicts with 'user_id', 'score', 'reasoning'.
     """
-    settings = get_settings()
-    client = genai.Client(api_key=settings.gemini_api_key)
+    from app.services.gemini_client import make_genai_client
+    client = make_genai_client()
 
     # Run all tasks concurrently — the rate limiter serialises API calls
     tasks = [
