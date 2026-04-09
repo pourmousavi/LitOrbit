@@ -10,15 +10,17 @@ if [[ -z "${GKEY:-}" || -z "${PROXY:-}" ]]; then
   exit 1
 fi
 
-SECRET_HEADER=()
+# PROXY may already include the secret path segment, e.g.
+#   https://worker.dev/abc123
+# If you also set PROXY_SECRET, we'll append it as the path segment.
+URL="${PROXY%/}"
 if [[ -n "${PROXY_SECRET:-}" ]]; then
-  SECRET_HEADER=(-H "X-Proxy-Secret: ${PROXY_SECRET}")
+  URL="${URL}/${PROXY_SECRET}"
 fi
 
 curl -s -X POST \
   -H "Content-Type: application/json" \
   -H "x-goog-api-key: ${GKEY}" \
-  "${SECRET_HEADER[@]}" \
-  "${PROXY%/}/v1beta/models/gemini-2.5-flash:generateContent" \
+  "${URL}/v1beta/models/gemini-2.5-flash:generateContent" \
   -d '{"contents":[{"parts":[{"text":"say hi"}]}]}'
 echo

@@ -20,14 +20,12 @@ def make_genai_client() -> genai.Client:
         raise RuntimeError("GEMINI_API_KEY not set")
 
     if settings.gemini_api_base:
-        headers = {}
-        if settings.gemini_proxy_secret:
-            headers["X-Proxy-Secret"] = settings.gemini_proxy_secret
+        # The proxy worker authenticates via a path-prefix secret embedded
+        # directly in GEMINI_API_BASE (e.g. https://worker.dev/<secret>),
+        # because the google-genai SDK does not reliably forward custom
+        # headers from HttpOptions(headers=...).
         return genai.Client(
             api_key=settings.gemini_api_key,
-            http_options=genai_types.HttpOptions(
-                base_url=settings.gemini_api_base,
-                headers=headers or None,
-            ),
+            http_options=genai_types.HttpOptions(base_url=settings.gemini_api_base),
         )
     return genai.Client(api_key=settings.gemini_api_key)

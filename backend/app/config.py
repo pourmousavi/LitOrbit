@@ -44,13 +44,9 @@ class Settings(BaseSettings):
     # https://generativelanguage.googleapis.com. Used to proxy through a
     # Cloudflare Worker so calls originate from a CF edge POP rather than
     # Render's egress IP (which Google's geo-restriction list still blocks
-    # even on paid tier).
+    # even on paid tier). The path-prefix secret is embedded directly in
+    # this URL, e.g. https://litorbit-gemini-proxy.foo.workers.dev/<secret>
     gemini_api_base: str = ""
-
-    # Shared secret sent as X-Proxy-Secret to the Gemini proxy worker. Must
-    # match the worker's PROXY_SHARED_SECRET binding. Optional — if unset,
-    # the worker is assumed to be open (not recommended).
-    gemini_proxy_secret: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
