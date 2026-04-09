@@ -3,7 +3,7 @@ import uuid
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -444,6 +444,60 @@ async def trigger_pipeline(
 
     background_tasks.add_task(_run)
     return {"status": "triggered"}
+
+
+@router.post("/pipeline/run-scheduled", status_code=202)
+async def run_scheduled_pipeline(
+    background_tasks: BackgroundTasks,
+    x_pipeline_secret: str | None = Header(default=None),
+) -> dict:
+    """Header-secret-auth endpoint for external schedulers (e.g. GitHub Actions
+    cron) to trigger the full daily run: discovery pipeline + digest emails.
+
+    Authenticates via the ``X-Pipeline-Secret`` header against the
+    ``PIPELINE_TRIGGER_SECRET`` env var. Returns 202 immediately and runs the
+    work in a background task so the caller never blocks.
+    """
+    settings = get_settings()
+    expected = settings.pipeline_trigger_secret
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="Pipeline trigger secret not configured on server",
+        )
+    if not x_pipeline_secret or x_pipeline_secret != expected:
+        raise HTTPException(status_code=401, detail="Invalid pipeline secret")
+
+    async def _run():
+        from app.database import init_db, async_session_factory
+        from app.pipeline.runner import run_discovery_pipeline
+        from app.services.digest_runner import run_digests
+
+        try:
+            if async_session_factory is None:
+                init_db()
+            if async_session_factory is None:
+                logger.error("Scheduled pipeline: no DB session factory")
+                return
+
+            async with async_session_factory() as session:
+                result = await run_discovery_pipeline(session)
+                logger.info(f"Scheduled pipeline run: {result}")
+
+            if result.get("status") == "success":
+                async with async_session_factory() as session:
+                    digest_results = await run_digests(session)
+                    sent = sum(1 for r in digest_results if r.get("sent"))
+                    logger.info(
+                        f"Scheduled digest: {sent}/{len(digest_results)} emails sent"
+                    )
+            else:
+                logger.warning("Scheduled pipeline did not succeed; skipping digests")
+        except Exception as e:
+            logger.exception(f"Scheduled pipeline run failed: {e}")
+
+    background_tasks.add_task(_run)
+    return {"status": "accepted"}
 
 
 # --- Delete batch ---

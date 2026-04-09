@@ -1,34 +1,38 @@
-name: LitOrbit Daily Pipeline
+name: LitOrbit Daily Pipeline Trigger
+
+# Triggers the pipeline on the LitOrbit Render backend (Singapore region,
+# which is supported by the Gemini API). All real work runs there; this
+# workflow is just a scheduler that fires an authenticated HTTP request.
 
 on:
   schedule:
     - cron: '30 20 * * *'  # 06:00 ACST = 20:30 UTC
-  workflow_dispatch:         # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
-  run-pipeline:
+  trigger:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install -r backend/requirements.txt
-
-      - name: Run pipeline
-        run: python scripts/run_pipeline.py
+      - name: POST run-scheduled
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          IEEE_API_KEY: ${{ secrets.IEEE_API_KEY }}
-          SCOPUS_API_KEY: ${{ secrets.SCOPUS_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_URL: ${{ secrets.LITORBIT_API_URL }}
+          PIPELINE_SECRET: ${{ secrets.PIPELINE_TRIGGER_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${API_URL:-}" || -z "${PIPELINE_SECRET:-}" ]]; then
+            echo "Missing LITORBIT_API_URL or PIPELINE_TRIGGER_SECRET secret" >&2
+            exit 1
+          fi
+          # Render free dynos cold-start (~30-60s). Use a generous connect
+          # timeout and retry the wake-up. The endpoint itself returns 202
+          # immediately and runs the pipeline in a background task.
+          curl --fail-with-body \
+               --retry 3 --retry-delay 15 --retry-connrefused \
+               --connect-timeout 90 \
+               --max-time 180 \
+               -X POST \
+               -H "X-Pipeline-Secret: ${PIPELINE_SECRET}" \
+               -H "Content-Type: application/json" \
+               "${API_URL%/}/api/v1/admin/pipeline/run-scheduled"
+          echo
+          echo "Pipeline trigger accepted."

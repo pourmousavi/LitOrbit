@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # Database (constructed from supabase_url)
     database_url: str = ""
 
+    # Shared secret used by external schedulers (GitHub Actions cron)
+    # to authenticate scheduled pipeline runs without a user JWT.
+    pipeline_trigger_secret: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
