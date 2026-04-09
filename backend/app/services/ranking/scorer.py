@@ -109,7 +109,7 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
                 contents=user_message,
                 config=genai.types.GenerateContentConfig(
                     system_instruction=system_prompt,
-                    max_output_tokens=500,
+                    max_output_tokens=1024,
                     response_mime_type="application/json",
                     response_schema={
                         "type": "object",
@@ -122,7 +122,21 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
                 ),
             )
 
-            text = response.text.strip()
+            raw_text = response.text
+            if not raw_text:
+                # Safety filter or empty completion. Surface the finish reason.
+                finish_reason = None
+                try:
+                    finish_reason = response.candidates[0].finish_reason  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                logger.error(
+                    f"Scorer got empty response (finish_reason={finish_reason}) "
+                    f"for paper '{paper.get('title', '')[:60]}'"
+                )
+                return {"score": 5.0, "reasoning": f"Empty AI response ({finish_reason})"}
+
+            text = raw_text.strip()
             # Strip markdown code blocks if present
             if text.startswith("```"):
                 text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -136,7 +150,16 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
             return {"score": score, "reasoning": reasoning}
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse scorer response as JSON: {e}")
+            # Most common cause: response truncated by max_output_tokens.
+            # Log the offending payload so we can diagnose, and retry once
+            # before giving up.
+            logger.error(
+                f"Failed to parse scorer response as JSON for "
+                f"'{paper.get('title', '')[:60]}': {e}. Raw text: {text!r}"
+            )
+            if attempt < _MAX_RETRIES:
+                await asyncio.sleep(2)
+                continue
             return {"score": 5.0, "reasoning": "Failed to parse AI response"}
         except Exception as e:
             error_str = str(e).lower()

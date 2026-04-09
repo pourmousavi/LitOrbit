@@ -108,14 +108,31 @@ async def fetch_ieee_papers(
 
 
 def _parse_ieee_date(date_str: str | None) -> str | None:
-    """Parse IEEE date formats like '2 April 2024' or '2024'."""
+    """Parse IEEE date formats. IEEE returns a variety of shapes:
+    '2 April 2024', '2 Apr 2024', 'April 2024', 'Apr 2024', '2024',
+    '2024-04-08', '04/08/2024'. Range strings like '2-6 April 2024'
+    are reduced to their first date.
+    """
     if not date_str:
         return None
-    for fmt in ("%d %B %Y", "%B %Y", "%Y"):
+    s = date_str.strip()
+    # Reduce ranges like "2-6 April 2024" or "April-June 2024" to the first chunk.
+    # Only collapse a numeric day range (e.g. "2-6 April 2024" -> "2 April 2024"),
+    # not a month range, which we just take the head of.
+    if "-" in s and not s[:4].isdigit():
+        head, _, tail = s.partition("-")
+        # If head is a number (day range), use head + remainder after the second token
+        if head.strip().isdigit():
+            rest = tail.split(" ", 1)
+            s = f"{head.strip()} {rest[1]}" if len(rest) > 1 else tail.strip()
+        else:
+            s = head.strip() + " " + s.split(" ", 1)[1] if " " in s else head.strip()
+    for fmt in ("%Y-%m-%d", "%d %B %Y", "%d %b %Y", "%B %Y", "%b %Y", "%m/%d/%Y", "%Y"):
         try:
-            return datetime.strptime(date_str.strip(), fmt).strftime("%Y-%m-%d")
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
+    logger.warning(f"IEEE: could not parse date string {date_str!r}")
     return None
 
 
