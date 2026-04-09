@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # even on paid tier).
     gemini_api_base: str = ""
 
+    # Shared secret sent as X-Proxy-Secret to the Gemini proxy worker. Must
+    # match the worker's PROXY_SHARED_SECRET binding. Optional — if unset,
+    # the worker is assumed to be open (not recommended).
+    gemini_proxy_secret: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
