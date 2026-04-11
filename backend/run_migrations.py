@@ -79,7 +79,7 @@ async def run_migrations():
         print("No DATABASE_URL or SUPABASE_URL set, skipping migrations")
         return
 
-    connect_args = {}
+    connect_args = {"command_timeout": 5}  # 5s client-side timeout for migrations
     if "pooler.supabase.com" in url:
         connect_args["statement_cache_size"] = 0
         connect_args["prepared_statement_cache_size"] = 0
