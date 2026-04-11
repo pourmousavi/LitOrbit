@@ -11,7 +11,11 @@ logging.basicConfig(
     stream=sys.stdout,
     level=logging.INFO,
     format="%(levelname)s:%(name)s: %(message)s",
+    force=True,  # override any existing root logger config (e.g. uvicorn)
 )
+# Ensure app.pipeline.runner logger is at INFO
+logging.getLogger("app.pipeline").setLevel(logging.INFO)
+logging.getLogger("app.services").setLevel(logging.INFO)
 
 from app.routers import papers, ratings, shares, users, podcasts, admin, collections, feed, reference_papers
 

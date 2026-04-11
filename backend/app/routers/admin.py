@@ -533,9 +533,27 @@ async def delete_run_papers(
 
     papers = paper_result.scalars().all()
     count = len(papers)
+
+    # Collect DOIs and titles to clear from deleted_papers too,
+    # so these papers can be re-fetched by future pipeline runs.
+    dois_to_clear = [p.doi for p in papers if p.doi]
+    titles_to_clear = [p.title.lower().strip() for p in papers if p.title]
+
     for p in papers:
-        db.add(DeletedPaper(id=uuid.uuid4(), doi=p.doi, title=p.title))
         await db.delete(p)
+
+    # Also remove from deleted_papers so dedup won't block re-fetch
+    if dois_to_clear:
+        await db.execute(
+            DeletedPaper.__table__.delete().where(DeletedPaper.doi.in_(dois_to_clear))
+        )
+    if titles_to_clear:
+        await db.execute(
+            DeletedPaper.__table__.delete().where(
+                func.lower(func.trim(DeletedPaper.title)).in_(titles_to_clear)
+            )
+        )
+
     # Mark run as deleted
     run.status = "deleted"
     run.error_message = f"{count} papers deleted"

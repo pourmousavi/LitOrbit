@@ -151,10 +151,22 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
     raw_total = await db.execute(sa_text("SELECT count(*) FROM papers"))
     total_count = raw_total.scalar()
 
-    logger.info(
-        f"Embedding check: {null_count} papers with NULL embedding "
-        f"out of {total_count} total papers"
+    # Use print() to guarantee visibility on Render (logger.info may be swallowed)
+    print(
+        f"[EMBEDDING DEBUG] Raw SQL: {null_count} papers with NULL embedding "
+        f"out of {total_count} total",
+        flush=True,
     )
+
+    # Also check what values the embedding column actually contains
+    sample = await db.execute(sa_text(
+        "SELECT id, embedding IS NULL as is_null, "
+        "jsonb_typeof(embedding) as etype, "
+        "CASE WHEN embedding IS NOT NULL THEN length(embedding::text) ELSE 0 END as elen "
+        "FROM papers LIMIT 5"
+    ))
+    for row in sample.all():
+        print(f"[EMBEDDING DEBUG] Paper {row[0]}: is_null={row[1]}, type={row[2]}, len={row[3]}", flush=True)
 
     result = await db.execute(
         select(Paper).where(
@@ -167,10 +179,9 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
     )
     papers = result.scalars().all()
 
-    logger.info(f"ORM query returned {len(papers)} unembedded papers")
+    print(f"[EMBEDDING DEBUG] ORM query returned {len(papers)} unembedded papers", flush=True)
 
     if not papers:
-        logger.info("No unembedded papers to process")
         return {"embedded": 0, "skipped": 0, "quota_exhausted": False}
 
     texts = [prepare_paper_text(p.title, p.abstract or "") for p in papers]
