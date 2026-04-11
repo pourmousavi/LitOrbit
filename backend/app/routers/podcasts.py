@@ -13,7 +13,9 @@ from app.auth import get_current_user, check_owner_or_admin
 from app.database import get_db, init_db
 import app.database as _db_module
 from app.models.collection import Collection, CollectionPaper
+from app.models.digest_log import DigestLog
 from app.models.paper import Paper
+from app.models.paper_favorite import PaperFavorite
 from app.models.podcast import Podcast
 from app.models.user_profile import UserProfile
 from app.services.podcast import generate_podcast
@@ -466,6 +468,43 @@ async def list_podcasts(
         digest_result = await db.execute(digest_query)
         digest_rows = digest_result.scalars().all()
 
+    # Bulk fetch papers included in digest podcasts
+    digest_ids = [p.id for p in digest_rows]
+    digest_papers_map: dict[str, list[dict]] = {}
+    if digest_ids:
+        from app.models.paper_score import PaperScore
+        dp_query = (
+            select(
+                DigestLog.podcast_id,
+                Paper.id,
+                Paper.title,
+                Paper.journal,
+                func.max(PaperScore.relevance_score).label("relevance_score"),
+                PaperFavorite.favorited_at,
+            )
+            .join(Paper, DigestLog.paper_id == Paper.id)
+            .outerjoin(
+                PaperScore,
+                (PaperScore.paper_id == Paper.id) & (PaperScore.user_id == user["id"]),
+            )
+            .outerjoin(
+                PaperFavorite,
+                (PaperFavorite.paper_id == Paper.id) & (PaperFavorite.user_id == user["id"]),
+            )
+            .where(DigestLog.podcast_id.in_(digest_ids))
+            .group_by(DigestLog.podcast_id, Paper.id, Paper.title, Paper.journal, PaperFavorite.favorited_at)
+            .order_by(func.max(PaperScore.relevance_score).desc().nulls_last())
+        )
+        dp_result = await db.execute(dp_query)
+        for podcast_id, paper_id, title, journal, score, fav_at in dp_result.all():
+            digest_papers_map.setdefault(str(podcast_id), []).append({
+                "id": str(paper_id),
+                "title": title,
+                "journal": journal,
+                "relevance_score": float(score) if score is not None else None,
+                "is_favorite": fav_at is not None,
+            })
+
     # Bulk fetch collections for paper-based podcasts
     paper_ids = list({podcast.paper_id for podcast, _, _ in paper_rows if podcast.paper_id})
     collections_map: dict[str, list[dict]] = {}
@@ -508,6 +547,7 @@ async def list_podcasts(
             "generated_at": podcast.generated_at.isoformat() if podcast.generated_at else None,
             "collections": [],
             "created_by_name": creator_map.get(str(podcast.user_id), "System") if podcast.user_id else "System",
+            "digest_papers": digest_papers_map.get(str(podcast.id), []),
         })
 
     # Paper podcasts

@@ -1,9 +1,82 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Play, Headphones, Trash2, Radio, Search, X, ArrowUpDown } from 'lucide-react';
+import { Play, Headphones, Trash2, Radio, Search, X, ArrowUpDown, ChevronDown, Bookmark } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePodcastList, useDeletePodcast } from '@/hooks/usePodcast';
 import { usePlayerStore } from '@/stores/playerStore';
-import { cn, formatDate } from '@/lib/utils';
+import { cn, formatDate, getScoreColor, getScoreBgColor } from '@/lib/utils';
+import api from '@/lib/api';
+
+function DigestPapersList({ podcastId, papers: initialPapers }: { podcastId: string; papers: { id: string; title: string; journal: string; relevance_score: number | null; is_favorite: boolean }[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [papers, setPapers] = useState(initialPapers);
+  const queryClient = useQueryClient();
+
+  const toggleFavorite = useMutation({
+    mutationFn: async ({ paperId, isFavorite }: { paperId: string; isFavorite: boolean }) => {
+      if (isFavorite) {
+        await api.delete(`/api/v1/papers/${paperId}/favorite`);
+      } else {
+        await api.post(`/api/v1/papers/${paperId}/favorite`);
+      }
+    },
+    onMutate: ({ paperId, isFavorite }) => {
+      setPapers((prev) => prev.map((p) => p.id === paperId ? { ...p, is_favorite: !isFavorite } : p));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['papers'] });
+    },
+  });
+
+  if (!papers.length) return null;
+
+  return (
+    <div style={{ marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-1.5 font-mono text-xs text-purple-400 transition hover:text-purple-400"
+        style={{ padding: '4px 0' }}
+      >
+        <ChevronDown size={13} className={cn('transition-transform', expanded && 'rotate-180')} />
+        {papers.length} {papers.length === 1 ? 'paper' : 'papers'} in this digest
+      </button>
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+          {papers.map((paper) => (
+            <div
+              key={paper.id}
+              className="flex items-center gap-2 rounded-lg bg-bg-base"
+              style={{ padding: '8px 10px', minHeight: 40 }}
+            >
+              {paper.relevance_score !== null && (
+                <span
+                  className={cn('rounded font-mono text-xs font-semibold', getScoreBgColor(paper.relevance_score), getScoreColor(paper.relevance_score))}
+                  style={{ padding: '2px 6px', flexShrink: 0 }}
+                >
+                  {paper.relevance_score.toFixed(1)}
+                </span>
+              )}
+              <span className="font-mono text-xs text-text-primary line-clamp-2" style={{ flex: 1, lineHeight: 1.4 }}>
+                {paper.title}
+              </span>
+              <button
+                onClick={() => toggleFavorite.mutate({ paperId: paper.id, isFavorite: paper.is_favorite })}
+                className={cn(
+                  'rounded-lg transition shrink-0',
+                  paper.is_favorite ? 'text-accent' : 'text-text-tertiary hover:text-accent',
+                )}
+                style={{ padding: 4 }}
+                title={paper.is_favorite ? 'Remove from favorites' : 'Save for later'}
+              >
+                <Bookmark size={14} fill={paper.is_favorite ? 'currentColor' : 'none'} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PodcastLibrary() {
   const [searchInput, setSearchInput] = useState('');
@@ -250,6 +323,10 @@ export default function PodcastLibrary() {
                     {podcast.generated_at && ` · ${formatDate(podcast.generated_at)}`}
                     {podcast.created_by_name && ` · by ${podcast.created_by_name}`}
                   </p>
+
+                  {isDigest && podcast.digest_papers && podcast.digest_papers.length > 0 && (
+                    <DigestPapersList podcastId={podcast.id} papers={podcast.digest_papers} />
+                  )}
                 </article>
               );
             })}

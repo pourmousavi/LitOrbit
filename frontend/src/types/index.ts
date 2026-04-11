@@ -97,6 +97,14 @@ export interface RatingResponse {
   follow_up_options: string[] | null;
 }
 
+export interface DigestPaper {
+  id: string;
+  title: string;
+  journal: string;
+  relevance_score: number | null;
+  is_favorite: boolean;
+}
+
 export interface Podcast {
   id: string;
   paper_id: string | null;
@@ -105,6 +113,7 @@ export interface Podcast {
   audio_path: string | null;
   duration_seconds: number | null;
   generated_at: string;
+  digest_papers?: DigestPaper[];
 }
 
 export interface Share {

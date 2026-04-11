@@ -68,6 +68,7 @@ interface PodcastListItem {
   generated_at: string;
   collections: { id: string; name: string; color: string }[];
   created_by_name: string | null;
+  digest_papers?: { id: string; title: string; journal: string; relevance_score: number | null; is_favorite: boolean }[];
 }
 
 export function useDeletePodcast() {
