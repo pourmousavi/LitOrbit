@@ -7,7 +7,7 @@ import { usePlayerStore } from '@/stores/playerStore';
 import { cn, formatDate, getScoreColor, getScoreBgColor } from '@/lib/utils';
 import api from '@/lib/api';
 
-function DigestPapersList({ podcastId, papers: initialPapers }: { podcastId: string; papers: { id: string; title: string; journal: string; relevance_score: number | null; is_favorite: boolean }[] }) {
+function DigestPapersList({ papers: initialPapers }: { papers: { id: string; title: string; journal: string; relevance_score: number | null; is_favorite: boolean }[] }) {
   const [expanded, setExpanded] = useState(false);
   const [papers, setPapers] = useState(initialPapers);
   const queryClient = useQueryClient();
@@ -325,7 +325,7 @@ export default function PodcastLibrary() {
                   </p>
 
                   {isDigest && podcast.digest_papers && podcast.digest_papers.length > 0 && (
-                    <DigestPapersList podcastId={podcast.id} papers={podcast.digest_papers} />
+                    <DigestPapersList papers={podcast.digest_papers} />
                   )}
                 </article>
               );
