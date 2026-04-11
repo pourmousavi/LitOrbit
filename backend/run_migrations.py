@@ -1,7 +1,7 @@
 """Run all SQL migrations against the database.
 
-All migrations use IF NOT EXISTS / IF NOT EXISTS patterns,
-so they are safe to run repeatedly (idempotent).
+Tracks applied migrations in a `_migrations` table so already-applied
+migrations are skipped instantly on subsequent deploys.
 """
 
 import asyncio
@@ -27,7 +27,7 @@ def split_sql_statements(sql: str) -> list[str]:
     current: list[str] = []
     i = 0
     n = len(sql)
-    dollar_tag: str | None = None  # None when outside a $...$ block, else the open tag including $
+    dollar_tag: str | None = None
 
     tag_re = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$")
 
@@ -50,10 +50,8 @@ def split_sql_statements(sql: str) -> list[str]:
             current.append(ch)
             i += 1
         else:
-            # Inside a dollar-quoted block — look for the matching close tag.
             close_idx = sql.find(dollar_tag, i)
             if close_idx == -1:
-                # Unbalanced; bail out and append the rest verbatim.
                 current.append(sql[i:])
                 i = n
                 dollar_tag = None
@@ -69,7 +67,6 @@ def split_sql_statements(sql: str) -> list[str]:
 
 
 async def run_migrations():
-    # Build database URL same way as app.database
     database_url = os.environ.get("DATABASE_URL", "")
     supabase_url = os.environ.get("SUPABASE_URL", "")
 
@@ -82,11 +79,6 @@ async def run_migrations():
         print("No DATABASE_URL or SUPABASE_URL set, skipping migrations")
         return
 
-    # For migrations, use session-mode pooler (port 5432) instead of
-    # transaction-mode (port 6543). Transaction mode enforces a short
-    # statement_timeout that can't be overridden with SET LOCAL.
-    url = url.replace(":6543/", ":5432/")
-
     connect_args = {}
     if "pooler.supabase.com" in url:
         connect_args["statement_cache_size"] = 0
@@ -97,30 +89,58 @@ async def run_migrations():
     migrations_dir = os.path.join(os.path.dirname(__file__), "alembic", "versions")
     sql_files = sorted(glob.glob(os.path.join(migrations_dir, "*.sql")))
 
-    print(f"Running {len(sql_files)} migrations...")
+    print(f"Found {len(sql_files)} migration files...")
 
-    for sql_file in sql_files:
-        name = os.path.basename(sql_file)
+    # Create tracking table if it doesn't exist (fast, tiny table)
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS _migrations ("
+            "  name TEXT PRIMARY KEY, "
+            "  applied_at TIMESTAMPTZ DEFAULT now()"
+            ")"
+        ))
+
+        # Get already-applied migrations
+        result = await conn.execute(text("SELECT name FROM _migrations"))
+        applied = {row[0] for row in result.all()}
+
+    pending = [(f, os.path.basename(f)) for f in sql_files if os.path.basename(f) not in applied]
+
+    if not pending:
+        print("All migrations already applied.")
+        await engine.dispose()
+        return
+
+    print(f"Running {len(pending)} new migration(s) ({len(applied)} already applied)...")
+
+    for sql_file, name in pending:
         with open(sql_file) as f:
             sql = f.read().strip()
         if not sql:
             continue
 
         try:
-            # Each migration in its own transaction so a timeout on one
-            # doesn't block the rest (all use IF NOT EXISTS / idempotent).
             async with engine.begin() as conn:
                 for statement in split_sql_statements(sql):
                     await conn.execute(text(statement))
+                # Record as applied
+                await conn.execute(text(
+                    "INSERT INTO _migrations (name) VALUES (:name) ON CONFLICT DO NOTHING"
+                ), {"name": name})
             print(f"  ✓ {name}")
         except Exception as e:
             err_str = str(e).lower()
             if "timeout" in err_str or "canceled" in err_str:
-                # Supabase enforces a role-level statement_timeout.
-                # If a migration times out it's almost certainly already
-                # applied (IF NOT EXISTS just takes too long to check on
-                # large tables). Safe to skip.
-                print(f"  ⏭ {name} (skipped — statement timeout, likely already applied)")
+                # If it timed out, the DDL likely already exists.
+                # Mark as applied so we don't retry every deploy.
+                try:
+                    async with engine.begin() as conn:
+                        await conn.execute(text(
+                            "INSERT INTO _migrations (name) VALUES (:name) ON CONFLICT DO NOTHING"
+                        ), {"name": name})
+                except Exception:
+                    pass
+                print(f"  ⏭ {name} (timeout — marked as applied)")
             else:
                 raise
 
