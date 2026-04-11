@@ -66,32 +66,32 @@ export default function Feed() {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {/* Feed column — independently scrollable */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
+      <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 600, display: 'flex', alignItems: 'baseline', gap: 10 }} className="font-mono text-text-primary">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 8 }}>
+            <h1 style={{ fontWeight: 600, display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }} className="font-mono text-text-primary text-xl">
               Paper Feed
               {totalPapers !== null && (
-                <span className="font-mono text-text-tertiary" style={{ fontSize: 13, fontWeight: 400 }}>
-                  {totalPapers.toLocaleString()} {totalPapers === 1 ? 'paper' : 'papers'}
+                <span className="font-mono text-text-tertiary" style={{ fontSize: 12, fontWeight: 400 }}>
+                  {totalPapers.toLocaleString()}
                 </span>
               )}
             </h1>
 
             {/* Add Paper button */}
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
               <button
                 onClick={() => { setShowAddMenu(!showAddMenu); setShowDoiInput(false); }}
-                className="flex items-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
-                style={{ gap: 6, padding: '8px 16px' }}
+                className="flex items-center rounded-xl bg-accent font-mono text-xs font-medium text-white transition hover:bg-accent-hover md:text-sm"
+                style={{ gap: 6, padding: '8px 12px' }}
               >
-                <Plus size={15} /> Add Paper
+                <Plus size={15} /> <span className="hidden md:inline">Add Paper</span><span className="md:hidden">Add</span>
               </button>
 
               {showAddMenu && (
                 <div
                   className="rounded-xl border border-border-default bg-bg-surface shadow-lg"
-                  style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 280, zIndex: 50 }}
+                  style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 'min(280px, calc(100vw - 40px))', zIndex: 50 }}
                 >
                   {!showDoiInput ? (
                     <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -182,7 +182,7 @@ export default function Feed() {
           {/* Search bar */}
           <div
             className="rounded-2xl border border-border-default bg-bg-surface transition focus-within:border-accent"
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', marginBottom: 24 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', marginBottom: 16 }}
           >
             <Search size={16} className="text-text-tertiary" style={{ flexShrink: 0 }} />
             <input
@@ -204,39 +204,39 @@ export default function Feed() {
           </div>
 
           {/* Sort options */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }} className="scrollbar-none">
             <ArrowUpDown size={13} className="text-text-tertiary" style={{ flexShrink: 0 }} />
             {([
-              ['score', 'Highest Score'],
-              ['newest', 'Recently Fetched'],
-              ['published', 'Recently Published'],
-              ['oldest', 'Oldest First'],
+              ['score', 'Top'],
+              ['newest', 'New'],
+              ['published', 'Published'],
+              ['oldest', 'Old'],
             ] as const).map(([value, label]) => (
               <button
                 key={value}
                 onClick={() => setSort(value)}
-                className={`rounded-lg font-mono text-xs transition ${
+                className={`whitespace-nowrap rounded-lg font-mono text-xs transition ${
                   sort === value
                     ? 'bg-bg-elevated text-text-primary'
                     : 'text-text-tertiary hover:text-text-secondary'
                 }`}
-                style={{ padding: '6px 12px' }}
+                style={{ padding: '6px 10px', flexShrink: 0 }}
               >
                 {label}
               </button>
             ))}
             <button
               onClick={() => setFavoritesOnly((v) => !v)}
-              className={`flex items-center rounded-lg font-mono text-xs transition ${
+              className={`flex items-center whitespace-nowrap rounded-lg font-mono text-xs transition ${
                 favoritesOnly
                   ? 'bg-accent text-white'
                   : 'text-text-tertiary hover:text-text-secondary'
               }`}
-              style={{ padding: '6px 12px', gap: 4, marginLeft: 4 }}
+              style={{ padding: '6px 10px', gap: 4, flexShrink: 0 }}
               title="Show only favorites"
             >
               <Bookmark size={12} fill={favoritesOnly ? 'currentColor' : 'none'} />
-              Favorites
+              Favs
             </button>
           </div>
 
@@ -244,14 +244,24 @@ export default function Feed() {
         </div>
       </div>
 
-      {/* Detail panel — independently scrollable */}
+      {/* Detail panel — sidebar on desktop, full-screen overlay on mobile */}
       {selectedPaperId && (
-        <div
-          className="hidden border-l border-border-default bg-bg-surface md:block"
-          style={{ width: 420, flexShrink: 0, overflowY: 'auto', height: '100vh' }}
-        >
-          <PaperDetail />
-        </div>
+        <>
+          {/* Mobile: full-screen overlay */}
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-bg-base md:hidden"
+            style={{ paddingBottom: 64 }}
+          >
+            <PaperDetail />
+          </div>
+          {/* Desktop: side panel */}
+          <div
+            className="hidden border-l border-border-default bg-bg-surface md:block"
+            style={{ width: 420, flexShrink: 0, overflowY: 'auto', height: '100vh' }}
+          >
+            <PaperDetail />
+          </div>
+        </>
       )}
     </div>
   );

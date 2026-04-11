@@ -37,7 +37,7 @@ function InterestChart({ vector }: { vector: Record<string, number> }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {entries.map(([cat, weight]) => (
         <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ width: 130, flexShrink: 0, textAlign: 'right' }} className="truncate font-mono text-xs text-text-secondary">
+          <span style={{ width: 90, flexShrink: 0, textAlign: 'right' }} className="truncate font-mono text-xs text-text-secondary">
             {cat}
           </span>
           <div style={{ flex: 1, height: 20, display: 'flex', alignItems: 'center' }}>
@@ -78,9 +78,9 @@ export default function Profile() {
 
   if (isLoading || !profile) {
     return (
-      <div style={{ padding: '32px 24px' }}>
+      <div className="px-3 py-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">Settings</h1>
+          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">Settings</h1>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="animate-pulse rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
@@ -95,28 +95,28 @@ export default function Profile() {
   }
 
   return (
-    <div style={{ padding: '32px 24px' }}>
+    <div className="px-3 py-4 md:px-6 md:py-8">
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">Settings</h1>
+        <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">Settings</h1>
 
         {/* Tab bar */}
         <div
-          className="rounded-2xl bg-bg-surface"
-          style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 6, marginBottom: 32 }}
+          className="rounded-2xl bg-bg-surface scrollbar-none"
+          style={{ display: 'flex', gap: 4, padding: 4, marginBottom: 24, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
         >
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cn(
-                'flex items-center rounded-xl font-mono text-sm transition',
+                'flex items-center whitespace-nowrap rounded-xl font-mono text-sm transition',
                 tab === t.key
                   ? 'bg-accent text-white'
                   : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
               )}
-              style={{ gap: 8, padding: '10px 18px' }}
+              style={{ gap: 6, padding: '8px 14px', flexShrink: 0 }}
             >
-              <t.icon size={15} />
+              <t.icon size={14} />
               {t.label}
             </button>
           ))}

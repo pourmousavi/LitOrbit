@@ -41,9 +41,9 @@ export default function SharedWithMe() {
 
   if (isLoading) {
     return (
-      <div style={{ padding: '32px 24px' }}>
+      <div className="px-3 py-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
             Shared with Me
           </h1>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -60,9 +60,9 @@ export default function SharedWithMe() {
   }
 
   return (
-    <div style={{ padding: '32px 24px' }}>
+    <div className="px-3 py-4 md:px-6 md:py-8">
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+        <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
           Shared with Me
         </h1>
 
@@ -83,23 +83,23 @@ export default function SharedWithMe() {
                   'rounded-2xl border border-border-default bg-bg-surface transition cursor-pointer hover:border-border-strong',
                   !share.is_read && 'border-l-[3px] border-l-accent',
                 )}
-                style={{ padding: 20 }}
+                style={{ padding: 14 }}
                 onClick={() => {
                   if (!share.is_read) markRead.mutate(share.id);
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     {share.is_read ? (
-                      <MailOpen size={16} className="text-text-tertiary" />
+                      <MailOpen size={16} className="text-text-tertiary shrink-0" />
                     ) : (
-                      <Mail size={16} className="text-accent" />
+                      <Mail size={16} className="text-accent shrink-0" />
                     )}
-                    <span className="font-mono text-sm text-text-secondary">
+                    <span className="font-mono text-sm text-text-secondary truncate">
                       From <strong className="text-text-primary">{share.sharer_name}</strong> &middot; {formatDate(share.shared_at)}
                     </span>
                   </div>
-                  <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary" style={{ padding: '4px 10px' }}>
+                  <span className="hidden rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary md:inline" style={{ padding: '4px 10px', flexShrink: 0 }}>
                     {share.paper.journal}
                   </span>
                 </div>

@@ -72,12 +72,12 @@ export default function PodcastLibrary() {
 
   if (isLoading) {
     return (
-      <div style={{ padding: '32px 24px' }}>
+      <div className="px-3 py-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
             Podcast Library
           </h1>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="animate-pulse rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
                 <div className="h-5 w-3/4 rounded bg-bg-elevated" />
@@ -91,22 +91,22 @@ export default function PodcastLibrary() {
   }
 
   return (
-    <div style={{ padding: '32px 24px' }}>
+    <div className="px-3 py-4 md:px-6 md:py-8">
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+        <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
           Podcast Library
         </h1>
 
         {/* Search bar */}
         <div
           className="rounded-2xl border border-border-default bg-bg-surface transition focus-within:border-accent"
-          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', marginBottom: 16 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 12 }}
         >
           <Search size={16} className="text-text-tertiary" style={{ flexShrink: 0 }} />
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search podcast titles, journals..."
+            placeholder="Search podcasts..."
             className="font-mono text-sm text-text-primary placeholder-text-tertiary outline-none bg-transparent"
             style={{ flex: 1 }}
           />
@@ -118,59 +118,53 @@ export default function PodcastLibrary() {
         </div>
 
         {/* Filters + sort */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }} className="scrollbar-none">
           {/* Type filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {([['', 'All'], ['paper', 'Paper'], ['digest', 'Digest']] as const).map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => setTypeFilter(value)}
-                className={`rounded-lg font-mono text-xs transition ${
-                  typeFilter === value ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary'
-                }`}
-                style={{ padding: '6px 12px' }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {([['', 'All'], ['paper', 'Paper'], ['digest', 'Digest']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setTypeFilter(value)}
+              className={`whitespace-nowrap rounded-lg font-mono text-xs transition ${
+                typeFilter === value ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary'
+              }`}
+              style={{ padding: '6px 10px', flexShrink: 0 }}
+            >
+              {label}
+            </button>
+          ))}
 
-          <span className="text-text-tertiary" style={{ fontSize: 10 }}>|</span>
+          <span className="text-text-tertiary" style={{ fontSize: 10, flexShrink: 0 }}>|</span>
 
           {/* Voice filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {([['', 'All'], ['single', 'Single'], ['dual', 'Dual']] as const).map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => setVoiceFilter(value)}
-                className={`rounded-lg font-mono text-xs transition ${
-                  voiceFilter === value ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary'
-                }`}
-                style={{ padding: '6px 12px' }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {([['', 'Any'], ['single', 'Single'], ['dual', 'Dual']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setVoiceFilter(value)}
+              className={`whitespace-nowrap rounded-lg font-mono text-xs transition ${
+                voiceFilter === value ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary'
+              }`}
+              style={{ padding: '6px 10px', flexShrink: 0 }}
+            >
+              {label}
+            </button>
+          ))}
 
-          <span className="text-text-tertiary" style={{ fontSize: 10 }}>|</span>
+          <span className="text-text-tertiary" style={{ fontSize: 10, flexShrink: 0 }}>|</span>
 
           {/* Sort */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <ArrowUpDown size={13} className="text-text-tertiary" />
-            {([['newest', 'Newest'], ['oldest', 'Oldest'], ['longest', 'Longest'], ['shortest', 'Shortest']] as const).map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => setSort(value)}
-                className={`rounded-lg font-mono text-xs transition ${
-                  sort === value ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary'
-                }`}
-                style={{ padding: '6px 12px' }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <ArrowUpDown size={13} className="text-text-tertiary" style={{ flexShrink: 0 }} />
+          {([['newest', 'New'], ['oldest', 'Old'], ['longest', 'Long'], ['shortest', 'Short']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setSort(value)}
+              className={`whitespace-nowrap rounded-lg font-mono text-xs transition ${
+                sort === value ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary'
+              }`}
+              style={{ padding: '6px 10px', flexShrink: 0 }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {!podcasts?.length ? (
@@ -182,7 +176,7 @@ export default function PodcastLibrary() {
             </p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
             {podcasts.map((podcast) => {
               const fullUrl = `${apiBase}${podcast.audio_url}`;
               const isPlaying = currentTrackUrl === fullUrl;

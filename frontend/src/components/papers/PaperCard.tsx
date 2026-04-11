@@ -33,12 +33,12 @@ export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite
     <article
       onClick={onClick}
       className={cn(
-        'group cursor-pointer rounded-2xl border border-border-default bg-bg-surface transition-all',
+        'group cursor-pointer rounded-2xl border border-border-default bg-bg-surface transition-all overflow-hidden',
         'hover:border-border-strong',
         isSelected && 'border-accent bg-bg-elevated',
         paper.is_opened && !isSelected && 'opacity-60 hover:opacity-100',
       )}
-      style={{ padding: 20 }}
+      style={{ padding: 14 }}
     >
       {/* Top row: journal badge + score */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
@@ -91,7 +91,7 @@ export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite
       </div>
 
       {/* Title */}
-      <h3 className="font-sans font-semibold text-text-primary line-clamp-2" style={{ fontSize: 16, lineHeight: 1.45, marginBottom: 8 }}>
+      <h3 className="font-sans font-semibold text-text-primary line-clamp-2" style={{ fontSize: 15, lineHeight: 1.4, marginBottom: 6 }}>
         {paper.title}
       </h3>
 

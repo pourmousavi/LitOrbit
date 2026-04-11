@@ -24,9 +24,9 @@ export default function MyRatings() {
 
   if (isLoading) {
     return (
-      <div style={{ padding: '32px 24px' }}>
+      <div className="px-3 py-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
             My Ratings
           </h1>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -43,9 +43,9 @@ export default function MyRatings() {
   }
 
   return (
-    <div style={{ padding: '32px 24px' }}>
+    <div className="px-3 py-4 md:px-6 md:py-8">
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+        <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
           My Ratings
         </h1>
 
@@ -62,8 +62,8 @@ export default function MyRatings() {
             {ratings.map((item) => (
               <article
                 key={item.id}
-                className="rounded-2xl border border-border-default bg-bg-surface"
-                style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 16 }}
+                className="rounded-2xl border border-border-default bg-bg-surface overflow-hidden"
+                style={{ padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}
               >
                 {/* Score */}
                 <span
@@ -76,31 +76,22 @@ export default function MyRatings() {
                         ? 'bg-score-mid/15'
                         : 'bg-score-low/15',
                   )}
-                  style={{ width: 48, height: 48, flexShrink: 0 }}
+                  style={{ width: 42, height: 42, flexShrink: 0 }}
                 >
                   {item.rating}
                 </span>
 
                 {/* Paper info */}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <h3 className="font-sans font-semibold text-text-primary" style={{ fontSize: 15, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <h3 className="font-sans font-semibold text-text-primary line-clamp-2" style={{ fontSize: 14, lineHeight: 1.4 }}>
                     {item.paper_title}
                   </h3>
-                  <p className="font-mono text-xs text-text-secondary" style={{ marginTop: 4 }}>
+                  <p className="font-mono text-xs text-text-secondary truncate" style={{ marginTop: 4 }}>
                     {item.paper_journal}
                     {item.rated_at && ` · ${formatDate(item.rated_at)}`}
+                    {item.feedback_type && ` · ${item.feedback_type}`}
                   </p>
                 </div>
-
-                {/* Feedback type */}
-                {item.feedback_type && (
-                  <span
-                    className="rounded-lg bg-bg-elevated font-mono text-xs text-text-tertiary"
-                    style={{ padding: '4px 10px', flexShrink: 0 }}
-                  >
-                    {item.feedback_type}
-                  </span>
-                )}
               </article>
             ))}
           </div>

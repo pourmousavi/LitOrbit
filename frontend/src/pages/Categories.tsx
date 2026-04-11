@@ -83,28 +83,29 @@ export default function Categories() {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {/* Main column */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
+      <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 24 }} className="font-mono text-text-primary">
+          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
             Collections
           </h1>
 
           {/* Collection chips */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+          <div className="flex flex-nowrap gap-2 mb-2 overflow-x-auto pb-1 scrollbar-none md:flex-wrap md:overflow-visible"
+          >
             <button
               onClick={() => setSelectedCollection(null)}
               className={cn(
-                'rounded-full font-mono text-sm transition',
+                'whitespace-nowrap rounded-full font-mono text-sm transition',
                 !selectedCollection
                   ? 'bg-accent text-white'
                   : 'bg-bg-surface text-text-secondary hover:text-text-primary border border-border-default',
               )}
-              style={{ padding: '8px 16px' }}
+              style={{ padding: '8px 16px', flexShrink: 0 }}
             >
               All
             </button>
             {collections?.map((col) => (
-              <div key={col.id} style={{ display: 'flex', alignItems: 'center' }}>
+              <div key={col.id} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                 {editingId === col.id ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     <input
@@ -248,7 +249,7 @@ export default function Categories() {
                 </p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, marginTop: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12, marginTop: 16 }}>
                 {collections.map((col) => {
                   const totalPodcasts = col.podcast_count_single + col.podcast_count_dual;
                   return (
@@ -350,14 +351,22 @@ export default function Categories() {
         </div>
       </div>
 
-      {/* Detail panel */}
+      {/* Detail panel — sidebar on desktop, full-screen overlay on mobile */}
       {selectedPaperId && (
-        <div
-          className="hidden border-l border-border-default bg-bg-surface md:block"
-          style={{ width: 420, flexShrink: 0, overflowY: 'auto', height: '100vh' }}
-        >
-          <PaperDetail />
-        </div>
+        <>
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-bg-base md:hidden"
+            style={{ paddingBottom: 64 }}
+          >
+            <PaperDetail />
+          </div>
+          <div
+            className="hidden border-l border-border-default bg-bg-surface md:block"
+            style={{ width: 420, flexShrink: 0, overflowY: 'auto', height: '100vh' }}
+          >
+            <PaperDetail />
+          </div>
+        </>
       )}
     </div>
   );

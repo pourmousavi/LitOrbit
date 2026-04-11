@@ -1,9 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Howl } from 'howler';
 import { Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX } from 'lucide-react';
 import { usePlayerStore } from '@/stores/playerStore';
 import { useUIStore } from '@/stores/uiStore';
 import api from '@/lib/api';
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isDesktop;
+}
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -25,6 +36,7 @@ export default function PodcastPlayer() {
     clearTrack,
   } = usePlayerStore();
   const sidebarExpanded = useUIStore((s) => s.sidebarExpanded);
+  const isDesktop = useIsDesktop();
   const howlRef = useRef<Howl | null>(null);
   const rafRef = useRef<number>(0);
 
@@ -117,20 +129,15 @@ export default function PodcastPlayer() {
 
   return (
     <div
-      className="border-t border-border-default bg-bg-surface"
+      className="fixed bottom-16 left-0 right-0 z-50 border-t border-border-default bg-bg-surface transition-all duration-200 md:bottom-0"
       style={{
-        position: 'fixed',
-        bottom: window.innerWidth < 768 ? 64 : 0,
-        left: window.innerWidth >= 768 ? sidebarWidth : 0,
-        right: 0,
         height: 72,
-        zIndex: 50,
-        transition: 'left 0.2s',
+        marginLeft: isDesktop ? sidebarWidth : 0,
       }}
     >
-      <div style={{ maxWidth: 1100, margin: '0 auto', height: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', height: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px' }}>
         {/* Track info */}
-        <div style={{ minWidth: 0, flex: '0 1 200px' }}>
+        <div style={{ minWidth: 0, flex: '1 1 auto', maxWidth: 200 }}>
           <p className="truncate font-sans text-text-primary" style={{ fontSize: 13 }}>{currentPaperTitle}</p>
           <p className="truncate font-mono text-text-secondary" style={{ fontSize: 11 }}>{currentJournal}</p>
         </div>
