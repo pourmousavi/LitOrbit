@@ -1,7 +1,18 @@
+import logging
+import sys
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+
+# Configure logging to stdout so Render captures all log output
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s: %(message)s",
+)
+
 from app.routers import papers, ratings, shares, users, podcasts, admin, collections, feed, reference_papers
 
 settings = get_settings()
@@ -34,7 +45,6 @@ app.include_router(collections.router)
 app.include_router(feed.router)
 app.include_router(reference_papers.router)
 
-import logging
 logging.getLogger(__name__).info(f"Registered {len(app.routes)} routes")
 
 
