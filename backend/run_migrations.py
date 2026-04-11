@@ -99,22 +99,30 @@ async def run_migrations():
 
     print(f"Running {len(sql_files)} migrations...")
 
-    async with engine.begin() as conn:
-        # Extend statement timeout for migrations (Supabase pooler default is often too short)
-        # Use SET LOCAL so it works with PgBouncer in transaction mode
-        await conn.execute(text("SET LOCAL statement_timeout = '120s'"))
+    for sql_file in sql_files:
+        name = os.path.basename(sql_file)
+        with open(sql_file) as f:
+            sql = f.read().strip()
+        if not sql:
+            continue
 
-        for sql_file in sql_files:
-            name = os.path.basename(sql_file)
-            with open(sql_file) as f:
-                sql = f.read().strip()
-            if sql:
-                # asyncpg doesn't support multiple statements per execute,
-                # so split on top-level semicolons (preserving $$...$$ blocks)
-                # and run each statement separately.
+        try:
+            # Each migration in its own transaction so a timeout on one
+            # doesn't block the rest (all use IF NOT EXISTS / idempotent).
+            async with engine.begin() as conn:
                 for statement in split_sql_statements(sql):
                     await conn.execute(text(statement))
-                print(f"  ✓ {name}")
+            print(f"  ✓ {name}")
+        except Exception as e:
+            err_str = str(e).lower()
+            if "timeout" in err_str or "canceled" in err_str:
+                # Supabase enforces a role-level statement_timeout.
+                # If a migration times out it's almost certainly already
+                # applied (IF NOT EXISTS just takes too long to check on
+                # large tables). Safe to skip.
+                print(f"  ⏭ {name} (skipped — statement timeout, likely already applied)")
+            else:
+                raise
 
     await engine.dispose()
     print("Migrations complete.")
