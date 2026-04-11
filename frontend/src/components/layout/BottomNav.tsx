@@ -45,8 +45,8 @@ export default function BottomNav() {
 
       {/* More menu panel */}
       {showMore && (
-        <div className="fixed bottom-16 left-0 right-0 z-50 border-t border-border-default bg-bg-surface px-4 py-3">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div className="fixed bottom-16 left-0 right-0 z-50 border-t border-border-default bg-bg-surface px-4 py-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {visibleMoreTabs.map((tab) => (
               <NavLink
                 key={tab.to}
@@ -54,20 +54,23 @@ export default function BottomNav() {
                 onClick={() => setShowMore(false)}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 rounded-xl px-4 py-3 font-mono text-sm transition',
+                    'flex items-center gap-3 rounded-xl px-4 font-mono text-sm transition',
                     isActive
                       ? 'bg-accent-subtle text-accent'
                       : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
                   )
                 }
+                style={{ minHeight: 48 }}
               >
                 <tab.icon size={18} />
                 {tab.label}
               </NavLink>
             ))}
+            <div className="border-t border-border-default" style={{ margin: '2px 0' }} />
             <button
               onClick={handleLogout}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 font-mono text-sm text-text-secondary transition hover:bg-bg-elevated hover:text-danger"
+              className="flex w-full items-center gap-3 rounded-xl px-4 font-mono text-sm text-text-secondary transition hover:bg-bg-elevated hover:text-danger"
+              style={{ minHeight: 48 }}
             >
               <LogOut size={18} />
               Sign out
