@@ -83,9 +83,9 @@ export default function Categories() {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {/* Main column */}
-      <div className="flex-1 overflow-y-auto px-3 pt-6 pb-4 md:px-6 md:py-8">
+      <div className="flex-1 overflow-y-auto px-4 pt-8 pb-4 md:px-8 md:pt-10 md:pb-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
+          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-6">
             Collections
           </h1>
 

@@ -78,9 +78,9 @@ export default function Profile() {
 
   if (isLoading || !profile) {
     return (
-      <div className="px-3 pt-6 pb-4 md:px-6 md:py-8">
+      <div className="px-4 pt-8 pb-4 md:px-8 md:pt-10 md:pb-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">Settings</h1>
+          <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-6">Settings</h1>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="animate-pulse rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
@@ -95,9 +95,9 @@ export default function Profile() {
   }
 
   return (
-    <div className="px-3 pt-6 pb-4 md:px-6 md:py-8">
+    <div className="px-4 pt-8 pb-4 md:px-8 md:pt-10 md:pb-8">
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
-        <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">Settings</h1>
+        <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-6">Settings</h1>
 
         {/* Tab bar */}
         <div
