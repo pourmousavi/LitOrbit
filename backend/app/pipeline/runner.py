@@ -140,6 +140,7 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
 
     Returns dict with counts and quota status.
     """
+    import sys
     from sqlalchemy import or_, text as sa_text
 
     # Debug: count papers with NULL embedding directly via raw SQL
@@ -151,22 +152,26 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
     raw_total = await db.execute(sa_text("SELECT count(*) FROM papers"))
     total_count = raw_total.scalar()
 
-    # Use print() to guarantee visibility on Render (logger.info may be swallowed)
-    print(
-        f"[EMBEDDING DEBUG] Raw SQL: {null_count} papers with NULL embedding "
-        f"out of {total_count} total",
-        flush=True,
-    )
-
-    # Also check what values the embedding column actually contains
+    # Check what values the embedding column actually contains
     sample = await db.execute(sa_text(
         "SELECT id, embedding IS NULL as is_null, "
         "jsonb_typeof(embedding) as etype, "
         "CASE WHEN embedding IS NOT NULL THEN length(embedding::text) ELSE 0 END as elen "
         "FROM papers LIMIT 5"
     ))
-    for row in sample.all():
-        print(f"[EMBEDDING DEBUG] Paper {row[0]}: is_null={row[1]}, type={row[2]}, len={row[3]}", flush=True)
+    sample_rows = sample.all()
+    sample_info = [
+        f"{row[0]}:null={row[1]},type={row[2]},len={row[3]}"
+        for row in sample_rows
+    ]
+
+    # Log to stderr (Render always captures this)
+    debug_msg = (
+        f"[EMBED] null_embedding={null_count}/{total_count} "
+        f"samples=[{'; '.join(sample_info)}]"
+    )
+    print(debug_msg, file=sys.stderr, flush=True)
+    logger.warning(debug_msg)  # WARNING level guaranteed to show
 
     result = await db.execute(
         select(Paper).where(
@@ -179,10 +184,14 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
     )
     papers = result.scalars().all()
 
-    print(f"[EMBEDDING DEBUG] ORM query returned {len(papers)} unembedded papers", flush=True)
+    logger.warning(f"[EMBED] ORM query returned {len(papers)} unembedded papers")
 
     if not papers:
-        return {"embedded": 0, "skipped": 0, "quota_exhausted": False}
+        # Include debug info in the return so it shows in the Admin UI run log
+        return {
+            "embedded": 0, "skipped": 0, "quota_exhausted": False,
+            "debug": f"null={null_count}/{total_count}, samples={sample_info[:3]}",
+        }
 
     texts = [prepare_paper_text(p.title, p.abstract or "") for p in papers]
 
@@ -565,7 +574,7 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
             {"step": "raw_papers", "count": len(all_papers)},
             {"step": "dedup", "unique": len(unique_papers)},
             {"step": "saved", "count": saved_count},
-            {"step": "embedding", "embedded": embed_results["embedded"], "skipped": embed_results["skipped"], "quota_exhausted": embed_results["quota_exhausted"], "message": embed_message},
+            {"step": "embedding", "embedded": embed_results["embedded"], "skipped": embed_results["skipped"], "quota_exhausted": embed_results["quota_exhausted"], "message": embed_message or embed_results.get("debug")},
             {"step": "scoring", "scored": ai_results["scored"], "embedding_users": ai_results.get("embedding_users", 0), "keyword_fallback_users": ai_results.get("keyword_fallback_users", 0)},
             {"step": "prefilter", "passed": ai_results["prefiltered"]},
             {"step": "summarisation", "summarised": ai_results["summarised"]},
