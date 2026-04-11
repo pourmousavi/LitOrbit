@@ -82,6 +82,11 @@ async def run_migrations():
         print("No DATABASE_URL or SUPABASE_URL set, skipping migrations")
         return
 
+    # For migrations, use session-mode pooler (port 5432) instead of
+    # transaction-mode (port 6543). Transaction mode enforces a short
+    # statement_timeout that can't be overridden with SET LOCAL.
+    url = url.replace(":6543/", ":5432/")
+
     connect_args = {}
     if "pooler.supabase.com" in url:
         connect_args["statement_cache_size"] = 0
