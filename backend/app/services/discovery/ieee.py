@@ -26,55 +26,67 @@ async def fetch_ieee_papers(
     start_date = (today - timedelta(days=lookback_days)).strftime("%Y%m%d")
     end_date = today.strftime("%Y%m%d")
 
-    params = {
-        "apikey": settings.ieee_api_key,
-        "publication_number": publication_number,
-        "sort_field": "publication_date",
-        "sort_order": "desc",
-        "start_record": 1,
-        "max_records": 25,
-        "start_date": start_date,
-        "end_date": end_date,
-    }
+    PAGE_SIZE = 25  # IEEE API max per request
+    MAX_PAGES = 8   # Safety cap: 200 papers max per journal per run
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            start = datetime.now(timezone.utc)
-            resp = await client.get(BASE_URL, params=params)
-            duration = (datetime.now(timezone.utc) - start).total_seconds()
-            logger.info(f"IEEE API call for pub {publication_number}: {resp.status_code} in {duration:.2f}s")
+        all_articles: list[dict] = []
+        start_record = 1
 
-            resp.raise_for_status()
-            data = resp.json()
-        except httpx.HTTPStatusError as e:
-            status = e.response.status_code
-            if status == 429:
-                logger.warning(
-                    f"IEEE API rate limit hit (429) for pub {publication_number}. "
-                    "Per-second throttle exceeded; backing off this run."
-                )
-            elif status == 403:
-                logger.error(
-                    f"IEEE API quota/permission error (403) for pub {publication_number}. "
-                    "Likely daily 400-call quota exhausted or key inactive."
-                )
-            else:
-                logger.error(f"IEEE API error for pub {publication_number}: {status}")
-            return []
-        except httpx.RequestError as e:
-            logger.error(f"IEEE API request error for pub {publication_number}: {e}")
-            return []
+        while True:
+            params = {
+                "apikey": settings.ieee_api_key,
+                "publication_number": publication_number,
+                "sort_field": "publication_date",
+                "sort_order": "desc",
+                "start_record": start_record,
+                "max_records": PAGE_SIZE,
+                "start_date": start_date,
+                "end_date": end_date,
+            }
 
-    total_records = data.get("total_records", 0)
-    if total_records > 25:
-        logger.warning(
-            f"IEEE pub {publication_number}: {total_records} records available "
-            f"but only 25 fetched (no pagination). Consider shorter lookback or paginate."
-        )
+            try:
+                start = datetime.now(timezone.utc)
+                resp = await client.get(BASE_URL, params=params)
+                duration = (datetime.now(timezone.utc) - start).total_seconds()
+                logger.info(f"IEEE API call for pub {publication_number} (start={start_record}): {resp.status_code} in {duration:.2f}s")
 
-    articles = data.get("articles", [])
+                resp.raise_for_status()
+                data = resp.json()
+            except httpx.HTTPStatusError as e:
+                status = e.response.status_code
+                if status == 429:
+                    logger.warning(
+                        f"IEEE API rate limit hit (429) for pub {publication_number}. "
+                        "Per-second throttle exceeded; backing off this run."
+                    )
+                elif status == 403:
+                    logger.error(
+                        f"IEEE API quota/permission error (403) for pub {publication_number}. "
+                        "Likely daily 400-call quota exhausted or key inactive."
+                    )
+                else:
+                    logger.error(f"IEEE API error for pub {publication_number}: {status}")
+                break
+            except httpx.RequestError as e:
+                logger.error(f"IEEE API request error for pub {publication_number}: {e}")
+                break
+
+            articles = data.get("articles", [])
+            all_articles.extend(articles)
+
+            total_records = data.get("total_records", 0)
+            fetched_so_far = start_record - 1 + len(articles)
+            page_num = (start_record - 1) // PAGE_SIZE + 1
+
+            if fetched_so_far >= total_records or len(articles) < PAGE_SIZE or page_num >= MAX_PAGES:
+                break
+
+            start_record += PAGE_SIZE
+            await asyncio.sleep(0.3)  # brief pause between pages
+
     papers = []
-    for article in articles:
+    for article in all_articles:
         authors_list = []
         if "authors" in article and "authors" in article["authors"]:
             raw = article["authors"]["authors"]
