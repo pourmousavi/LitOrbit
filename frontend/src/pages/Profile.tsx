@@ -78,7 +78,7 @@ export default function Profile() {
 
   if (isLoading || !profile) {
     return (
-      <div className="px-3 py-4 md:px-6 md:py-8">
+      <div className="px-3 pt-6 pb-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">Settings</h1>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -95,7 +95,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="px-3 py-4 md:px-6 md:py-8">
+    <div className="px-3 pt-6 pb-4 md:px-6 md:py-8">
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
         <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">Settings</h1>
 

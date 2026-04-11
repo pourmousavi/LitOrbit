@@ -145,7 +145,7 @@ export default function PodcastLibrary() {
 
   if (isLoading) {
     return (
-      <div className="px-3 py-4 md:px-6 md:py-8">
+      <div className="px-3 pt-6 pb-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 760, margin: '0 auto' }}>
           <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
             Podcast Library
@@ -164,7 +164,7 @@ export default function PodcastLibrary() {
   }
 
   return (
-    <div className="px-3 py-4 md:px-6 md:py-8">
+    <div className="px-3 pt-6 pb-4 md:px-6 md:py-8">
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
         <h1 style={{ fontWeight: 600 }} className="font-mono text-text-primary text-xl mb-5">
           Podcast Library

@@ -66,9 +66,9 @@ export default function Feed() {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {/* Feed column — independently scrollable */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-8">
+      <div className="flex-1 overflow-y-auto px-3 pt-6 pb-4 md:px-6 md:py-8">
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 8 }}>
             <h1 style={{ fontWeight: 600, display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }} className="font-mono text-text-primary text-xl">
               Paper Feed
               {totalPapers !== null && (
