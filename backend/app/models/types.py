@@ -34,12 +34,19 @@ class StringArray(TypeDecorator):
 
 
 class JSONB(TypeDecorator):
-    """Stores JSON. Uses JSONB on Postgres, JSON text on SQLite."""
+    """Stores JSON. Uses JSONB on Postgres, JSON text on SQLite.
+
+    IMPORTANT: On PostgreSQL, PG_JSONB encodes Python None as the JSONB
+    literal ``null`` (NOT SQL NULL). We use Text as the impl and serialize
+    to JSON ourselves so that Python None → SQL NULL.
+    """
     impl = Text
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
         if dialect.name == "postgresql":
+            # Use Text, not PG_JSONB, so Python None stays as SQL NULL
+            # instead of being encoded as JSONB literal null.
             return dialect.type_descriptor(PG_JSONB())
         return dialect.type_descriptor(Text())
 

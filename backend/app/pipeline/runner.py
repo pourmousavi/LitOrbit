@@ -173,14 +173,18 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
     print(debug_msg, file=sys.stderr, flush=True)
     logger.warning(debug_msg)  # WARNING level guaranteed to show
 
+    # First, fix existing data: convert JSONB null to SQL NULL
+    fix_result = await db.execute(sa_text(
+        "UPDATE papers SET embedding = NULL "
+        "WHERE embedding IS NOT NULL AND jsonb_typeof(embedding) = 'null'"
+    ))
+    fixed = fix_result.rowcount
+    if fixed:
+        await db.commit()
+        logger.warning(f"[EMBED] Fixed {fixed} papers with JSONB null → SQL NULL")
+
     result = await db.execute(
-        select(Paper).where(
-            or_(
-                Paper.embedding.is_(None),
-                Paper.embedding == {},
-                Paper.embedding == [],
-            )
-        )
+        select(Paper).where(Paper.embedding.is_(None))
     )
     papers = result.scalars().all()
 
