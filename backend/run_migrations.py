@@ -95,6 +95,9 @@ async def run_migrations():
     print(f"Running {len(sql_files)} migrations...")
 
     async with engine.begin() as conn:
+        # Extend statement timeout for migrations (Supabase default is often too short)
+        await conn.execute(text("SET statement_timeout = '60s'"))
+
         for sql_file in sql_files:
             name = os.path.basename(sql_file)
             with open(sql_file) as f:
