@@ -140,7 +140,22 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
 
     Returns dict with counts and quota status.
     """
-    from sqlalchemy import or_
+    from sqlalchemy import or_, text as sa_text
+
+    # Debug: count papers with NULL embedding directly via raw SQL
+    raw_count = await db.execute(sa_text(
+        "SELECT count(*) FROM papers WHERE embedding IS NULL"
+    ))
+    null_count = raw_count.scalar()
+
+    raw_total = await db.execute(sa_text("SELECT count(*) FROM papers"))
+    total_count = raw_total.scalar()
+
+    logger.info(
+        f"Embedding check: {null_count} papers with NULL embedding "
+        f"out of {total_count} total papers"
+    )
+
     result = await db.execute(
         select(Paper).where(
             or_(
@@ -151,6 +166,8 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
         )
     )
     papers = result.scalars().all()
+
+    logger.info(f"ORM query returned {len(papers)} unembedded papers")
 
     if not papers:
         logger.info("No unembedded papers to process")
