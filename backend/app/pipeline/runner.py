@@ -140,8 +140,15 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
 
     Returns dict with counts and quota status.
     """
+    from sqlalchemy import or_
     result = await db.execute(
-        select(Paper).where(Paper.embedding.is_(None))
+        select(Paper).where(
+            or_(
+                Paper.embedding.is_(None),
+                Paper.embedding == {},
+                Paper.embedding == [],
+            )
+        )
     )
     papers = result.scalars().all()
 

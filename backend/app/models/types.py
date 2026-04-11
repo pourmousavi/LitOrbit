@@ -44,17 +44,15 @@ class JSONB(TypeDecorator):
         return dialect.type_descriptor(Text())
 
     def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
         if dialect.name == "postgresql":
             return value
-        if value is None:
-            return "{}"
         return json.dumps(value)
 
     def process_result_value(self, value, dialect):
-        if dialect.name == "postgresql":
-            return value or {}
         if value is None:
-            return {}
+            return None
         if isinstance(value, (dict, list)):
             return value
         return json.loads(value)

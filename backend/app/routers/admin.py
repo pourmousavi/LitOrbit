@@ -795,8 +795,11 @@ async def get_alerts(
     alerts = []
 
     # 1. Count unembedded papers
+    from sqlalchemy import or_
     unembedded_result = await db.execute(
-        select(func.count()).select_from(Paper).where(Paper.embedding.is_(None))
+        select(func.count()).select_from(Paper).where(
+            or_(Paper.embedding.is_(None), Paper.embedding == {}, Paper.embedding == [])
+        )
     )
     unembedded_count = unembedded_result.scalar() or 0
 
