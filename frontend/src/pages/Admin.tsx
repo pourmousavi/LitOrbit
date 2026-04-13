@@ -1178,6 +1178,7 @@ function GlobalKeywordsTab() {
 interface DigestRunItem {
   id: string;
   frequency: string;
+  run_type: string;
   started_at: string | null;
   completed_at: string | null;
   status: string;
@@ -1196,6 +1197,7 @@ const DIGEST_STEP_LABELS: Record<string, string> = {
   user_sent: 'Digest sent',
   user_partial: 'Podcast saved (email failed)',
   user_skipped: 'Skipped (no papers)',
+  user_skipped_duplicate: 'Skipped (already sent today)',
   user_failed: 'Failed to send',
   user_error: 'Error',
   completed: 'Completed',
@@ -1234,6 +1236,12 @@ function DigestRunAccordion({ run }: { run: DigestRunItem }) {
           />
           <span className="font-mono font-medium capitalize text-text-primary" style={{ fontSize: 14 }}>
             {run.status === 'running' ? 'Running digest...' : run.status === 'partial' ? 'Partial Success' : run.status}
+          </span>
+          <span className={cn(
+            'rounded-full font-mono',
+            (run.run_type || 'email') === 'podcast' ? 'bg-purple-500/15 text-purple-400' : 'bg-accent/15 text-accent',
+          )} style={{ fontSize: 11, padding: '2px 10px' }}>
+            {(run.run_type || 'email') === 'podcast' ? 'Podcast' : 'Email'}
           </span>
           <span className="rounded-full bg-bg-elevated font-mono text-text-tertiary" style={{ fontSize: 11, padding: '2px 10px' }}>
             {run.frequency}
