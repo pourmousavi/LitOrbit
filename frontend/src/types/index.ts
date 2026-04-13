@@ -57,6 +57,11 @@ export interface UserProfile {
   digest_podcast_enabled: boolean;
   digest_podcast_voice_mode: 'single' | 'dual';
   digest_top_papers: number | null;
+  podcast_digest_enabled: boolean;
+  podcast_digest_frequency: 'daily' | 'weekly';
+  podcast_digest_day: string;
+  podcast_digest_top_papers: number | null;
+  podcast_digest_voice_mode: 'single' | 'dual';
   scoring_prompt: string | null;
   single_voice_prompt: string | null;
   dual_voice_prompt: string | null;

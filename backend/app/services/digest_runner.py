@@ -1,4 +1,4 @@
-"""Digest runner — sends personalised digest emails with optional podcast."""
+"""Digest runner — sends personalised digest emails and standalone podcast digests."""
 
 import json
 import logging
@@ -76,16 +76,24 @@ async def _get_digest_papers(
     user_id: uuid.UUID,
     frequency: str,
     top_n: int,
+    source: str = "email",
 ) -> list[tuple[Paper, float]]:
     """Fetch top-N papers for this user that haven't been sent in a previous digest.
+
+    Args:
+        source: "email" or "podcast" — dedup is per-source so the same paper
+                can appear in both an email digest and a standalone podcast digest.
 
     Returns list of (Paper, relevance_score) tuples ordered by score desc.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=_lookback_days(frequency))
 
-    # Paper IDs already sent to this user
+    # Paper IDs already sent to this user for this source
     sent_result = await db.execute(
-        select(DigestLog.paper_id).where(DigestLog.user_id == user_id)
+        select(DigestLog.paper_id).where(
+            DigestLog.user_id == user_id,
+            DigestLog.source == source,
+        )
     )
     sent_paper_ids = {row[0] for row in sent_result.all()}
 
@@ -137,13 +145,35 @@ async def _get_shared_papers(
     ]
 
 
+def _build_paper_dicts(paper_score_pairs: list[tuple[Paper, float]]) -> tuple[list[dict], list[dict]]:
+    """Build email_papers and podcast_papers dicts from paper/score tuples."""
+    email_papers = []
+    podcast_papers = []
+    for paper, score in paper_score_pairs:
+        email_papers.append({
+            "title": paper.title,
+            "journal": paper.journal,
+            "score": score,
+            "summary_excerpt": _summary_excerpt(paper.summary),
+        })
+        podcast_papers.append({
+            "title": paper.title,
+            "journal": paper.journal,
+            "score": score,
+            "summary": _summary_text(paper),
+            "abstract": paper.abstract or "",
+        })
+    return email_papers, podcast_papers
+
+
 async def _generate_and_upload_podcast(
     papers_data: list[dict[str, Any]],
     user: UserProfile,
     frequency: str,
+    voice_mode: str = "dual",
+    podcast_type: str = "digest",
 ) -> Podcast | None:
     """Generate digest podcast audio, upload to storage, return Podcast record."""
-    voice_mode = user.digest_podcast_voice_mode or "dual"
 
     # User custom prompt / voices
     custom_prompt = None
@@ -190,7 +220,7 @@ async def _generate_and_upload_podcast(
             paper_id=None,
             user_id=user.id,
             voice_mode=voice_mode,
-            podcast_type="digest",
+            podcast_type=podcast_type,
             title=f"{freq_label} Digest — {today_str}",
             script=script,
             audio_path=public_url,
@@ -210,77 +240,99 @@ async def _generate_and_upload_podcast(
         return None
 
 
-async def send_digest_for_user(
+async def _already_ran_today(db: AsyncSession, user_id: uuid.UUID, source: str) -> bool:
+    """Check if a digest was already processed for this user/source today."""
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    result = await db.execute(
+        select(DigestLog.id)
+        .where(
+            DigestLog.user_id == user_id,
+            DigestLog.source == source,
+            DigestLog.sent_at >= today_start,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def _find_reusable_podcast(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    frequency: str,
+) -> Podcast | None:
+    """Find a digest podcast generated today with the same frequency (same lookback window).
+
+    Used for smart reuse: if both email and podcast digests share the same
+    frequency, we only generate the podcast once.
+    """
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    freq_label = "Daily" if frequency == "daily" else "Weekly"
+    result = await db.execute(
+        select(Podcast).where(
+            Podcast.user_id == user_id,
+            Podcast.podcast_type.in_(["digest", "standalone_digest"]),
+            Podcast.created_at >= today_start,
+            Podcast.title.startswith(freq_label),
+        ).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# Product 1: Email Digest
+# ---------------------------------------------------------------------------
+
+async def send_email_digest_for_user(
     db: AsyncSession,
     user: UserProfile,
 ) -> dict[str, Any]:
-    """Send a digest email (with optional podcast) to a single user.
-
-    Returns a summary dict.
-    """
+    """Send a digest email (with optional podcast) to a single user."""
     from app.services.settings import get_system_settings
     sys_settings = await get_system_settings(db)
 
     frequency = user.digest_frequency or "weekly"
 
-    # Guard: skip if this user already received a digest today
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    already_sent = await db.execute(
-        select(DigestLog.id)
-        .where(
-            DigestLog.user_id == user.id,
-            DigestLog.sent_at >= today_start,
-        )
-        .limit(1)
-    )
-    if already_sent.scalar_one_or_none() is not None:
-        logger.info(f"Digest already sent to {user.full_name} today, skipping duplicate")
+    # Guard: skip if already sent today
+    if await _already_ran_today(db, user.id, "email"):
+        logger.info(f"Email digest already sent to {user.full_name} today, skipping")
         return {"user": user.full_name, "papers": 0, "sent": False, "skipped_duplicate": True}
 
     top_n = user.digest_top_papers or _default_top(frequency)
-    # Cap at admin-configured max
     top_n = min(top_n, sys_settings.max_papers_per_digest)
 
-    # 1. Fetch papers not previously sent
-    paper_score_pairs = await _get_digest_papers(db, user.id, frequency, top_n)
+    # 1. Fetch papers
+    paper_score_pairs = await _get_digest_papers(db, user.id, frequency, top_n, source="email")
+    email_papers, podcast_papers = _build_paper_dicts(paper_score_pairs)
 
-    # 2. Build paper dicts for email + podcast
-    email_papers = []
-    podcast_papers = []
-    for paper, score in paper_score_pairs:
-        email_papers.append({
-            "title": paper.title,
-            "journal": paper.journal,
-            "score": score,
-            "summary_excerpt": _summary_excerpt(paper.summary),
-        })
-        podcast_papers.append({
-            "title": paper.title,
-            "journal": paper.journal,
-            "score": score,
-            "summary": _summary_text(paper),
-            "abstract": paper.abstract or "",
-        })
-
-    # 3. Fetch shared papers
+    # 2. Fetch shared papers
     shared_papers = await _get_shared_papers(db, user.id, frequency)
 
-    # 4. Optionally generate digest podcast (only when there are papers)
+    # 3. Optionally generate/reuse podcast for email
     settings = get_settings()
     podcast_info = None
     podcast_record = None
 
     if email_papers and user.digest_podcast_enabled and sys_settings.digest_podcast_enabled_global:
-        logger.info(f"Generating digest podcast for {user.full_name} ({len(podcast_papers)} papers)")
-        podcast_record = await _generate_and_upload_podcast(podcast_papers, user, frequency)
-        if podcast_record:
-            db.add(podcast_record)
-            await db.flush()  # get the id assigned
+        voice_mode = user.digest_podcast_voice_mode or "dual"
+        # Try to reuse a podcast already generated today with the same frequency
+        existing = await _find_reusable_podcast(db, user.id, frequency)
+        if existing:
+            logger.info(f"Reusing existing podcast for {user.full_name} email digest")
+            podcast_record = existing
+        else:
+            logger.info(f"Generating email digest podcast for {user.full_name} ({len(podcast_papers)} papers)")
+            podcast_record = await _generate_and_upload_podcast(
+                podcast_papers, user, frequency,
+                voice_mode=voice_mode, podcast_type="digest",
+            )
+            if podcast_record:
+                db.add(podcast_record)
+                await db.flush()
 
+        if podcast_record:
             duration_min = (podcast_record.duration_seconds or 0) // 60
             duration_sec = (podcast_record.duration_seconds or 0) % 60
             voice_label = "Dual voice" if podcast_record.voice_mode == "dual" else "Single voice"
-
             podcast_info = {
                 "title": podcast_record.title,
                 "voice_label": voice_label,
@@ -288,7 +340,7 @@ async def send_digest_for_user(
                 "play_url": f"{settings.frontend_url}/podcasts?play={podcast_record.id}",
             }
 
-    # 5. Generate and send email
+    # 4. Generate and send email
     freq_label = "Daily" if frequency == "daily" else "Weekly"
     today_str = datetime.now(timezone.utc).strftime("%b %d")
     subject = f"LitOrbit {freq_label} Digest — {today_str}"
@@ -307,13 +359,14 @@ async def send_digest_for_user(
     if not sent:
         logger.warning(f"Email failed for {user.full_name}, but podcast/logs will still be saved")
 
-    # 6. Log papers to prevent future duplicates (always, even if email failed)
+    # 5. Log papers for dedup
     for paper, _score in paper_score_pairs:
         db.add(DigestLog(
             id=uuid.uuid4(),
             user_id=user.id,
             paper_id=paper.id,
             digest_type=frequency,
+            source="email",
             podcast_id=podcast_record.id if podcast_record else None,
         ))
     await db.commit()
@@ -328,29 +381,112 @@ async def send_digest_for_user(
     }
 
 
+# ---------------------------------------------------------------------------
+# Product 2: Standalone Podcast Digest
+# ---------------------------------------------------------------------------
+
+async def send_podcast_digest_for_user(
+    db: AsyncSession,
+    user: UserProfile,
+) -> dict[str, Any]:
+    """Generate a standalone podcast digest for a user (no email)."""
+    from app.services.settings import get_system_settings
+    sys_settings = await get_system_settings(db)
+
+    frequency = user.podcast_digest_frequency or "weekly"
+
+    # Guard: skip if already generated today
+    if await _already_ran_today(db, user.id, "podcast"):
+        logger.info(f"Podcast digest already generated for {user.full_name} today, skipping")
+        return {"user": user.full_name, "papers": 0, "sent": False, "skipped_duplicate": True}
+
+    top_n = user.podcast_digest_top_papers or _default_top(frequency)
+    top_n = min(top_n, sys_settings.max_papers_per_digest)
+
+    # 1. Fetch papers (dedup against podcast source only)
+    paper_score_pairs = await _get_digest_papers(db, user.id, frequency, top_n, source="podcast")
+    _email_papers, podcast_papers = _build_paper_dicts(paper_score_pairs)
+
+    if not podcast_papers:
+        logger.info(f"No papers for {user.full_name} standalone podcast digest, skipping")
+        return {"user": user.full_name, "papers": 0, "sent": False}
+
+    # 2. Try to reuse a podcast already generated today with the same frequency
+    voice_mode = user.podcast_digest_voice_mode or "dual"
+    existing = await _find_reusable_podcast(db, user.id, frequency)
+    if existing:
+        logger.info(f"Reusing existing podcast for {user.full_name} standalone digest")
+        podcast_record = existing
+    else:
+        logger.info(f"Generating standalone podcast digest for {user.full_name} ({len(podcast_papers)} papers)")
+        podcast_record = await _generate_and_upload_podcast(
+            podcast_papers, user, frequency,
+            voice_mode=voice_mode, podcast_type="standalone_digest",
+        )
+        if podcast_record:
+            db.add(podcast_record)
+            await db.flush()
+
+    if not podcast_record:
+        logger.warning(f"Podcast generation failed for {user.full_name}")
+        return {"user": user.full_name, "papers": len(podcast_papers), "sent": False}
+
+    # 3. Log papers for dedup
+    for paper, _score in paper_score_pairs:
+        db.add(DigestLog(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            paper_id=paper.id,
+            digest_type=frequency,
+            source="podcast",
+            podcast_id=podcast_record.id,
+        ))
+    await db.commit()
+
+    return {
+        "user": user.full_name,
+        "papers": len(podcast_papers),
+        "podcast": True,
+        "sent": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible alias
+# ---------------------------------------------------------------------------
+
+async def send_digest_for_user(
+    db: AsyncSession,
+    user: UserProfile,
+) -> dict[str, Any]:
+    """Alias for send_email_digest_for_user (backward compatibility)."""
+    return await send_email_digest_for_user(db, user)
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator
+# ---------------------------------------------------------------------------
+
 async def _append_log(db: AsyncSession, run: DigestRun, entry: dict) -> None:
     """Append an entry to the digest run log and persist."""
     run.run_log = [*run.run_log, entry]
     await db.commit()
 
 
-async def run_digests(
+async def _run_for_product(
     db: AsyncSession,
+    product: str,
     frequency: str | None = None,
     skip_day_check: bool = False,
 ) -> list[dict[str, Any]]:
-    """Send digest emails to all eligible users.
+    """Run digests for a single product ("email" or "podcast").
 
-    Args:
-        frequency: If provided, only send to users with this frequency setting.
-                   If None, send to all users whose frequency matches
-                   (daily users get daily, weekly users get weekly).
-        skip_day_check: If True, skip the weekly day-of-week filter (manual triggers).
+    Returns list of per-user result dicts.
     """
-    # Create a DigestRun record to track progress
     run = DigestRun(
         id=uuid.uuid4(),
         frequency=frequency or "all",
+        run_type=product,
         started_at=datetime.now(timezone.utc),
         status="running",
         run_log=[],
@@ -359,37 +495,49 @@ async def run_digests(
     await db.commit()
 
     try:
-        await _append_log(db, run, {"step": "querying_users", "detail": "Finding eligible users..."})
+        await _append_log(db, run, {"step": "querying_users", "detail": f"Finding eligible {product} digest users..."})
 
-        query = select(UserProfile).where(UserProfile.email_digest_enabled == True)
-        if frequency:
-            query = query.where(UserProfile.digest_frequency == frequency)
+        # Query eligible users based on product
+        if product == "email":
+            query = select(UserProfile).where(UserProfile.email_digest_enabled == True)
+            if frequency:
+                query = query.where(UserProfile.digest_frequency == frequency)
+        else:  # podcast
+            query = select(UserProfile).where(UserProfile.podcast_digest_enabled == True)
+            if frequency:
+                query = query.where(UserProfile.podcast_digest_frequency == frequency)
 
         result = await db.execute(query)
         all_users = result.scalars().all()
 
-        # Filter weekly users by their chosen digest day (unless manual trigger)
+        # Filter weekly users by their chosen digest day
         today_name = datetime.now(timezone.utc).strftime("%A").lower()
         users = []
         skipped_day = 0
         for u in all_users:
-            if not skip_day_check and u.digest_frequency == "weekly":
-                user_day = (u.digest_day or "monday").lower()
-                if user_day != today_name:
-                    logger.info(f"Skipping {u.full_name}: weekly digest day is {user_day}, today is {today_name}")
-                    skipped_day += 1
-                    continue
+            if not skip_day_check:
+                if product == "email" and u.digest_frequency == "weekly":
+                    user_day = (u.digest_day or "monday").lower()
+                    if user_day != today_name:
+                        skipped_day += 1
+                        continue
+                elif product == "podcast" and u.podcast_digest_frequency == "weekly":
+                    user_day = (u.podcast_digest_day or "monday").lower()
+                    if user_day != today_name:
+                        skipped_day += 1
+                        continue
             users.append(u)
 
         run.users_total = len(users)
         await _append_log(db, run, {
             "step": "users_found",
+            "product": product,
             "eligible": len(users),
             "skipped_day": skipped_day,
         })
 
         if not users:
-            logger.info("No users eligible for digest")
+            logger.info(f"No users eligible for {product} digest")
             run.status = "success"
             run.completed_at = datetime.now(timezone.utc)
             await _append_log(db, run, {"step": "completed", "detail": "No eligible users"})
@@ -405,14 +553,19 @@ async def run_digests(
                     "total": len(users),
                 })
 
-                summary = await send_digest_for_user(db, user)
+                if product == "email":
+                    summary = await send_email_digest_for_user(db, user)
+                else:
+                    summary = await send_podcast_digest_for_user(db, user)
                 results.append(summary)
 
                 if summary.get("sent"):
                     run.users_sent += 1
                     step = "user_sent"
+                elif summary.get("skipped_duplicate"):
+                    run.users_skipped += 1
+                    step = "user_skipped_duplicate"
                 else:
-                    # Podcast/logs saved but email failed
                     run.users_sent += 1
                     step = "user_partial"
 
@@ -427,7 +580,7 @@ async def run_digests(
                 await _append_log(db, run, log_entry)
 
             except Exception as e:
-                logger.exception(f"Digest failed for {user.full_name}: {e}")
+                logger.exception(f"{product.capitalize()} digest failed for {user.full_name}: {e}")
                 results.append({"user": user.full_name, "error": str(e), "sent": False})
                 run.users_failed += 1
                 await _append_log(db, run, {
@@ -438,22 +591,18 @@ async def run_digests(
 
         run.completed_at = datetime.now(timezone.utc)
         sent_count = sum(1 for r in results if r.get("sent"))
-        email_failed_count = sum(1 for r in results if r.get("email_failed"))
+        failed_count = run.users_failed + sum(1 for r in results if r.get("email_failed"))
 
-        # Determine final status
-        if run.users_failed > 0 or email_failed_count > 0:
-            run.status = "partial"
-        else:
-            run.status = "success"
+        run.status = "partial" if failed_count > 0 else "success"
 
         await _append_log(db, run, {
             "step": "completed",
             "sent": sent_count,
             "total": len(users),
-            "email_failed": email_failed_count,
+            "failed": failed_count,
             "skipped": run.users_skipped,
         })
-        logger.info(f"Digest run complete: {sent_count}/{len(users)} emails sent")
+        logger.info(f"{product.capitalize()} digest run complete: {sent_count}/{len(users)} processed")
         return results
 
     except Exception as e:
@@ -461,5 +610,31 @@ async def run_digests(
         run.completed_at = datetime.now(timezone.utc)
         run.error_message = str(e)
         await db.commit()
-        logger.exception(f"Digest run failed: {e}")
+        logger.exception(f"{product.capitalize()} digest run failed: {e}")
         raise
+
+
+async def run_digests(
+    db: AsyncSession,
+    frequency: str | None = None,
+    skip_day_check: bool = False,
+    product: str = "all",
+) -> list[dict[str, Any]]:
+    """Send digests to all eligible users.
+
+    Args:
+        frequency: If provided, only send to users with this frequency setting.
+        skip_day_check: If True, skip the weekly day-of-week filter (manual triggers).
+        product: "email", "podcast", or "all" (runs email first, then podcast).
+    """
+    results = []
+
+    if product in ("email", "all"):
+        email_results = await _run_for_product(db, "email", frequency, skip_day_check)
+        results.extend(email_results)
+
+    if product in ("podcast", "all"):
+        podcast_results = await _run_for_product(db, "podcast", frequency, skip_day_check)
+        results.extend(podcast_results)
+
+    return results

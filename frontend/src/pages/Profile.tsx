@@ -248,6 +248,11 @@ function DigestTab() {
     digest_podcast_enabled: boolean;
     digest_podcast_voice_mode: 'single' | 'dual';
     digest_top_papers: number | null;
+    podcast_digest_enabled: boolean;
+    podcast_digest_frequency: 'daily' | 'weekly';
+    podcast_digest_day: string;
+    podcast_digest_top_papers: number | null;
+    podcast_digest_voice_mode: 'single' | 'dual';
   } | null>(null);
 
   useEffect(() => {
@@ -259,6 +264,11 @@ function DigestTab() {
         digest_podcast_enabled: profile.digest_podcast_enabled,
         digest_podcast_voice_mode: profile.digest_podcast_voice_mode,
         digest_top_papers: profile.digest_top_papers,
+        podcast_digest_enabled: profile.podcast_digest_enabled,
+        podcast_digest_frequency: profile.podcast_digest_frequency,
+        podcast_digest_day: profile.podcast_digest_day,
+        podcast_digest_top_papers: profile.podcast_digest_top_papers,
+        podcast_digest_voice_mode: profile.podcast_digest_voice_mode,
       });
     }
   }, [profile]);
@@ -271,7 +281,12 @@ function DigestTab() {
     form.digest_day !== profile.digest_day ||
     form.digest_podcast_enabled !== profile.digest_podcast_enabled ||
     form.digest_podcast_voice_mode !== profile.digest_podcast_voice_mode ||
-    form.digest_top_papers !== profile.digest_top_papers
+    form.digest_top_papers !== profile.digest_top_papers ||
+    form.podcast_digest_enabled !== profile.podcast_digest_enabled ||
+    form.podcast_digest_frequency !== profile.podcast_digest_frequency ||
+    form.podcast_digest_day !== profile.podcast_digest_day ||
+    form.podcast_digest_top_papers !== profile.podcast_digest_top_papers ||
+    form.podcast_digest_voice_mode !== profile.podcast_digest_voice_mode
   );
 
   const handleSave = () => {
@@ -286,18 +301,25 @@ function DigestTab() {
       digest_podcast_enabled: profile.digest_podcast_enabled,
       digest_podcast_voice_mode: profile.digest_podcast_voice_mode,
       digest_top_papers: profile.digest_top_papers,
+      podcast_digest_enabled: profile.podcast_digest_enabled,
+      podcast_digest_frequency: profile.podcast_digest_frequency,
+      podcast_digest_day: profile.podcast_digest_day,
+      podcast_digest_top_papers: profile.podcast_digest_top_papers,
+      podcast_digest_voice_mode: profile.podcast_digest_voice_mode,
     });
   };
 
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* ── Email Digest ── */}
       <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
         <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 20 }}>
           Email Digest
         </h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Toggle */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <p className="font-mono text-sm text-text-primary">Email digest</p>
@@ -334,7 +356,6 @@ function DigestTab() {
                 </div>
               </div>
 
-              {/* Digest day */}
               {form.digest_frequency === 'weekly' && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <p className="font-mono text-sm text-text-primary">Day</p>
@@ -344,7 +365,7 @@ function DigestTab() {
                     className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent font-mono"
                     style={{ padding: '6px 14px' }}
                   >
-                    {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
+                    {days.map((day) => (
                       <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
                     ))}
                   </select>
@@ -370,15 +391,14 @@ function DigestTab() {
                 />
               </div>
 
-              {/* Divider */}
               <div className="border-t border-border-default" />
 
-              {/* Digest podcast toggle */}
+              {/* Include podcast in email */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <p className="font-mono text-sm text-text-primary">Digest podcast</p>
+                  <p className="font-mono text-sm text-text-primary">Include podcast</p>
                   <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
-                    Generate an audio summary with each {form.digest_frequency} digest
+                    Attach an audio summary to the {form.digest_frequency} email
                   </p>
                 </div>
                 <button
@@ -410,6 +430,108 @@ function DigestTab() {
                   </div>
                 </div>
               )}
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* ── Podcast Digest ── */}
+      <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+        <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 20 }}>
+          Podcast Digest
+        </h2>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p className="font-mono text-sm text-text-primary">Podcast digest</p>
+              <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>Standalone podcast in your Podcasts library</p>
+            </div>
+            <button
+              onClick={() => setForm({ ...form, podcast_digest_enabled: !form.podcast_digest_enabled })}
+              className={cn('transition', form.podcast_digest_enabled ? 'text-success' : 'text-text-tertiary')}
+              style={{ fontSize: 28 }}
+            >
+              {form.podcast_digest_enabled ? '●' : '○'}
+            </button>
+          </div>
+
+          {form.podcast_digest_enabled && (
+            <>
+              {/* Frequency */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p className="font-mono text-sm text-text-primary">Frequency</p>
+                <div className="flex rounded-xl bg-bg-base" style={{ padding: 4, gap: 4 }}>
+                  {(['daily', 'weekly'] as const).map((freq) => (
+                    <button
+                      key={freq}
+                      onClick={() => setForm({ ...form, podcast_digest_frequency: freq })}
+                      className={cn(
+                        'rounded-lg font-mono text-xs transition',
+                        form.podcast_digest_frequency === freq ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
+                      )}
+                      style={{ padding: '6px 14px' }}
+                    >
+                      {freq}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {form.podcast_digest_frequency === 'weekly' && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <p className="font-mono text-sm text-text-primary">Day</p>
+                  <select
+                    value={form.podcast_digest_day || 'monday'}
+                    onChange={(e) => setForm({ ...form, podcast_digest_day: e.target.value })}
+                    className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent font-mono"
+                    style={{ padding: '6px 14px' }}
+                  >
+                    {days.map((day) => (
+                      <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Papers count */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <p className="font-mono text-sm text-text-primary">Papers count</p>
+                  <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
+                    Max papers per digest ({form.podcast_digest_frequency === 'daily' ? 'default 3' : 'default 10'})
+                  </p>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={form.podcast_digest_top_papers ?? (form.podcast_digest_frequency === 'daily' ? 3 : 10)}
+                  onChange={(e) => setForm({ ...form, podcast_digest_top_papers: parseInt(e.target.value, 10) || null })}
+                  className="w-16 rounded-xl border border-border-default bg-bg-base text-center font-mono text-sm text-text-primary outline-none focus:border-accent"
+                  style={{ padding: '6px 8px' }}
+                />
+              </div>
+
+              {/* Voice mode */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <p className="font-mono text-sm text-text-primary">Voice mode</p>
+                <div className="flex rounded-xl bg-bg-base" style={{ padding: 4, gap: 4 }}>
+                  {(['single', 'dual'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setForm({ ...form, podcast_digest_voice_mode: mode })}
+                      className={cn(
+                        'rounded-lg font-mono text-xs transition',
+                        form.podcast_digest_voice_mode === mode ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
+                      )}
+                      style={{ padding: '6px 14px' }}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </>
           )}
         </div>

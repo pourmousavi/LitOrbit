@@ -13,6 +13,7 @@ class DigestRun(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(), primary_key=True, default=uuid.uuid4)
     frequency: Mapped[str] = mapped_column(String, nullable=False)  # "daily" | "weekly"
+    run_type: Mapped[str] = mapped_column(String, nullable=False, default="email")  # "email" | "podcast"
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False)  # "running" | "success" | "failed"

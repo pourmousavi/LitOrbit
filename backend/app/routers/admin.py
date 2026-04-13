@@ -736,6 +736,7 @@ async def update_keywords(
 
 class DigestTrigger(BaseModel):
     frequency: str | None = None  # "daily" | "weekly" | None (both)
+    product: str = "all"  # "email" | "podcast" | "all"
 
 
 @router.post("/digest/trigger")
@@ -744,7 +745,7 @@ async def trigger_digest(
     background_tasks: BackgroundTasks,
     _admin: dict[str, Any] = Depends(require_admin),
 ) -> dict:
-    """Manually trigger digest emails for all eligible users."""
+    """Manually trigger digests for all eligible users."""
 
     async def _run():
         from app.database import init_db, async_session_factory
@@ -762,13 +763,14 @@ async def trigger_digest(
                     session,
                     frequency=req.frequency,
                     skip_day_check=True,
+                    product=req.product,
                 )
                 logger.info(f"Manual digest run: {results}")
         except Exception as e:
             logger.exception(f"Manual digest run failed: {e}")
 
     background_tasks.add_task(_run)
-    return {"status": "triggered", "frequency": req.frequency or "all"}
+    return {"status": "triggered", "frequency": req.frequency or "all", "product": req.product}
 
 
 @router.get("/digest/runs")
@@ -787,6 +789,7 @@ async def list_digest_runs(
         {
             "id": str(r.id),
             "frequency": r.frequency,
+            "run_type": getattr(r, "run_type", "email"),
             "started_at": r.started_at.isoformat() if r.started_at else None,
             "completed_at": r.completed_at.isoformat() if r.completed_at else None,
             "status": r.status,

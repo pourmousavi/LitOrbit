@@ -33,6 +33,11 @@ class ProfileUpdate(BaseModel):
     digest_podcast_enabled: bool | None = None
     digest_podcast_voice_mode: str | None = None
     digest_top_papers: int | None = None
+    podcast_digest_enabled: bool | None = None
+    podcast_digest_frequency: str | None = None
+    podcast_digest_day: str | None = None
+    podcast_digest_top_papers: int | None = None
+    podcast_digest_voice_mode: str | None = None
     scoring_prompt: str | None = None
     single_voice_prompt: str | None = None
     dual_voice_prompt: str | None = None
@@ -75,6 +80,11 @@ async def get_my_profile(
         "digest_podcast_enabled": profile.digest_podcast_enabled,
         "digest_podcast_voice_mode": profile.digest_podcast_voice_mode,
         "digest_top_papers": profile.digest_top_papers,
+        "podcast_digest_enabled": profile.podcast_digest_enabled,
+        "podcast_digest_frequency": profile.podcast_digest_frequency,
+        "podcast_digest_day": profile.podcast_digest_day,
+        "podcast_digest_top_papers": profile.podcast_digest_top_papers,
+        "podcast_digest_voice_mode": profile.podcast_digest_voice_mode,
         "scoring_prompt": profile.scoring_prompt,
         "single_voice_prompt": profile.single_voice_prompt,
         "dual_voice_prompt": profile.dual_voice_prompt,
@@ -124,6 +134,19 @@ async def update_my_profile(
         profile.digest_podcast_voice_mode = req.digest_podcast_voice_mode
     if req.digest_top_papers is not None:
         profile.digest_top_papers = req.digest_top_papers if req.digest_top_papers > 0 else None
+    # Standalone podcast digest settings
+    if req.podcast_digest_enabled is not None:
+        profile.podcast_digest_enabled = req.podcast_digest_enabled
+    if req.podcast_digest_frequency is not None:
+        profile.podcast_digest_frequency = req.podcast_digest_frequency
+    if req.podcast_digest_day is not None:
+        valid_days = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        if req.podcast_digest_day.lower() in valid_days:
+            profile.podcast_digest_day = req.podcast_digest_day.lower()
+    if req.podcast_digest_top_papers is not None:
+        profile.podcast_digest_top_papers = req.podcast_digest_top_papers if req.podcast_digest_top_papers > 0 else None
+    if req.podcast_digest_voice_mode is not None:
+        profile.podcast_digest_voice_mode = req.podcast_digest_voice_mode
     if req.scoring_prompt is not None:
         profile.scoring_prompt = req.scoring_prompt if req.scoring_prompt.strip() else None
     if req.single_voice_prompt is not None:

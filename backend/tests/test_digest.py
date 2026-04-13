@@ -232,7 +232,7 @@ class TestDigestRunner:
         from app.services.digest_runner import _get_digest_papers
 
         user, papers = setup_data
-        result = await _get_digest_papers(db_session, user.id, "weekly", top_n=3)
+        result = await _get_digest_papers(db_session, user.id, "weekly", top_n=3, source="email")
 
         assert len(result) == 3
         scores = [score for _, score in result]
@@ -245,16 +245,17 @@ class TestDigestRunner:
 
         user, papers = setup_data
 
-        # Mark papers[0] as already sent
+        # Mark papers[0] as already sent (email source)
         db_session.add(DigestLog(
             id=uuid.uuid4(),
             user_id=user.id,
             paper_id=papers[0].id,
             digest_type="weekly",
+            source="email",
         ))
         await db_session.commit()
 
-        result = await _get_digest_papers(db_session, user.id, "weekly", top_n=10)
+        result = await _get_digest_papers(db_session, user.id, "weekly", top_n=10, source="email")
 
         result_paper_ids = {paper.id for paper, _ in result}
         assert papers[0].id not in result_paper_ids
