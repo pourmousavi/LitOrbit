@@ -386,7 +386,9 @@ function DigestTab() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <p className="font-mono text-sm text-text-primary">Digest podcast</p>
-              <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>Include an audio summary in your digest email</p>
+              <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
+                Generate an audio summary with each {form.digest_frequency} digest
+              </p>
             </div>
             <button
               onClick={() => setForm({ ...form, digest_podcast_enabled: !form.digest_podcast_enabled })}

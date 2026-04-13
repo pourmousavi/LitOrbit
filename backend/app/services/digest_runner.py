@@ -222,6 +222,21 @@ async def send_digest_for_user(
     sys_settings = await get_system_settings(db)
 
     frequency = user.digest_frequency or "weekly"
+
+    # Guard: skip if this user already received a digest today
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    already_sent = await db.execute(
+        select(DigestLog.id)
+        .where(
+            DigestLog.user_id == user.id,
+            DigestLog.sent_at >= today_start,
+        )
+        .limit(1)
+    )
+    if already_sent.scalar_one_or_none() is not None:
+        logger.info(f"Digest already sent to {user.full_name} today, skipping duplicate")
+        return {"user": user.full_name, "papers": 0, "sent": False, "skipped_duplicate": True}
+
     top_n = user.digest_top_papers or _default_top(frequency)
     # Cap at admin-configured max
     top_n = min(top_n, sys_settings.max_papers_per_digest)
