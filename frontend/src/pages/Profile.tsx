@@ -241,6 +241,11 @@ function AccountTab() {
 function DigestTab() {
   const { data: profile } = useProfile();
   const updateProfile = useUpdateProfile();
+  const { data: limits } = useQuery<{ max_papers_per_digest: number; max_podcasts_per_user_per_month: number }>({
+    queryKey: ['user-limits'],
+    queryFn: async () => (await api.get('/api/v1/users/limits')).data,
+  });
+  const maxPapers = limits?.max_papers_per_digest ?? 20;
   const [form, setForm] = useState<{
     email_digest_enabled: boolean;
     digest_frequency: 'daily' | 'weekly';
@@ -379,15 +384,18 @@ function DigestTab() {
                 <div>
                   <p className="font-mono text-sm text-text-primary">Papers count</p>
                   <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
-                    Max papers per digest ({form.digest_frequency === 'daily' ? 'default 3' : 'default 10'})
+                    Max papers per digest (limit {maxPapers})
                   </p>
                 </div>
                 <input
                   type="number"
                   min={1}
-                  max={20}
-                  value={form.digest_top_papers ?? (form.digest_frequency === 'daily' ? 3 : 10)}
-                  onChange={(e) => setForm({ ...form, digest_top_papers: parseInt(e.target.value, 10) || null })}
+                  max={maxPapers}
+                  value={Math.min(form.digest_top_papers ?? (form.digest_frequency === 'daily' ? 3 : maxPapers), maxPapers)}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    setForm({ ...form, digest_top_papers: v ? Math.min(v, maxPapers) : null });
+                  }}
                   className="w-16 rounded-xl border border-border-default bg-bg-base text-center font-mono text-sm text-text-primary outline-none focus:border-accent"
                   style={{ padding: '6px 8px' }}
                 />
@@ -501,15 +509,18 @@ function DigestTab() {
                 <div>
                   <p className="font-mono text-sm text-text-primary">Papers count</p>
                   <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
-                    Max papers per digest ({form.podcast_digest_frequency === 'daily' ? 'default 3' : 'default 10'})
+                    Max papers per digest (limit {maxPapers})
                   </p>
                 </div>
                 <input
                   type="number"
                   min={1}
-                  max={20}
-                  value={form.podcast_digest_top_papers ?? (form.podcast_digest_frequency === 'daily' ? 3 : 10)}
-                  onChange={(e) => setForm({ ...form, podcast_digest_top_papers: parseInt(e.target.value, 10) || null })}
+                  max={maxPapers}
+                  value={Math.min(form.podcast_digest_top_papers ?? (form.podcast_digest_frequency === 'daily' ? 3 : maxPapers), maxPapers)}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    setForm({ ...form, podcast_digest_top_papers: v ? Math.min(v, maxPapers) : null });
+                  }}
                   className="w-16 rounded-xl border border-border-default bg-bg-base text-center font-mono text-sm text-text-primary outline-none focus:border-accent"
                   style={{ padding: '6px 8px' }}
                 />

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user, require_admin
 from app.database import get_db
 from app.models.user_profile import UserProfile
+from app.services.settings import get_system_settings
 
 _FEED_FIELDS = (
     "podcast_feed_enabled",
@@ -49,6 +50,19 @@ class ProfileUpdate(BaseModel):
     podcast_feed_description: str | None = None
     podcast_feed_author: str | None = None
     podcast_feed_cover_url: str | None = None
+
+
+@router.get("/limits")
+async def get_user_limits(
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get system-level limits relevant to the current user."""
+    s = await get_system_settings(db)
+    return {
+        "max_papers_per_digest": s.max_papers_per_digest,
+        "max_podcasts_per_user_per_month": s.max_podcasts_per_user_per_month,
+    }
 
 
 @router.get("/me")
@@ -133,7 +147,9 @@ async def update_my_profile(
     if req.digest_podcast_voice_mode is not None:
         profile.digest_podcast_voice_mode = req.digest_podcast_voice_mode
     if req.digest_top_papers is not None:
-        profile.digest_top_papers = req.digest_top_papers if req.digest_top_papers > 0 else None
+        sys_settings = await get_system_settings(db)
+        capped = min(req.digest_top_papers, sys_settings.max_papers_per_digest)
+        profile.digest_top_papers = capped if capped > 0 else None
     # Standalone podcast digest settings
     if req.podcast_digest_enabled is not None:
         profile.podcast_digest_enabled = req.podcast_digest_enabled
@@ -144,7 +160,9 @@ async def update_my_profile(
         if req.podcast_digest_day.lower() in valid_days:
             profile.podcast_digest_day = req.podcast_digest_day.lower()
     if req.podcast_digest_top_papers is not None:
-        profile.podcast_digest_top_papers = req.podcast_digest_top_papers if req.podcast_digest_top_papers > 0 else None
+        sys_settings = await get_system_settings(db)
+        capped = min(req.podcast_digest_top_papers, sys_settings.max_papers_per_digest)
+        profile.podcast_digest_top_papers = capped if capped > 0 else None
     if req.podcast_digest_voice_mode is not None:
         profile.podcast_digest_voice_mode = req.podcast_digest_voice_mode
     if req.scoring_prompt is not None:
