@@ -291,6 +291,7 @@ function DigestTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* ── Email Digest ── */}
       <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
         <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 20 }}>
           Email Digest
@@ -351,64 +352,70 @@ function DigestTab() {
                 </div>
               )}
 
-              {/* Digest podcast */}
+              {/* Papers count */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <p className="font-mono text-sm text-text-primary">Digest podcast</p>
-                  <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>Include an audio summary in your digest</p>
+                  <p className="font-mono text-sm text-text-primary">Papers count</p>
+                  <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
+                    Max papers per digest ({form.digest_frequency === 'daily' ? 'default 3' : 'default 10'})
+                  </p>
                 </div>
-                <button
-                  onClick={() => setForm({ ...form, digest_podcast_enabled: !form.digest_podcast_enabled })}
-                  className={cn('transition', form.digest_podcast_enabled ? 'text-success' : 'text-text-tertiary')}
-                  style={{ fontSize: 28 }}
-                >
-                  {form.digest_podcast_enabled ? '●' : '○'}
-                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={form.digest_top_papers ?? (form.digest_frequency === 'daily' ? 3 : 10)}
+                  onChange={(e) => setForm({ ...form, digest_top_papers: parseInt(e.target.value, 10) || null })}
+                  className="w-16 rounded-xl border border-border-default bg-bg-base text-center font-mono text-sm text-text-primary outline-none focus:border-accent"
+                  style={{ padding: '6px 8px' }}
+                />
               </div>
-
-              {form.digest_podcast_enabled && (
-                <>
-                  {/* Voice mode */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <p className="font-mono text-sm text-text-primary">Digest voice</p>
-                    <div className="flex rounded-xl bg-bg-base" style={{ padding: 4, gap: 4 }}>
-                      {(['single', 'dual'] as const).map((mode) => (
-                        <button
-                          key={mode}
-                          onClick={() => setForm({ ...form, digest_podcast_voice_mode: mode })}
-                          className={cn(
-                            'rounded-lg font-mono text-xs transition',
-                            form.digest_podcast_voice_mode === mode ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
-                          )}
-                          style={{ padding: '6px 14px' }}
-                        >
-                          {mode}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Papers count */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <p className="font-mono text-sm text-text-primary">Papers count</p>
-                      <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
-                        Papers in digest ({form.digest_frequency === 'daily' ? 'default 3' : 'default 10'})
-                      </p>
-                    </div>
-                    <input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={form.digest_top_papers ?? (form.digest_frequency === 'daily' ? 3 : 10)}
-                      onChange={(e) => setForm({ ...form, digest_top_papers: parseInt(e.target.value, 10) || null })}
-                      className="w-16 rounded-xl border border-border-default bg-bg-base text-center font-mono text-sm text-text-primary outline-none focus:border-accent"
-                      style={{ padding: '6px 8px' }}
-                    />
-                  </div>
-                </>
-              )}
             </>
+          )}
+        </div>
+      </section>
+
+      {/* ── Digest Podcast ── */}
+      <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+        <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 20 }}>
+          Digest Podcast
+        </h2>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p className="font-mono text-sm text-text-primary">Digest podcast</p>
+              <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>Include an audio summary in your digest email</p>
+            </div>
+            <button
+              onClick={() => setForm({ ...form, digest_podcast_enabled: !form.digest_podcast_enabled })}
+              className={cn('transition', form.digest_podcast_enabled ? 'text-success' : 'text-text-tertiary')}
+              style={{ fontSize: 28 }}
+            >
+              {form.digest_podcast_enabled ? '●' : '○'}
+            </button>
+          </div>
+
+          {form.digest_podcast_enabled && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p className="font-mono text-sm text-text-primary">Voice mode</p>
+              <div className="flex rounded-xl bg-bg-base" style={{ padding: 4, gap: 4 }}>
+                {(['single', 'dual'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setForm({ ...form, digest_podcast_voice_mode: mode })}
+                    className={cn(
+                      'rounded-lg font-mono text-xs transition',
+                      form.digest_podcast_voice_mode === mode ? 'bg-bg-elevated text-text-primary' : 'text-text-tertiary hover:text-text-secondary',
+                    )}
+                    style={{ padding: '6px 14px' }}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </section>
