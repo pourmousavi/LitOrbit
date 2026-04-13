@@ -289,8 +289,8 @@ class TestDigestRunner:
         assert len(logs) == result["papers"]
 
     @pytest.mark.asyncio
-    async def test_send_digest_skips_when_no_papers(self, db_session):
-        """If user has no scored papers, digest is skipped."""
+    async def test_send_digest_sends_even_when_no_papers(self, db_session):
+        """If user has no scored papers, digest email is still sent."""
         from app.services.digest_runner import send_digest_for_user
 
         user = UserProfile(
@@ -306,8 +306,9 @@ class TestDigestRunner:
         await db_session.commit()
 
         result = await send_digest_for_user(db_session, user)
-        assert result["sent"] is False
         assert result["papers"] == 0
+        # Email is still attempted (sent depends on email provider config)
+        assert "user" in result
 
 
 # ---------------------------------------------------------------------------

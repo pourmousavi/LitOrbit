@@ -43,7 +43,7 @@ class TestEmailDigest:
             unsubscribe_url="https://example.com/unsub",
         )
         assert "LitOrbit" in html
-        assert "0 new papers" in html
+        assert "No new papers matched your interests" in html
 
     @patch("app.services.email_digest.smtplib.SMTP")
     def test_email_sent_successfully(self, mock_smtp_class):
