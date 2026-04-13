@@ -323,7 +323,9 @@ function DigestTab() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <p className="font-mono text-sm text-text-primary">Email digest</p>
-              <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>Receive paper recommendations by email</p>
+              <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
+                Delivers to <span className="text-text-secondary">{profile.email}</span>
+              </p>
             </div>
             <button
               onClick={() => setForm({ ...form, email_digest_enabled: !form.email_digest_enabled })}
