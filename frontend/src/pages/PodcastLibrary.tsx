@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Play, Headphones, Trash2, Radio, Search, X, ArrowUpDown, ChevronDown, Bookmark } from 'lucide-react';
+import { Play, Headphones, Trash2, Radio, Search, X, ArrowUpDown, ChevronDown, Bookmark, Share2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePodcastList, useDeletePodcast } from '@/hooks/usePodcast';
 import { usePlayerStore } from '@/stores/playerStore';
 import { cn, formatDate, getScoreColor, getScoreBgColor } from '@/lib/utils';
 import api from '@/lib/api';
+import SharePodcastModal from '@/components/sharing/SharePodcastModal';
 
 function DigestPapersList({ papers: initialPapers }: { papers: { id: string; title: string; journal: string; relevance_score: number | null; is_favorite: boolean }[] }) {
   const [expanded, setExpanded] = useState(false);
@@ -126,6 +127,7 @@ export default function PodcastLibrary() {
   const deletePodcast = useDeletePodcast();
   const setTrack = usePlayerStore((s) => s.setTrack);
   const currentTrackUrl = usePlayerStore((s) => s.currentTrackUrl);
+  const [sharePodcast, setSharePodcast] = useState<{ id: string; title: string } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const apiBase = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
@@ -280,6 +282,17 @@ export default function PodcastLibrary() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          setSharePodcast({ id: podcast.id, title: podcast.paper_title || 'Podcast' });
+                        }}
+                        className="flex items-center justify-center rounded-full bg-bg-elevated text-text-tertiary opacity-0 transition hover:bg-accent/15 hover:text-accent group-hover:opacity-100"
+                        style={{ width: 36, height: 36 }}
+                        title="Share podcast"
+                      >
+                        <Share2 size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (confirm('Delete this podcast?')) {
                             deletePodcast.mutate(podcast.id);
                           }
@@ -333,6 +346,14 @@ export default function PodcastLibrary() {
           </div>
         )}
       </div>
+
+      {sharePodcast && (
+        <SharePodcastModal
+          podcastId={sharePodcast.id}
+          podcastTitle={sharePodcast.title}
+          onClose={() => setSharePodcast(null)}
+        />
+      )}
     </div>
   );
 }

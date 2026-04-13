@@ -12,7 +12,7 @@ class Share(Base):
     __tablename__ = "shares"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(), primary_key=True, default=uuid.uuid4)
-    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False)
+    paper_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("papers.id", ondelete="CASCADE"), nullable=True)
     shared_by: Mapped[uuid.UUID] = mapped_column(UUID(), ForeignKey("user_profiles.id"), nullable=False)
     shared_with: Mapped[uuid.UUID] = mapped_column(UUID(), ForeignKey("user_profiles.id"), nullable=False)
     annotation: Mapped[str | None] = mapped_column(Text, nullable=True)
