@@ -1376,9 +1376,9 @@ function DigestTab() {
   const isRunning = runs?.some((r) => r.status === 'running');
 
   const triggerMutation = useMutation({
-    mutationFn: async (freq: string) => {
-      const { data } = await api.post('/api/v1/admin/digest/trigger', { frequency: freq });
-      return data as { status: string; frequency: string };
+    mutationFn: async ({ freq, product }: { freq: string; product: string }) => {
+      const { data } = await api.post('/api/v1/admin/digest/trigger', { frequency: freq, product });
+      return data as { status: string; frequency: string; product: string };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'digest-runs'] });
@@ -1412,15 +1412,24 @@ function DigestTab() {
           ))}
         </div>
 
-        {/* Trigger button */}
+        {/* Trigger buttons */}
         <button
-          onClick={() => triggerMutation.mutate(frequency)}
+          onClick={() => triggerMutation.mutate({ freq: frequency, product: 'email' })}
           disabled={triggerMutation.isPending || !!isRunning}
           className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
-          style={{ gap: 10, padding: '14px 24px' }}
+          style={{ gap: 8, padding: '12px 20px' }}
         >
           {triggerMutation.isPending || isRunning ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-          {isRunning ? 'Running...' : `Send ${frequency} digest`}
+          {isRunning ? 'Running...' : `Email digest (${frequency})`}
+        </button>
+        <button
+          onClick={() => triggerMutation.mutate({ freq: frequency, product: 'podcast' })}
+          disabled={triggerMutation.isPending || !!isRunning}
+          className="flex items-center rounded-2xl bg-purple-600 font-mono text-sm font-medium text-white transition hover:bg-purple-700 disabled:opacity-50"
+          style={{ gap: 8, padding: '12px 20px' }}
+        >
+          {triggerMutation.isPending || isRunning ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+          {isRunning ? 'Running...' : `Podcast digest (${frequency})`}
         </button>
 
         {isRunning && (
