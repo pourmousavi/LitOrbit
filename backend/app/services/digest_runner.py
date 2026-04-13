@@ -228,9 +228,6 @@ async def send_digest_for_user(
 
     # 1. Fetch papers not previously sent
     paper_score_pairs = await _get_digest_papers(db, user.id, frequency, top_n)
-    if not paper_score_pairs:
-        logger.info(f"No new papers for {user.full_name} ({frequency} digest), skipping")
-        return {"user": user.full_name, "papers": 0, "sent": False}
 
     # 2. Build paper dicts for email + podcast
     email_papers = []
@@ -253,12 +250,12 @@ async def send_digest_for_user(
     # 3. Fetch shared papers
     shared_papers = await _get_shared_papers(db, user.id, frequency)
 
-    # 4. Optionally generate digest podcast
+    # 4. Optionally generate digest podcast (only when there are papers)
     settings = get_settings()
     podcast_info = None
     podcast_record = None
 
-    if user.digest_podcast_enabled and sys_settings.digest_podcast_enabled_global:
+    if email_papers and user.digest_podcast_enabled and sys_settings.digest_podcast_enabled_global:
         logger.info(f"Generating digest podcast for {user.full_name} ({len(podcast_papers)} papers)")
         podcast_record = await _generate_and_upload_podcast(podcast_papers, user, frequency)
         if podcast_record:
@@ -396,10 +393,7 @@ async def run_digests(
                 summary = await send_digest_for_user(db, user)
                 results.append(summary)
 
-                if summary.get("papers", 0) == 0:
-                    run.users_skipped += 1
-                    step = "user_skipped"
-                elif summary.get("sent"):
+                if summary.get("sent"):
                     run.users_sent += 1
                     step = "user_sent"
                 else:
@@ -433,8 +427,6 @@ async def run_digests(
 
         # Determine final status
         if run.users_failed > 0 or email_failed_count > 0:
-            run.status = "partial"
-        elif run.users_skipped == run.users_total:
             run.status = "partial"
         else:
             run.status = "success"

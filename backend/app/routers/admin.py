@@ -446,17 +446,16 @@ async def trigger_pipeline(
     return {"status": "triggered"}
 
 
-@router.post("/pipeline/run-scheduled", status_code=202)
+@router.post("/pipeline/run-scheduled")
 async def run_scheduled_pipeline(
-    background_tasks: BackgroundTasks,
     x_pipeline_secret: str | None = Header(default=None),
 ) -> dict:
     """Header-secret-auth endpoint for external schedulers (e.g. GitHub Actions
     cron) to trigger the full daily run: discovery pipeline + digest emails.
 
     Authenticates via the ``X-Pipeline-Secret`` header against the
-    ``PIPELINE_TRIGGER_SECRET`` env var. Returns 202 immediately and runs the
-    work in a background task so the caller never blocks.
+    ``PIPELINE_TRIGGER_SECRET`` env var. Runs synchronously so the process
+    stays alive until all work completes (prevents Render free-tier shutdown).
     """
     settings = get_settings()
     expected = settings.pipeline_trigger_secret
@@ -468,38 +467,41 @@ async def run_scheduled_pipeline(
     if not x_pipeline_secret or x_pipeline_secret != expected:
         raise HTTPException(status_code=401, detail="Invalid pipeline secret")
 
-    async def _run():
-        # Import the module (not the attribute) so we always read the
-        # current value of async_session_factory after init_db() sets it.
-        from app import database as db_module
-        from app.pipeline.runner import run_discovery_pipeline
-        from app.services.digest_runner import run_digests
+    from app import database as db_module
+    from app.pipeline.runner import run_discovery_pipeline
+    from app.services.digest_runner import run_digests
 
-        try:
-            if db_module.async_session_factory is None:
-                db_module.init_db()
-            if db_module.async_session_factory is None:
-                logger.error("Scheduled pipeline: no DB session factory")
-                return
+    if db_module.async_session_factory is None:
+        db_module.init_db()
+    if db_module.async_session_factory is None:
+        raise HTTPException(status_code=503, detail="No DB session factory")
 
-            async with db_module.async_session_factory() as session:
-                result = await run_discovery_pipeline(session)
-                logger.info(f"Scheduled pipeline run: {result}")
+    # --- 1. Run discovery pipeline ---
+    pipeline_result = {}
+    try:
+        async with db_module.async_session_factory() as session:
+            pipeline_result = await run_discovery_pipeline(session)
+            logger.info(f"Scheduled pipeline run: {pipeline_result}")
+    except Exception as e:
+        logger.exception(f"Scheduled pipeline failed: {e}")
+        pipeline_result = {"status": "failed", "error": str(e)}
 
-            if result.get("status") == "success":
-                async with db_module.async_session_factory() as session:
-                    digest_results = await run_digests(session)
-                    sent = sum(1 for r in digest_results if r.get("sent"))
-                    logger.info(
-                        f"Scheduled digest: {sent}/{len(digest_results)} emails sent"
-                    )
-            else:
-                logger.warning("Scheduled pipeline did not succeed; skipping digests")
-        except Exception as e:
-            logger.exception(f"Scheduled pipeline run failed: {e}")
+    # --- 2. Always run digests (independent of pipeline outcome) ---
+    digest_summary = {}
+    try:
+        async with db_module.async_session_factory() as session:
+            digest_results = await run_digests(session)
+            sent = sum(1 for r in digest_results if r.get("sent"))
+            logger.info(f"Scheduled digest: {sent}/{len(digest_results)} emails sent")
+            digest_summary = {"sent": sent, "total": len(digest_results)}
+    except Exception as e:
+        logger.exception(f"Scheduled digest failed: {e}")
+        digest_summary = {"error": str(e)}
 
-    background_tasks.add_task(_run)
-    return {"status": "accepted"}
+    return {
+        "pipeline": pipeline_result,
+        "digest": digest_summary,
+    }
 
 
 # --- Delete batch ---

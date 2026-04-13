@@ -24,15 +24,15 @@ jobs:
             exit 1
           fi
           # Render free dynos cold-start (~30-60s). Use a generous connect
-          # timeout and retry the wake-up. The endpoint itself returns 202
-          # immediately and runs the pipeline in a background task.
+          # timeout and retry the wake-up. The endpoint runs synchronously
+          # and returns the result when done (pipeline + digest).
           curl --fail-with-body \
                --retry 3 --retry-delay 15 --retry-connrefused \
                --connect-timeout 90 \
-               --max-time 180 \
+               --max-time 600 \
                -X POST \
                -H "X-Pipeline-Secret: ${PIPELINE_SECRET}" \
                -H "Content-Type: application/json" \
                "${API_URL%/}/api/v1/admin/pipeline/run-scheduled"
           echo
-          echo "Pipeline trigger accepted."
+          echo "Pipeline + digest run complete."

@@ -46,7 +46,7 @@ DIGEST_TEMPLATE = Template("""<!DOCTYPE html>
 <div class="container">
   <div class="header">
     <div class="logo">LitOrbit</div>
-    <div class="subtitle">{{ frequency | capitalize }} Digest &mdash; {{ paper_count }} new papers for you</div>
+    <div class="subtitle">{{ frequency | capitalize }} Digest{% if paper_count %} &mdash; {{ paper_count }} new paper{{ "s" if paper_count != 1 }} for you{% endif %}</div>
   </div>
 
   {% if podcast %}
@@ -59,6 +59,7 @@ DIGEST_TEMPLATE = Template("""<!DOCTYPE html>
   </div>
   {% endif %}
 
+  {% if papers %}
   <h2>Top Papers This {{ "Day" if frequency == "daily" else "Week" }}</h2>
   {% for paper in papers %}
   <div class="paper">
@@ -75,6 +76,12 @@ DIGEST_TEMPLATE = Template("""<!DOCTYPE html>
     {% endif %}
   </div>
   {% endfor %}
+  {% else %}
+  <div class="paper" style="text-align: center; padding: 24px 16px;">
+    <div class="paper-title" style="color: #888888; font-weight: 400;">No new papers matched your interests {{ "today" if frequency == "daily" else "this week" }}.</div>
+    <div class="paper-summary" style="margin-top: 8px;">We&rsquo;ll keep scanning your journals and notify you as soon as something relevant comes up.</div>
+  </div>
+  {% endif %}
 
   {% if shared_papers %}
   <h2>Shared With You</h2>
