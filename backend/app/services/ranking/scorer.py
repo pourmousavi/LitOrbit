@@ -16,7 +16,9 @@ Score the paper's relevance to this specific researcher on a scale of 0.0 to 10.
 Consider how well the paper's topic, methods, and findings align with the researcher's stated interests.
 
 Return ONLY valid JSON in this exact format:
-{"score": 7.5, "reasoning": "One sentence explanation of why this score was given."}"""
+{"score": 7.5, "reasoning": "Brief explanation (under 30 words)."}
+
+IMPORTANT: Keep the reasoning field under 30 words. Be concise."""
 
 # Gemini free tier: 10 RPM, 250 RPD.
 # We use a token-bucket rate limiter to stay under 9 RPM.
