@@ -1380,7 +1380,8 @@ function DigestTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <p className="font-mono text-xs text-text-tertiary" style={{ lineHeight: 1.6 }}>
-        Manually trigger a digest email (with optional podcast) for all eligible users.
+        Manually trigger email digests and standalone podcast digests for all eligible users.
+        Each user receives personalised content based on their own interest profile and settings.
         This is the same process that runs automatically after the daily pipeline.
         Manual triggers ignore the day-of-week setting.
       </p>
