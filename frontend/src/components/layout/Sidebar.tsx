@@ -122,9 +122,9 @@ export default function Sidebar() {
           <LogOut size={18} style={{ flexShrink: 0 }} />
           {expanded && <span>Sign out</span>}
         </button>
-        {expanded && user?.email && (
+        {expanded && (profile?.email || user?.email) && (
           <p className="truncate text-xs text-text-tertiary" style={{ padding: '4px 12px' }}>
-            {user.email}
+            {profile?.email || user?.email}
           </p>
         )}
       </div>
