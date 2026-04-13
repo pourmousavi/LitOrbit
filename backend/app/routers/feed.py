@@ -107,7 +107,7 @@ async def podcast_feed(token: str, db: AsyncSession = Depends(get_db)):
         select(Podcast)
         .where(
             Podcast.user_id == profile.id,
-            Podcast.podcast_type == "digest",
+            Podcast.podcast_type.in_(["digest", "standalone_digest"]),
             Podcast.audio_path.isnot(None),
         )
         .order_by(Podcast.generated_at.desc())
