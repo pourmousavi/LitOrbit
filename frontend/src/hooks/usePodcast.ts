@@ -62,7 +62,7 @@ interface PodcastListItem {
   paper_title: string;
   paper_journal: string;
   voice_mode: string;
-  podcast_type: 'paper' | 'digest';
+  podcast_type: 'paper' | 'digest' | 'standalone_digest';
   audio_url: string;
   duration_seconds: number | null;
   generated_at: string;

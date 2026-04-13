@@ -114,7 +114,7 @@ export interface Podcast {
   id: string;
   paper_id: string | null;
   voice_mode: 'single' | 'dual';
-  podcast_type: 'paper' | 'digest';
+  podcast_type: 'paper' | 'digest' | 'standalone_digest';
   audio_path: string | null;
   duration_seconds: number | null;
   generated_at: string;
