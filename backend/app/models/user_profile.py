@@ -27,7 +27,7 @@ class UserProfile(Base):
     email_digest_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     digest_frequency: Mapped[str] = mapped_column(String, default="weekly")
     digest_day: Mapped[str] = mapped_column(String, default="monday")  # day of week for weekly digests
-    digest_podcast_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    digest_podcast_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     digest_podcast_voice_mode: Mapped[str] = mapped_column(String, default="dual")
     digest_top_papers: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Standalone podcast digest (independent schedule from email digest)
