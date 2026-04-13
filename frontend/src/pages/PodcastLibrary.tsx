@@ -98,7 +98,11 @@ export default function PodcastLibrary() {
     let filtered = allPodcasts;
 
     if (typeFilter) {
-      filtered = filtered.filter((p) => p.podcast_type === typeFilter);
+      if (typeFilter === 'digest') {
+        filtered = filtered.filter((p) => p.podcast_type === 'digest' || p.podcast_type === 'standalone_digest');
+      } else {
+        filtered = filtered.filter((p) => p.podcast_type === typeFilter);
+      }
     }
     if (voiceFilter) {
       filtered = filtered.filter((p) => p.voice_mode === voiceFilter);
@@ -255,7 +259,7 @@ export default function PodcastLibrary() {
             {podcasts.map((podcast) => {
               const fullUrl = `${apiBase}${podcast.audio_url}`;
               const isPlaying = currentTrackUrl === fullUrl;
-              const isDigest = podcast.podcast_type === 'digest';
+              const isDigest = podcast.podcast_type === 'digest' || podcast.podcast_type === 'standalone_digest';
 
               return (
                 <article

@@ -456,7 +456,7 @@ async def list_podcasts(
             select(Podcast)
             .where(
                 *base_filters,
-                Podcast.podcast_type == "digest",
+                Podcast.podcast_type.in_(["digest", "standalone_digest"]),
             )
         )
         if search:
