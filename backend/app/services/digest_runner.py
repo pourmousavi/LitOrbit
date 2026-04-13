@@ -271,7 +271,7 @@ async def _find_reusable_podcast(
         select(Podcast).where(
             Podcast.user_id == user_id,
             Podcast.podcast_type.in_(["digest", "standalone_digest"]),
-            Podcast.created_at >= today_start,
+            Podcast.generated_at >= today_start,
             Podcast.title.startswith(freq_label),
         ).limit(1)
     )
