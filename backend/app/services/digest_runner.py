@@ -33,8 +33,14 @@ def _default_top(frequency: str) -> int:
     return DEFAULT_DAILY_TOP if frequency == "daily" else DEFAULT_WEEKLY_TOP
 
 
-def _lookback_days(frequency: str) -> int:
-    return 1 if frequency == "daily" else 7
+def _lookback_days(frequency: str) -> float:
+    """Lookback window in days.
+
+    Daily uses 1.5 days (36 hours) instead of exactly 24 hours to avoid
+    losing papers to timing drift between consecutive pipeline runs.
+    Deduplication via DigestLog ensures no paper is sent twice.
+    """
+    return 1.5 if frequency == "daily" else 7
 
 
 def _summary_excerpt(summary_json: str | None) -> str | None:
