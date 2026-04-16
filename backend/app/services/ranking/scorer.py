@@ -107,22 +107,25 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
     for attempt in range(1, _MAX_RETRIES + 1):
         await _rate_limiter.acquire()
         try:
-            response = await client.aio.models.generate_content(
-                model=settings.gemini_model_fast,
-                contents=user_message,
-                config=genai.types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    max_output_tokens=1024,
-                    response_mime_type="application/json",
-                    response_schema={
-                        "type": "object",
-                        "properties": {
-                            "score": {"type": "number"},
-                            "reasoning": {"type": "string"},
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=settings.gemini_model_fast,
+                    contents=user_message,
+                    config=genai.types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        max_output_tokens=1024,
+                        response_mime_type="application/json",
+                        response_schema={
+                            "type": "object",
+                            "properties": {
+                                "score": {"type": "number"},
+                                "reasoning": {"type": "string"},
+                            },
+                            "required": ["score", "reasoning"],
                         },
-                        "required": ["score", "reasoning"],
-                    },
+                    ),
                 ),
+                timeout=60,
             )
 
             raw_text = response.text
@@ -152,6 +155,11 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
             logger.info(f"Scored '{paper.get('title', '')[:50]}...' for {user.get('full_name', '')}: {score}")
             return {"score": score, "reasoning": reasoning}
 
+        except TimeoutError:
+            logger.warning(f"Gemini scoring timed out for '{paper.get('title', '')[:60]}' (attempt {attempt}/{_MAX_RETRIES})")
+            if attempt == _MAX_RETRIES:
+                return {"score": 5.0, "reasoning": "Scoring timed out"}
+            continue
         except json.JSONDecodeError as e:
             # Most common cause: response truncated by max_output_tokens.
             # Log the offending payload so we can diagnose, and retry once

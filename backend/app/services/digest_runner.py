@@ -1,5 +1,6 @@
 """Digest runner — sends personalised digest emails and standalone podcast digests."""
 
+import asyncio
 import json
 import logging
 import os
@@ -560,9 +561,15 @@ async def _run_for_product(
                 })
 
                 if product == "email":
-                    summary = await send_email_digest_for_user(db, user)
+                    summary = await asyncio.wait_for(
+                        send_email_digest_for_user(db, user),
+                        timeout=120,
+                    )
                 else:
-                    summary = await send_podcast_digest_for_user(db, user)
+                    summary = await asyncio.wait_for(
+                        send_podcast_digest_for_user(db, user),
+                        timeout=300,
+                    )
                 results.append(summary)
 
                 if summary.get("sent"):

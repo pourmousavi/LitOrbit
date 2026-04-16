@@ -473,8 +473,9 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
     """
     # Sweep orphaned runs left as 'running' by previous processes that died
     # before reaching the except/cleanup block (e.g. GH Actions timeout, OOM,
-    # forced cancel). Anything still 'running' after 2 hours is considered dead.
-    orphan_cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+    # forced cancel). Anything still 'running' after 30 min is considered dead
+    # (the pipeline + digest timeout budget is ~9 min).
+    orphan_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
     orphan_result = await db.execute(
         select(PipelineRun).where(
             PipelineRun.status == "running",

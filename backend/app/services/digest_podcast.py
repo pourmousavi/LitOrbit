@@ -1,5 +1,6 @@
 """Digest podcast generation — produces a single podcast covering multiple papers."""
 
+import asyncio
 import logging
 from typing import Any
 
@@ -119,7 +120,10 @@ async def generate_digest_script(
         kwargs["system"] = DIGEST_DUAL_SYSTEM.format(minutes=minutes, words=words)
 
     try:
-        response = await client.messages.create(**kwargs)
+        response = await asyncio.wait_for(
+            client.messages.create(**kwargs),
+            timeout=120,
+        )
         script = response.content[0].text.strip()
         logger.info(
             f"Generated digest {voice_mode} script for {count} papers ({len(script)} chars)"

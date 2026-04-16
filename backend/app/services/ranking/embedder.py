@@ -169,13 +169,22 @@ async def _embed_single(client: genai.Client, text: str) -> list[float] | None:
             return None
 
         try:
-            response = await client.aio.models.embed_content(
-                model=EMBEDDING_MODEL,
-                contents=text,
+            response = await asyncio.wait_for(
+                client.aio.models.embed_content(
+                    model=EMBEDDING_MODEL,
+                    contents=text,
+                ),
+                timeout=60,
             )
             vec = response.embeddings[0].values
             return _normalize(list(vec))
 
+        except TimeoutError:
+            logger.warning(f"Embedding API timed out (attempt {attempt}/{_MAX_RETRIES})")
+            if attempt == _MAX_RETRIES:
+                logger.error("Embedding timed out after all retries")
+                return None
+            continue
         except Exception as e:
             error_str = str(e).lower()
             if "429" in error_str or "rate" in error_str or "quota" in error_str or "resource_exhausted" in error_str:

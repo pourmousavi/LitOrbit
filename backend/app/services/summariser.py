@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any
@@ -77,11 +78,14 @@ async def generate_summary(
     )
 
     try:
-        response = await client.messages.create(
-            model=get_settings().claude_model_smart,
-            max_tokens=1000,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
+        response = await asyncio.wait_for(
+            client.messages.create(
+                model=get_settings().claude_model_smart,
+                max_tokens=1000,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_message}],
+            ),
+            timeout=90,
         )
 
         text = response.content[0].text.strip()
@@ -102,6 +106,9 @@ async def generate_summary(
         logger.info(f"Generated summary for '{paper.get('title', '')[:50]}...'")
         return result
 
+    except TimeoutError:
+        logger.error(f"Anthropic API timed out during summarisation for '{paper.get('title', '')[:60]}'")
+        return None
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse summary JSON: {e}")
         return None

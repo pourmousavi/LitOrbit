@@ -467,6 +467,8 @@ async def run_scheduled_pipeline(
     if not x_pipeline_secret or x_pipeline_secret != expected:
         raise HTTPException(status_code=401, detail="Invalid pipeline secret")
 
+    import asyncio
+
     from app import database as db_module
     from app.pipeline.runner import run_discovery_pipeline
     from app.services.digest_runner import run_digests
@@ -476,12 +478,23 @@ async def run_scheduled_pipeline(
     if db_module.async_session_factory is None:
         raise HTTPException(status_code=503, detail="No DB session factory")
 
+    # Global timeout: keep well under the 10-minute curl --max-time so the
+    # caller always gets a JSON response instead of a connection-reset.
+    PIPELINE_TIMEOUT = 240   # 4 minutes for discovery
+    DIGEST_TIMEOUT = 300     # 5 minutes for digests
+
     # --- 1. Run discovery pipeline ---
     pipeline_result = {}
     try:
         async with db_module.async_session_factory() as session:
-            pipeline_result = await run_discovery_pipeline(session)
+            pipeline_result = await asyncio.wait_for(
+                run_discovery_pipeline(session),
+                timeout=PIPELINE_TIMEOUT,
+            )
             logger.info(f"Scheduled pipeline run: {pipeline_result}")
+    except TimeoutError:
+        logger.error(f"Scheduled pipeline timed out after {PIPELINE_TIMEOUT}s")
+        pipeline_result = {"status": "failed", "error": f"Pipeline timed out after {PIPELINE_TIMEOUT}s"}
     except Exception as e:
         logger.exception(f"Scheduled pipeline failed: {e}")
         pipeline_result = {"status": "failed", "error": str(e)}
@@ -490,10 +503,16 @@ async def run_scheduled_pipeline(
     digest_summary = {}
     try:
         async with db_module.async_session_factory() as session:
-            digest_results = await run_digests(session)
+            digest_results = await asyncio.wait_for(
+                run_digests(session),
+                timeout=DIGEST_TIMEOUT,
+            )
             sent = sum(1 for r in digest_results if r.get("sent"))
             logger.info(f"Scheduled digest: {sent}/{len(digest_results)} emails sent")
             digest_summary = {"sent": sent, "total": len(digest_results)}
+    except TimeoutError:
+        logger.error(f"Scheduled digest timed out after {DIGEST_TIMEOUT}s")
+        digest_summary = {"error": f"Digest timed out after {DIGEST_TIMEOUT}s"}
     except Exception as e:
         logger.exception(f"Scheduled digest failed: {e}")
         digest_summary = {"error": str(e)}
