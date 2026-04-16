@@ -99,6 +99,11 @@ async def run_migrations():
             "  applied_at TIMESTAMPTZ DEFAULT now()"
             ")"
         ))
+        # Enable RLS with no policies so PostgREST/API cannot read this table.
+        # Direct connections (like this migration runner) bypass RLS.
+        await conn.execute(text(
+            "ALTER TABLE _migrations ENABLE ROW LEVEL SECURITY"
+        ))
 
         # Get already-applied migrations
         result = await conn.execute(text("SELECT name FROM _migrations"))
