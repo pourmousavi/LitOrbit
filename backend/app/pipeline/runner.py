@@ -537,6 +537,14 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
 
         run.papers_discovered = len(all_papers)
 
+        # Filter junk entries (TOCs, covers, ads, etc.)
+        from app.services.discovery.deduplicator import filter_junk_papers
+        pre_filter_count = len(all_papers)
+        all_papers = filter_junk_papers(all_papers)
+        junk_removed = pre_filter_count - len(all_papers)
+        if junk_removed:
+            run.run_log.append({"step": "junk_filter", "removed": junk_removed})
+
         # Deduplicate
         existing_dois = await get_existing_dois(db)
         existing_titles = await get_existing_titles(db)

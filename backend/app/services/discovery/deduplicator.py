@@ -1,9 +1,61 @@
 import logging
+import re
 from typing import Any
 
 from Levenshtein import ratio as levenshtein_ratio
 
 logger = logging.getLogger(__name__)
+
+# ---- Junk / non-article filter ----
+
+JUNK_TITLE_PATTERNS = [
+    r"^table of contents$",
+    r"^front cover$",
+    r"^back cover$",
+    r"^masthead$",
+    r"^blank page$",
+    r"^(ieee )?editorial board$",
+    r"^call for papers",
+    r"^corrections? to ",
+    r"^errata ",
+    r"^reviewers? list$",
+    r"^list of reviewers$",
+    r"^advertiser.* index$",
+    r"^(conference )?calendar$",
+    r"^introduction to the special",
+]
+
+_JUNK_RE = re.compile("|".join(JUNK_TITLE_PATTERNS), re.IGNORECASE)
+
+SHORT_TITLE_MAX_LEN = 30
+
+
+def filter_junk_papers(papers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove non-article entries (TOCs, covers, ads, etc.).
+
+    Two layers:
+    1. Regex blocklist for known junk titles.
+    2. Short title (<=30 chars) with no abstract — almost certainly not a real article.
+    """
+    kept = []
+    for paper in papers:
+        title = (paper.get("title") or "").strip()
+        abstract = (paper.get("abstract") or "").strip()
+
+        if _JUNK_RE.search(title):
+            logger.info(f"Filtered junk paper: '{title}'")
+            continue
+
+        if len(title) <= SHORT_TITLE_MAX_LEN and not abstract:
+            logger.info(f"Filtered short-title junk (no abstract): '{title}'")
+            continue
+
+        kept.append(paper)
+
+    removed = len(papers) - len(kept)
+    if removed:
+        logger.info(f"Junk filter removed {removed} non-article entries")
+    return kept
 
 
 def deduplicate_papers(
