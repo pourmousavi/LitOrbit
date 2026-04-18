@@ -1239,20 +1239,41 @@ function ReferencePapersTab() {
 
 function DisplayTab() {
   const settings = usePulseSettings();
+  const [draft, setDraft] = useState({
+    showPulseCard: settings.showPulseCard,
+    showNavBadge: settings.showNavBadge,
+    showSidebarStat: settings.showSidebarStat,
+    showWeeklyToast: settings.showWeeklyToast,
+  });
+  const [saved, setSaved] = useState(false);
 
-  const toggles: { key: 'showPulseCard' | 'showNavBadge' | 'showSidebarStat' | 'showWeeklyToast'; label: string; description: string }[] = [
+  const hasChanges =
+    draft.showPulseCard !== settings.showPulseCard ||
+    draft.showNavBadge !== settings.showNavBadge ||
+    draft.showSidebarStat !== settings.showSidebarStat ||
+    draft.showWeeklyToast !== settings.showWeeklyToast;
+
+  const handleSave = () => {
+    settings.saveAll(draft);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleCancel = () => {
+    setDraft({
+      showPulseCard: settings.showPulseCard,
+      showNavBadge: settings.showNavBadge,
+      showSidebarStat: settings.showSidebarStat,
+      showWeeklyToast: settings.showWeeklyToast,
+    });
+  };
+
+  const toggles: { key: keyof typeof draft; label: string; description: string }[] = [
     { key: 'showPulseCard', label: 'Research Pulse card', description: 'Stats card at the top of the Feed page showing your weekly progress and lab leaderboard' },
-    { key: 'showNavBadge', label: 'Unreviewed papers badge', description: 'Red count badge on the Feed navigation item showing how many papers you haven\'t rated' },
+    { key: 'showNavBadge', label: 'Unreviewed papers badge', description: 'Count badge on the Feed navigation item showing how many papers you haven\'t rated' },
     { key: 'showSidebarStat', label: 'Sidebar status line', description: 'Streak or review status text below the LitOrbit logo in the sidebar' },
     { key: 'showWeeklyToast', label: 'Weekly summary notification', description: 'Toast notification on first visit each week summarizing your previous week\'s activity' },
   ];
-
-  const setters = {
-    showPulseCard: settings.setShowPulseCard,
-    showNavBadge: settings.setShowNavBadge,
-    showSidebarStat: settings.setShowSidebarStat,
-    showWeeklyToast: settings.setShowWeeklyToast,
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -1272,8 +1293,8 @@ function DisplayTab() {
             >
               <input
                 type="checkbox"
-                checked={settings[t.key]}
-                onChange={(e) => setters[t.key](e.target.checked)}
+                checked={draft[t.key]}
+                onChange={(e) => setDraft((prev) => ({ ...prev, [t.key]: e.target.checked }))}
                 className="mt-0.5 accent-accent"
                 style={{ width: 16, height: 16, flexShrink: 0 }}
               />
@@ -1285,6 +1306,26 @@ function DisplayTab() {
               </div>
             </label>
           ))}
+        </div>
+
+        {/* Save / Cancel buttons */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges}
+            className="rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ padding: '8px 20px' }}
+          >
+            {saved ? 'Saved!' : 'Save'}
+          </button>
+          <button
+            onClick={handleCancel}
+            disabled={!hasChanges}
+            className="rounded-xl font-mono text-sm text-text-secondary transition hover:bg-bg-elevated disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ padding: '8px 20px' }}
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </div>
