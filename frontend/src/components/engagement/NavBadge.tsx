@@ -1,5 +1,5 @@
 export default function NavBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
+  const isZero = count <= 0;
 
   return (
     <span
@@ -18,11 +18,11 @@ export default function NavBadge({ count }: { count: number }) {
         fontWeight: 600,
         lineHeight: 1,
         padding: '0 4px',
-        background: 'var(--color-danger, #ef4444)',
+        background: isZero ? '#22c55e' : 'var(--color-danger, #ef4444)',
         color: '#fff',
       }}
     >
-      {count > 99 ? '99+' : count}
+      {isZero ? '\u2713' : count > 99 ? '99+' : count}
     </span>
   );
 }

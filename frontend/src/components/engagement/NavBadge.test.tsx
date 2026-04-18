@@ -8,9 +8,9 @@ describe('NavBadge', () => {
     expect(screen.getByText('5')).toBeInTheDocument();
   });
 
-  it('renders nothing when count is 0', () => {
-    const { container } = render(<NavBadge count={0} />);
-    expect(container.innerHTML).toBe('');
+  it('shows green checkmark when count is 0', () => {
+    render(<NavBadge count={0} />);
+    expect(screen.getByText('\u2713')).toBeInTheDocument();
   });
 
   it('shows the correct number', () => {
