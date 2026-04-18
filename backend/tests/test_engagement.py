@@ -381,17 +381,17 @@ async def test_unreviewed_no_scores(test_client, db_session):
 
 @pytest.mark.asyncio
 async def test_unreviewed_old_scores_excluded(test_client, db_session):
-    """Papers scored more than 7 days ago should not count as unreviewed."""
+    """Papers scored more than 30 days ago should not count as unreviewed."""
     uid = uuid.uuid4()
     await _seed_user(db_session, user_id=uid)
     # 3 papers scored today (recent) — should count
     for _ in range(3):
         pid = await _seed_paper(db_session)
         await _seed_score(db_session, uid, pid, scored_at=_now())
-    # 5 papers scored 10 days ago (old) — should NOT count
+    # 5 papers scored 45 days ago (old) — should NOT count
     for _ in range(5):
         pid = await _seed_paper(db_session)
-        await _seed_score(db_session, uid, pid, scored_at=_days_ago(10))
+        await _seed_score(db_session, uid, pid, scored_at=_days_ago(45))
     await db_session.commit()
 
     from app.auth import get_current_user
