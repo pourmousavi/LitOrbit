@@ -478,9 +478,13 @@ async def run_scheduled_pipeline(
     if db_module.async_session_factory is None:
         raise HTTPException(status_code=503, detail="No DB session factory")
 
-    # Global timeout: keep well under the 10-minute curl --max-time so the
-    # caller always gets a JSON response instead of a connection-reset.
-    PIPELINE_TIMEOUT = 240   # 4 minutes for discovery
+    # The pipeline includes discovery (~2 min), embedding (~2 min), and
+    # scoring + summarisation.  Scoring is rate-limited to 9 RPM by Gemini's
+    # free tier, so 170 papers × N users can legitimately take 30-40 min.
+    # A tight timeout here just cancels the scoring mid-flight, leaving
+    # papers unscored and PipelineRun stuck.  Give it a generous budget;
+    # curl --max-time in the GitHub Actions workflow is the outer guard.
+    PIPELINE_TIMEOUT = 2700  # 45 minutes for discovery + scoring
     DIGEST_TIMEOUT = 300     # 5 minutes for digests
 
     # --- 1. Run discovery pipeline ---

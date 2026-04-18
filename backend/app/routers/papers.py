@@ -36,7 +36,12 @@ async def list_papers(
     user_id = user["id"]
     offset = (page - 1) * per_page
 
-    # Build base query: papers LEFT JOIN scores for this user, LEFT JOIN creator
+    # INNER JOIN on PaperScore: only show papers that have been scored for
+    # this user.  Papers are saved to the DB before scoring completes, so a
+    # LEFT JOIN would expose unscored papers (NULL relevance_score) in the
+    # feed.  Scoring always retries unscored papers on the next pipeline run
+    # (runner.py loads ALL papers and checks for missing score pairs), so
+    # nothing is lost — papers just appear once scoring finishes.
     creator = select(UserProfile.full_name).where(UserProfile.id == Paper.created_by).correlate(Paper).scalar_subquery()
     query = (
         select(
@@ -48,7 +53,7 @@ async def list_papers(
             PaperFavorite.favorited_at.label("favorited_at"),
             Rating.rating.label("user_rating"),
         )
-        .outerjoin(
+        .join(
             PaperScore,
             (PaperScore.paper_id == Paper.id) & (PaperScore.user_id == user_id),
         )

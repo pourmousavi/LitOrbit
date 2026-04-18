@@ -26,10 +26,12 @@ jobs:
           # Render free dynos cold-start (~30-60s). Use a generous connect
           # timeout and retry the wake-up. The endpoint runs synchronously
           # and returns the result when done (pipeline + digest).
+          # Scoring is rate-limited by Gemini (9 RPM free tier), so
+          # 170+ papers can take 30-40 min. Give a 1-hour budget.
           curl --fail-with-body \
                --retry 3 --retry-delay 15 --retry-connrefused \
                --connect-timeout 90 \
-               --max-time 600 \
+               --max-time 3600 \
                -X POST \
                -H "X-Pipeline-Secret: ${PIPELINE_SECRET}" \
                -H "Content-Type: application/json" \

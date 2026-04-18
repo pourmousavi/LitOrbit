@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -604,10 +605,27 @@ async def run_discovery_pipeline(db: AsyncSession) -> dict[str, Any]:
         logger.info(f"Pipeline complete: {summary}")
         return summary
 
-    except Exception as e:
-        logger.exception("Pipeline failed")
+    except BaseException as e:
+        # BaseException catches CancelledError (raised by asyncio.wait_for on
+        # timeout) in addition to regular exceptions.  Without this, a timeout
+        # leaves PipelineRun.status stuck as "running" forever because
+        # CancelledError is a BaseException, not an Exception in Python 3.9+.
+        is_cancel = isinstance(e, (asyncio.CancelledError,))
+        if is_cancel:
+            logger.warning(f"Pipeline cancelled (likely timeout): {e}")
+        else:
+            logger.exception("Pipeline failed")
         run.status = "failed"
-        run.error_message = str(e)
+        run.error_message = (
+            "Pipeline timed out (cancelled by scheduler)"
+            if is_cancel
+            else str(e)
+        )
         run.completed_at = datetime.now(timezone.utc)
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            pass  # best-effort cleanup; session may be broken after cancel
+        if is_cancel:
+            raise  # re-raise so asyncio.wait_for translates to TimeoutError
         return {"status": "failed", "error": str(e)}
