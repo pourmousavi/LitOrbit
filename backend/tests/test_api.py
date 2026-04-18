@@ -29,7 +29,12 @@ async def test_papers_endpoint_requires_auth(test_client):
 @pytest.mark.asyncio
 async def test_papers_endpoint_returns_list(test_client, db_session):
     """GET /api/v1/papers with valid auth returns 200 + list."""
-    # Seed a paper
+    # Mock auth to return a fake user
+    fake_user_id = uuid.uuid4()
+    fake_user = {"id": str(fake_user_id), "email": "test@test.com", "role": "researcher"}
+
+    # Seed a paper with a score for this user (feed uses INNER JOIN on
+    # PaperScore, so papers without scores are hidden).
     paper = Paper(
         id=uuid.uuid4(),
         title="Test Paper for API",
@@ -39,10 +44,14 @@ async def test_papers_endpoint_returns_list(test_client, db_session):
         abstract="Test abstract.",
     )
     db_session.add(paper)
+    await db_session.flush()
+    db_session.add(PaperScore(
+        id=uuid.uuid4(),
+        paper_id=paper.id,
+        user_id=fake_user_id,
+        relevance_score=7.0,
+    ))
     await db_session.commit()
-
-    # Mock auth to return a fake user
-    fake_user = {"id": str(uuid.uuid4()), "email": "test@test.com", "role": "researcher"}
 
     from app.auth import get_current_user
     from app.main import app
