@@ -17,7 +17,7 @@ logging.basicConfig(
 logging.getLogger("app.pipeline").setLevel(logging.INFO)
 logging.getLogger("app.services").setLevel(logging.INFO)
 
-from app.routers import papers, ratings, shares, users, podcasts, admin, collections, feed, reference_papers
+from app.routers import papers, ratings, shares, users, podcasts, admin, collections, feed, reference_papers, engagement
 
 settings = get_settings()
 
@@ -48,6 +48,7 @@ app.include_router(admin.router)
 app.include_router(collections.router)
 app.include_router(feed.router)
 app.include_router(reference_papers.router)
+app.include_router(engagement.router)
 
 logging.getLogger(__name__).info(f"Registered {len(app.routes)} routes")
 

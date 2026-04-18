@@ -132,3 +132,35 @@ export interface Share {
   paper?: Paper;
   sharer_name?: string;
 }
+
+export interface ActivityBreakdown {
+  rated: number;
+  podcasts: number;
+  collected: number;
+  shared: number;
+  opened: number;
+  login_days: number;
+}
+
+export interface LeaderboardEntry {
+  user_id: string;
+  full_name: string;
+  points: number;
+  activity: ActivityBreakdown;
+  is_current_user: boolean;
+}
+
+export interface PulseData {
+  unreviewed_count: number;
+  weekly_stats: ActivityBreakdown;
+  weekly_points: number;
+  streak: number;
+  best_streak: number;
+  lab_total_papers: number;
+  lab_reviewed: number;
+  lab_review_pct: number;
+  leaderboard: LeaderboardEntry[];
+  week_start: string;
+  last_week_points: number;
+  last_week_rated: number;
+}

@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient, useMutation, type InfiniteData } from '@tanstack/react-query';
 import { usePapers } from '@/hooks/usePapers';
+import { useEngagement } from '@/hooks/useEngagement';
 import { useUIStore } from '@/stores/uiStore';
 import PaperCard from './PaperCard';
+import CaughtUpState from '@/components/engagement/CaughtUpState';
 import api from '@/lib/api';
 import type { PapersResponse } from '@/types';
 
@@ -36,6 +38,7 @@ interface PaperFeedProps {
 export default function PaperFeed({ journal, category, search, sort, favorites }: PaperFeedProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } =
     usePapers({ journal, category, search, sort, favorites });
+  const { data: pulse } = useEngagement();
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
   const selectPaper = useUIStore((s) => s.selectPaper);
   const queryClient = useQueryClient();
@@ -131,6 +134,10 @@ export default function PaperFeed({ journal, category, search, sort, favorites }
   const allPapers = data?.pages.flatMap((page) => page.papers) ?? [];
 
   if (allPapers.length === 0) {
+    // Show "caught up" state if user has reviewed all papers (no active filters)
+    if (!search && !journal && !category && pulse && pulse.unreviewed_count === 0 && pulse.weekly_stats.rated > 0) {
+      return <CaughtUpState streak={pulse.streak} />;
+    }
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 80 }}>
         <p style={{ fontSize: 18 }} className="font-mono text-text-secondary">No papers yet</p>

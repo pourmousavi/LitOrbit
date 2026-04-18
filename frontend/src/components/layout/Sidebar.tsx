@@ -14,6 +14,8 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useProfile } from '@/hooks/useProfile';
+import { useEngagement } from '@/hooks/useEngagement';
+import NavBadge from '@/components/engagement/NavBadge';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -29,6 +31,7 @@ export default function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const { data: profile } = useProfile();
+  const { data: pulse } = useEngagement();
   const expanded = useUIStore((s) => s.sidebarExpanded);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const navigate = useNavigate();
@@ -51,7 +54,18 @@ export default function Sidebar() {
         style={{ justifyContent: expanded ? 'space-between' : 'center', padding: '0 12px' }}
       >
         {expanded && (
-          <span className="font-mono text-lg font-medium text-text-primary">LitOrbit</span>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span className="font-mono text-lg font-medium text-text-primary">LitOrbit</span>
+            {pulse && (
+              <span className="font-mono text-text-tertiary" style={{ fontSize: 10, lineHeight: 1.2 }}>
+                {pulse.streak > 0
+                  ? `\u{1F525} ${pulse.streak}-day streak`
+                  : pulse.unreviewed_count > 0
+                    ? `${pulse.unreviewed_count} to review`
+                    : '\u2713 Caught up'}
+              </span>
+            )}
+          </div>
         )}
         <button
           onClick={toggleSidebar}
@@ -82,7 +96,12 @@ export default function Sidebar() {
                 padding: expanded ? '10px 12px' : '10px 0',
               }}
             >
-              <item.icon size={18} style={{ flexShrink: 0 }} />
+              <div style={{ position: 'relative', display: 'inline-flex' }}>
+                <item.icon size={18} style={{ flexShrink: 0 }} />
+                {item.label === 'Feed' && (pulse?.unreviewed_count ?? 0) > 0 && (
+                  <NavBadge count={pulse!.unreviewed_count} />
+                )}
+              </div>
               {expanded && <span>{item.label}</span>}
             </NavLink>
           ))}

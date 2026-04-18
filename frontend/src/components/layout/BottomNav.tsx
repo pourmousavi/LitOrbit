@@ -3,6 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { Newspaper, FolderOpen, Share2, Headphones, Star, Shield, Settings, LogOut, MoreHorizontal, X } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useProfile } from '@/hooks/useProfile';
+import { useEngagement } from '@/hooks/useEngagement';
+import NavBadge from '@/components/engagement/NavBadge';
 import { cn } from '@/lib/utils';
 
 const primaryTabs = [
@@ -21,6 +23,7 @@ const moreTabs = [
 export default function BottomNav() {
   const [showMore, setShowMore] = useState(false);
   const { data: profile } = useProfile();
+  const { data: pulse } = useEngagement();
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const isAdmin = profile?.role === 'admin';
@@ -92,7 +95,12 @@ export default function BottomNav() {
               )
             }
           >
-            <tab.icon size={20} />
+            <div style={{ position: 'relative', display: 'inline-flex' }}>
+              <tab.icon size={20} />
+              {tab.label === 'Feed' && (pulse?.unreviewed_count ?? 0) > 0 && (
+                <NavBadge count={pulse!.unreviewed_count} />
+              )}
+            </div>
             <span className="font-mono">{tab.label}</span>
           </NavLink>
         ))}

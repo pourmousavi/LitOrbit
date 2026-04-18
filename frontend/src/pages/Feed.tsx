@@ -3,8 +3,11 @@ import { Search, X, Plus, Upload, Link, Loader2, ArrowUpDown, Bookmark } from 'l
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/uiStore';
 import { usePapers } from '@/hooks/usePapers';
+import { useEngagement } from '@/hooks/useEngagement';
 import PaperFeed from '@/components/papers/PaperFeed';
 import PaperDetail from '@/components/papers/PaperDetail';
+import ResearchPulse from '@/components/engagement/ResearchPulse';
+import { toast } from '@/components/ui/Toast';
 import api from '@/lib/api';
 
 export default function Feed() {
@@ -22,6 +25,21 @@ export default function Feed() {
   // Total paper count from current filtered query (shares cache with PaperFeed)
   const { data: papersData } = usePapers({ search: debouncedSearch || undefined, sort, favorites: favoritesOnly });
   const totalPapers = papersData?.pages?.[0]?.total ?? null;
+  const { data: pulse } = useEngagement();
+
+  // Weekly summary toast — show once per week on first visit
+  useEffect(() => {
+    if (!pulse) return;
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const weekKey = monday.toISOString().slice(0, 10);
+    const shown = localStorage.getItem('litorbit-weekly-summary-shown');
+    if (shown !== weekKey && pulse.last_week_rated > 0) {
+      toast('info', `Last week: ${pulse.last_week_rated} papers rated, ${pulse.last_week_points} pts`);
+      localStorage.setItem('litorbit-weekly-summary-shown', weekKey);
+    }
+  }, [pulse]);
 
   // Debounce search input by 400ms
   useEffect(() => {
@@ -178,6 +196,8 @@ export default function Feed() {
               />
             </div>
           </div>
+
+          <ResearchPulse />
 
           {/* Search bar */}
           <div
