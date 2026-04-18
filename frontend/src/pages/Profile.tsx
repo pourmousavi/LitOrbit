@@ -1245,8 +1245,6 @@ function DisplayTab() {
     showSidebarStat: settings.showSidebarStat,
     showWeeklyToast: settings.showWeeklyToast,
   });
-  const [saved, setSaved] = useState(false);
-
   const hasChanges =
     draft.showPulseCard !== settings.showPulseCard ||
     draft.showNavBadge !== settings.showNavBadge ||
@@ -1255,8 +1253,6 @@ function DisplayTab() {
 
   const handleSave = () => {
     settings.saveAll(draft);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
   };
 
   const handleCancel = () => {
