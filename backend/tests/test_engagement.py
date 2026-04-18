@@ -59,10 +59,10 @@ async def _seed_rating(db, user_id, paper_id, rated_at=None):
     return rating
 
 
-async def _seed_score(db, user_id, paper_id):
+async def _seed_score(db, user_id, paper_id, scored_at=None):
     score = PaperScore(
         id=uuid.uuid4(), paper_id=paper_id, user_id=user_id,
-        relevance_score=7.5, scored_at=_now(),
+        relevance_score=7.5, scored_at=scored_at or _now(),
     )
     db.add(score)
     await db.flush()
@@ -377,6 +377,29 @@ async def test_unreviewed_no_scores(test_client, db_session):
     resp = await test_client.get("/api/v1/engagement/pulse")
     del app.dependency_overrides[get_current_user]
     assert resp.json()["unreviewed_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_unreviewed_old_scores_excluded(test_client, db_session):
+    """Papers scored more than 7 days ago should not count as unreviewed."""
+    uid = uuid.uuid4()
+    await _seed_user(db_session, user_id=uid)
+    # 3 papers scored today (recent) — should count
+    for _ in range(3):
+        pid = await _seed_paper(db_session)
+        await _seed_score(db_session, uid, pid, scored_at=_now())
+    # 5 papers scored 10 days ago (old) — should NOT count
+    for _ in range(5):
+        pid = await _seed_paper(db_session)
+        await _seed_score(db_session, uid, pid, scored_at=_days_ago(10))
+    await db_session.commit()
+
+    from app.auth import get_current_user
+    from app.main import app
+    app.dependency_overrides[get_current_user] = lambda: {"id": str(uid), "email": "t@t.com", "role": "researcher"}
+    resp = await test_client.get("/api/v1/engagement/pulse")
+    del app.dependency_overrides[get_current_user]
+    assert resp.json()["unreviewed_count"] == 3  # only recent papers
 
 
 # ===================================================================

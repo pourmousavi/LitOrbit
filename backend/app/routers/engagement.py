@@ -235,11 +235,14 @@ async def get_pulse(
     user_uuid = uuid.UUID(user["id"])
     this_start, this_end, last_start, last_end = _week_boundaries()
 
-    # Unreviewed: papers scored for this user but not rated
+    # Unreviewed: papers scored for this user in the last 7 days but not rated.
+    # Using a 7-day window avoids an overwhelming backlog count for new users.
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
     rated_paper_ids = select(Rating.paper_id).where(Rating.user_id == user_uuid)
     unreviewed = (await db.execute(
         select(func.count()).select_from(PaperScore).where(
             PaperScore.user_id == user_uuid,
+            PaperScore.scored_at >= seven_days_ago,
             PaperScore.paper_id.not_in(rated_paper_ids),
         )
     )).scalar() or 0
