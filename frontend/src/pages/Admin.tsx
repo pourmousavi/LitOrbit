@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders, AlertTriangle, Info, BookOpen } from 'lucide-react';
 import api from '@/lib/api';
@@ -845,7 +845,16 @@ function RunAccordion({ run, rescoreMutation, deleteBatchMutation }: {
   deleteBatchMutation: ReturnType<typeof useMutation<{ papers_deleted: number }, Error, string>>;
 }) {
   const isDeleted = run.status === 'deleted';
+  const isRunning = run.status === 'running';
   const [expanded, setExpanded] = useState(!isDeleted);
+
+  // Tick every second while running so the elapsed timer updates live
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [isRunning]);
 
   return (
     <div
@@ -1205,7 +1214,16 @@ const DIGEST_STEP_LABELS: Record<string, string> = {
 
 function DigestRunAccordion({ run }: { run: DigestRunItem }) {
   const defaultExpanded = run.status === 'running';
+  const isRunning = run.status === 'running';
   const [expanded, setExpanded] = useState(defaultExpanded);
+
+  // Tick every second while running so the elapsed timer updates live
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [isRunning]);
 
   return (
     <div
