@@ -10,6 +10,8 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeft,
+  Flame,
+  Check,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -52,29 +54,44 @@ export default function Sidebar() {
     >
       {/* Header */}
       <div
-        className="flex h-14 shrink-0 items-center border-b border-border-default"
-        style={{ justifyContent: expanded ? 'space-between' : 'center', padding: '0 12px' }}
+        className="shrink-0 border-b border-border-default"
+        style={{ padding: expanded ? '12px 12px' : '12px 0', display: 'flex', flexDirection: 'column', gap: 4,
+          alignItems: expanded ? 'stretch' : 'center', minHeight: 56, justifyContent: 'center' }}
       >
-        {expanded && (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span className="font-mono text-lg font-medium text-text-primary">LitOrbit</span>
-            {pulseSettings.showSidebarStat && pulse && (
-              <span className="font-mono text-text-tertiary" style={{ fontSize: 10, lineHeight: 1.2 }}>
-                {pulse.streak > 0
-                  ? `\u{1F525} ${pulse.streak}-day streak`
-                  : pulse.unreviewed_count > 0
-                    ? `${pulse.unreviewed_count} to review`
-                    : '\u2713 Caught up'}
-              </span>
-            )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: expanded ? 'space-between' : 'center' }}>
+          {expanded && (
+            <span className="font-mono" style={{ fontSize: 17, fontWeight: 500, color: 'var(--color-text-primary, #f0f0f0)',
+              letterSpacing: '-0.01em' }}>
+              LitOrbit
+            </span>
+          )}
+          <button
+            onClick={toggleSidebar}
+            className="rounded-md p-1.5 text-text-secondary transition hover:bg-bg-elevated hover:text-text-primary"
+          >
+            {expanded ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+          </button>
+        </div>
+        {expanded && pulseSettings.showSidebarStat && pulse && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0,
+            background: 'var(--color-bg-elevated, #1c1c1c)', borderRadius: 5, padding: '3px 6px',
+            border: '1px solid var(--color-border-default, #2a2a2a)' }}>
+            <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-primary, #f0f0f0)',
+              display: 'inline-flex', alignItems: 'center', gap: 3, fontVariantNumeric: 'tabular-nums' }}>
+              <Flame size={9} style={{ color: '#f59e0b' }} />{pulse.streak}d
+            </span>
+            <span style={{ width: 1, height: 9, background: 'var(--color-border-default, #2a2a2a)', margin: '0 6px' }} />
+            <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-primary, #f0f0f0)',
+              fontVariantNumeric: 'tabular-nums' }}>
+              {pulse.weekly_points}<span style={{ color: '#555' }}>pts</span>
+            </span>
+            <span style={{ width: 1, height: 9, background: 'var(--color-border-default, #2a2a2a)', margin: '0 6px' }} />
+            <span className="font-mono" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums',
+              color: pulse.unreviewed_count > 0 ? 'var(--color-accent, #0891b2)' : 'var(--color-success, #22c55e)' }}>
+              {pulse.unreviewed_count > 0 ? pulse.unreviewed_count : <Check size={11} />}
+            </span>
           </div>
         )}
-        <button
-          onClick={toggleSidebar}
-          className="rounded-md p-1.5 text-text-secondary transition hover:bg-bg-elevated hover:text-text-primary"
-        >
-          {expanded ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-        </button>
       </div>
 
       {/* Navigation */}
@@ -98,13 +115,11 @@ export default function Sidebar() {
                 padding: expanded ? '10px 12px' : '10px 0',
               }}
             >
-              <div style={{ position: 'relative', display: 'inline-flex' }}>
-                <item.icon size={18} style={{ flexShrink: 0 }} />
-                {item.label === 'Feed' && pulseSettings.showNavBadge && pulse && (
-                  <NavBadge count={pulse.unreviewed_count} />
-                )}
-              </div>
-              {expanded && <span>{item.label}</span>}
+              <item.icon size={18} style={{ flexShrink: 0 }} />
+              {expanded && <span style={{ flex: 1 }}>{item.label}</span>}
+              {expanded && item.label === 'Feed' && pulseSettings.showNavBadge && pulse && (
+                <NavBadge count={pulse.unreviewed_count} />
+              )}
             </NavLink>
           ))}
         </div>

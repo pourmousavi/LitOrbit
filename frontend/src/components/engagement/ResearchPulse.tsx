@@ -1,231 +1,305 @@
 import { useState } from 'react';
-import { Flame, Star, Headphones, FolderOpen, Share2, Eye, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
+import { Flame, Star, Headphones, FolderOpen, Share2, Eye, ChevronDown, ChevronUp, Trophy, AlertTriangle } from 'lucide-react';
 import { useEngagement } from '@/hooks/useEngagement';
 import { usePulseSettings } from '@/stores/pulseSettingsStore';
+import type { PulseData } from '@/types';
+
+function getWeekNumber(): number {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  const diff = now.getTime() - start.getTime();
+  return Math.ceil((diff / 86400000 + start.getDay() + 1) / 7);
+}
+
+function pctColor(pct: number): string {
+  if (pct >= 75) return 'var(--color-success, #22c55e)';
+  if (pct >= 40) return 'var(--color-accent, #0891b2)';
+  if (pct >= 15) return '#888';
+  return '#555';
+}
+
+// SVG ring gauge
+function Ring({ pct, size = 96, stroke = 3, color, track = 'var(--color-bg-elevated, #1c1c1c)' }: {
+  pct: number; size?: number; stroke?: number; color: string; track?: string;
+}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - Math.min(pct, 100) / 100);
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
+      <circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none"
+        strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
+        style={{ transition: 'stroke-dashoffset .5s cubic-bezier(.2,.8,.2,1)' }} />
+    </svg>
+  );
+}
+
+// Decorative orbit background
+function OrbitBg() {
+  return (
+    <svg style={{ position: 'absolute', right: -40, top: -40, opacity: 0.18, pointerEvents: 'none' }}
+      width="280" height="280" viewBox="0 0 280 280">
+      <circle cx="140" cy="140" r="60" fill="none" stroke="var(--color-accent, #0891b2)" strokeWidth="0.5" strokeDasharray="2 4" />
+      <circle cx="140" cy="140" r="100" fill="none" stroke="#555" strokeWidth="0.5" strokeDasharray="2 6" />
+      <circle cx="140" cy="140" r="130" fill="none" stroke="#555" strokeWidth="0.5" strokeDasharray="1 8" />
+    </svg>
+  );
+}
 
 export default function ResearchPulse() {
   const { data: pulse, isLoading, isError } = useEngagement();
   const { showPulseCard } = usePulseSettings();
-  const [activeTab, setActiveTab] = useState<'my' | 'lab'>('my');
-  const [collapsed, setCollapsed] = useState(() => {
-    return localStorage.getItem('litorbit-pulse-collapsed') === 'true';
-  });
+  const [tab, setTab] = useState<'my' | 'lab'>('my');
 
   if (!showPulseCard || isLoading || isError || !pulse) return null;
 
-  const totalToReview = pulse.weekly_stats.rated + pulse.unreviewed_count;
-  const pct = totalToReview > 0 ? Math.round((pulse.weekly_stats.rated / totalToReview) * 100) : 100;
-  const myRank = pulse.leaderboard.findIndex((e) => e.is_current_user) + 1;
-
-  const handleCollapse = (v: boolean) => {
-    setCollapsed(v);
-    localStorage.setItem('litorbit-pulse-collapsed', String(v));
-  };
-
-  // Collapsed mode — compact summary line
-  if (collapsed) {
-    return (
-      <button
-        onClick={() => handleCollapse(false)}
-        className="w-full rounded-xl border border-border-default bg-bg-surface font-mono text-sm text-text-secondary transition hover:bg-bg-elevated"
-        style={{ padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>{pulse.weekly_stats.rated}/{totalToReview} rated</span>
-          {pulse.streak > 0 && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-              <Flame size={12} style={{ color: '#f97316' }} /> {pulse.streak}
-            </span>
-          )}
-          {myRank > 0 && <span>#{myRank} in lab</span>}
-        </span>
-        <ChevronDown size={14} />
-      </button>
-    );
-  }
+  const total = pulse.weekly_stats.rated + pulse.unreviewed_count;
+  const pct = total > 0 ? Math.round((pulse.weekly_stats.rated / total) * 100) : 100;
 
   return (
-    <div
-      className="rounded-xl border border-border-default bg-bg-surface"
-      style={{ marginBottom: 12, overflow: 'hidden' }}
-    >
-      {/* Header: tabs + controls */}
-      <div
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px 0' }}
-      >
-        <div style={{ display: 'flex', gap: 0 }}>
-          <button
-            onClick={() => setActiveTab('my')}
-            className={`font-mono text-xs font-medium transition ${activeTab === 'my' ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'}`}
-            style={{ padding: '6px 12px', borderBottom: activeTab === 'my' ? '2px solid var(--color-accent, #0891b2)' : '2px solid transparent' }}
-          >
-            My Pulse
+    <div style={{ marginBottom: 12, borderRadius: 12, border: '1px solid var(--color-border-default, #2a2a2a)',
+      background: 'var(--color-bg-surface, #141414)', overflow: 'hidden', position: 'relative' }}>
+      <OrbitBg />
+
+      {/* Tab header */}
+      <div style={{ position: 'relative', padding: '16px 18px', display: 'flex', gap: 8,
+        alignItems: 'center', borderBottom: '1px solid var(--color-border-default, #2a2a2a)' }}>
+        {(['my', 'lab'] as const).map((k) => (
+          <button key={k} onClick={() => setTab(k)}
+            className="font-mono"
+            style={{
+              fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+              padding: '5px 10px', borderRadius: 999,
+              background: tab === k ? 'var(--color-bg-elevated, #1c1c1c)' : 'transparent',
+              color: tab === k ? 'var(--color-text-primary, #f0f0f0)' : '#555',
+              border: tab === k ? '1px solid rgba(8,145,178,0.4)' : '1px solid transparent',
+            }}>
+            {k === 'my' ? 'My Pulse' : 'Lab Pulse'}
           </button>
-          <button
-            onClick={() => setActiveTab('lab')}
-            className={`font-mono text-xs font-medium transition ${activeTab === 'lab' ? 'text-accent' : 'text-text-tertiary hover:text-text-secondary'}`}
-            style={{ padding: '6px 12px', borderBottom: activeTab === 'lab' ? '2px solid var(--color-accent, #0891b2)' : '2px solid transparent' }}
-          >
-            Lab Pulse
-          </button>
-        </div>
-        <button
-          onClick={() => handleCollapse(true)}
-          className="rounded p-1 text-text-tertiary transition hover:bg-bg-elevated hover:text-text-secondary"
-        >
-          <ChevronUp size={14} />
-        </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <span className="font-mono" style={{ fontSize: 10, color: '#555', letterSpacing: '0.12em',
+          fontVariantNumeric: 'tabular-nums' }}>
+          WK {getWeekNumber()}
+        </span>
       </div>
 
       {/* Content */}
-      <div style={{ padding: '12px 14px 14px' }}>
-        {activeTab === 'my' ? (
-          <MyPulseTab pulse={pulse} pct={pct} totalToReview={totalToReview} />
-        ) : (
-          <LabPulseTab pulse={pulse} />
-        )}
+      <div style={{ position: 'relative', padding: '22px 20px 20px' }}>
+        {tab === 'my'
+          ? <MyOrbit pulse={pulse} pct={pct} total={total} />
+          : <LabOrbit pulse={pulse} />}
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// My Pulse Tab
+// My Pulse — Orbit variant
 // ---------------------------------------------------------------------------
 
-function MyPulseTab({
-  pulse,
-  pct,
-  totalToReview,
-}: {
-  pulse: NonNullable<ReturnType<typeof useEngagement>['data']>;
-  pct: number;
-  totalToReview: number;
-}) {
-  const barColor = pct >= 75 ? '#22c55e' : pct >= 25 ? '#eab308' : '#ef4444';
+function MyOrbit({ pulse, pct, total }: { pulse: PulseData; pct: number; total: number }) {
+  const bar = pctColor(pct);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Progress bar */}
-      <div>
-        <div className="font-mono text-xs text-text-secondary" style={{ marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
-          <span>{pulse.weekly_stats.rated}/{totalToReview} rated</span>
-          <span>{pct}%</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* Ring + headline */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <Ring pct={pct} color={bar} />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 28, lineHeight: 1, color: 'var(--color-text-primary, #f0f0f0)',
+              fontWeight: 400, fontVariantNumeric: 'tabular-nums' }}>
+              {pct}<span style={{ fontSize: 14, color: '#555' }}>%</span>
+            </span>
+            <span className="font-mono" style={{ fontSize: 9, color: '#555', letterSpacing: '0.1em', marginTop: 2 }}>
+              RATED
+            </span>
+          </div>
         </div>
-        <div
-          style={{ height: 6, borderRadius: 3, background: 'var(--color-bg-elevated, #1e293b)', overflow: 'hidden' }}
-          role="progressbar"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <div style={{ height: '100%', width: `${pct}%`, borderRadius: 3, background: barColor, transition: 'width 0.3s' }} />
-        </div>
-      </div>
-
-      {/* Streak + Points row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        {pulse.streak > 0 && (
-          <span className="font-mono text-xs text-text-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-            <Flame size={13} style={{ color: '#f97316' }} />
-            {pulse.streak}-day streak
-            {pulse.streak >= pulse.best_streak && pulse.streak > 1 && (
-              <span className="text-accent" style={{ marginLeft: 2 }}>(best!)</span>
-            )}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span className="font-mono" style={{ fontSize: 10, color: '#555', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            This week
           </span>
-        )}
-        <span className="font-mono text-xs text-text-tertiary">
-          {pulse.weekly_points} pts this week
-        </span>
+          <div style={{ fontSize: 26, color: 'var(--color-text-primary, #f0f0f0)', lineHeight: 1.05,
+            fontWeight: 400, fontVariantNumeric: 'tabular-nums' }}>
+            {pulse.weekly_stats.rated}<span style={{ color: '#555', fontSize: 18 }}> of {total}</span>
+          </div>
+          <span className="font-mono" style={{ fontSize: 11, color: '#888' }}>
+            <span style={{ color: 'var(--color-text-primary, #f0f0f0)', fontVariantNumeric: 'tabular-nums' }}>
+              {pulse.weekly_points}
+            </span> pts earned
+          </span>
+        </div>
       </div>
 
-      {/* Activity breakdown */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <ActivityStat icon={Star} count={pulse.weekly_stats.rated} label="rated" />
-        <ActivityStat icon={Headphones} count={pulse.weekly_stats.podcasts} label="podcasts" />
-        <ActivityStat icon={FolderOpen} count={pulse.weekly_stats.collected} label="collected" />
-        <ActivityStat icon={Share2} count={pulse.weekly_stats.shared} label="shared" />
-        <ActivityStat icon={Eye} count={pulse.weekly_stats.opened} label="opened" />
+      {/* Streak strip */}
+      <StreakStrip streak={pulse.streak} best={pulse.best_streak} />
+
+      {/* Activity sparklets */}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        <Sparklet label="rated" v={pulse.weekly_stats.rated} Icon={Star} />
+        <Sparklet label="podcasts" v={pulse.weekly_stats.podcasts} Icon={Headphones} />
+        <Sparklet label="collected" v={pulse.weekly_stats.collected} Icon={FolderOpen} />
+        <Sparklet label="shared" v={pulse.weekly_stats.shared} Icon={Share2} />
+        <Sparklet label="opened" v={pulse.weekly_stats.opened} Icon={Eye} />
       </div>
 
-      {/* Piling up warning */}
+      {/* Nudge */}
       {pulse.unreviewed_count > 3 && (
-        <div
-          className="font-mono text-xs"
-          style={{
-            padding: '8px 10px',
-            borderRadius: 8,
-            background: 'rgba(234, 179, 8, 0.1)',
-            color: '#eab308',
-            border: '1px solid rgba(234, 179, 8, 0.2)',
-          }}
-        >
-          {pulse.unreviewed_count} papers piling up — rate them to improve your recommendations
+        <div style={{ padding: '12px 14px', borderRadius: 10,
+          background: 'linear-gradient(90deg, rgba(245,158,11,0.08), transparent)',
+          border: '1px solid rgba(245,158,11,0.18)', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <AlertTriangle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <span className="font-mono" style={{ fontSize: 11, color: '#888', flex: 1 }}>
+            <span style={{ color: '#f59e0b', fontVariantNumeric: 'tabular-nums' }}>{pulse.unreviewed_count}</span> unrated —
+            your recommendations are getting stale
+          </span>
         </div>
       )}
     </div>
   );
 }
 
-function ActivityStat({ icon: Icon, count, label }: { icon: typeof Star; count: number; label: string }) {
+function Sparklet({ label, v, Icon }: { label: string; v: number; Icon: typeof Star }) {
   return (
-    <span className="font-mono text-xs text-text-tertiary" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      <Icon size={12} /> {count} {label}
-    </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 48 }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#555' }}>
+        <Icon size={10} />
+        <span className="font-mono" style={{ fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
+      </div>
+      <span style={{ fontSize: 16, color: 'var(--color-text-primary, #f0f0f0)', fontWeight: 400,
+        lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+    </div>
+  );
+}
+
+function StreakStrip({ streak, best }: { streak: number; best: number }) {
+  const days = Array(14).fill(false).map((_, i) => i >= 14 - streak);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+      borderRadius: 8, background: 'var(--color-bg-elevated, #1c1c1c)',
+      border: '1px solid var(--color-border-default, #2a2a2a)' }}>
+      <Flame size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+      <span className="font-mono" style={{ fontSize: 12, color: 'var(--color-text-primary, #f0f0f0)',
+        minWidth: 62, fontVariantNumeric: 'tabular-nums' }}>
+        {streak}<span style={{ color: '#555' }}>-day streak</span>
+      </span>
+      <div style={{ display: 'flex', gap: 3, flex: 1, minWidth: 0 }}>
+        {days.map((on, i) => (
+          <div key={i} style={{ flex: 1, height: 10, borderRadius: 2,
+            background: on ? '#f59e0b' : '#232323',
+            opacity: on ? (0.4 + (i / days.length) * 0.6) : 1 }} />
+        ))}
+      </div>
+      <span className="font-mono" style={{ fontSize: 10, color: '#555', minWidth: 48, textAlign: 'right',
+        fontVariantNumeric: 'tabular-nums' }}>
+        best {best}d
+      </span>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Lab Pulse Tab
+// Lab Pulse — Orbit variant
 // ---------------------------------------------------------------------------
 
-function LabPulseTab({ pulse }: { pulse: NonNullable<ReturnType<typeof useEngagement>['data']> }) {
-  const labPct = pulse.lab_review_pct;
-  const barColor = labPct >= 75 ? '#22c55e' : labPct >= 25 ? '#eab308' : '#ef4444';
+function LabOrbit({ pulse }: { pulse: PulseData }) {
+  const pct = pulse.lab_review_pct;
+  const bar = pctColor(pct);
+  const top3 = pulse.leaderboard.slice(0, 3);
+  const rest = pulse.leaderboard.slice(3);
+  const [expanded, setExpanded] = useState(false);
+  const accent = 'var(--color-accent, #0891b2)';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Team progress */}
-      <div>
-        <div className="font-mono text-xs text-text-secondary" style={{ marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
-          <span>Lab reviewed {pulse.lab_reviewed}/{pulse.lab_total_papers}</span>
-          <span>{labPct}%</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* Ring + headline */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <Ring pct={pct} color={bar} />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 28, lineHeight: 1, color: 'var(--color-text-primary, #f0f0f0)',
+              fontWeight: 400, fontVariantNumeric: 'tabular-nums' }}>
+              {pct}<span style={{ fontSize: 14, color: '#555' }}>%</span>
+            </span>
+            <span className="font-mono" style={{ fontSize: 9, color: '#555', letterSpacing: '0.1em', marginTop: 2 }}>
+              LAB
+            </span>
+          </div>
         </div>
-        <div style={{ height: 6, borderRadius: 3, background: 'var(--color-bg-elevated, #1e293b)', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${Math.min(labPct, 100)}%`, borderRadius: 3, background: barColor, transition: 'width 0.3s' }} />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span className="font-mono" style={{ fontSize: 10, color: '#555', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            Team progress
+          </span>
+          <div style={{ fontSize: 26, color: 'var(--color-text-primary, #f0f0f0)', lineHeight: 1.05,
+            fontVariantNumeric: 'tabular-nums' }}>
+            {pulse.lab_reviewed}<span style={{ color: '#555', fontSize: 18 }}> of {pulse.lab_total_papers}</span>
+          </div>
+          <span className="font-mono" style={{ fontSize: 11, color: '#888' }}>
+            across <span style={{ color: 'var(--color-text-primary, #f0f0f0)', fontVariantNumeric: 'tabular-nums' }}>
+              {pulse.leaderboard.length}
+            </span> members
+          </span>
         </div>
       </div>
 
-      {/* Leaderboard */}
-      {pulse.leaderboard.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {pulse.leaderboard.map((entry, i) => (
-            <div
-              key={entry.user_id}
-              className="font-mono text-xs"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 8px',
-                borderRadius: 6,
-                background: entry.is_current_user ? 'var(--color-accent-subtle, rgba(8, 145, 178, 0.1))' : 'transparent',
-                color: entry.is_current_user ? 'var(--color-accent, #0891b2)' : undefined,
-              }}
-              data-testid={entry.is_current_user ? 'leaderboard-current-user' : undefined}
-            >
-              <span style={{ width: 20, textAlign: 'center', fontWeight: 600 }} className="text-text-secondary">
-                {i === 0 ? <Trophy size={12} style={{ color: '#eab308' }} /> : `${i + 1}.`}
+      {/* Podium — top 3 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {top3.map((e, i) => (
+          <div key={e.user_id} style={{ padding: '10px 12px', borderRadius: 8,
+            background: e.is_current_user ? 'rgba(8,145,178,0.09)' : 'var(--color-bg-elevated, #1c1c1c)',
+            border: e.is_current_user ? '1px solid rgba(8,145,178,0.33)' : '1px solid var(--color-border-default, #2a2a2a)',
+            display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="font-mono" style={{ fontSize: 10, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
+                {String(i + 1).padStart(2, '0')}
               </span>
-              <span style={{ flex: 1 }} className={entry.is_current_user ? 'text-accent' : 'text-text-primary'}>
-                {entry.full_name}
+              {i === 0 && <Trophy size={11} style={{ color: '#f59e0b' }} />}
+              <span style={{ flex: 1 }} />
+              <span className="font-mono" style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums',
+                color: e.is_current_user ? accent : 'var(--color-text-primary, #f0f0f0)' }}>
+                {e.points}<span style={{ color: '#555' }}>pts</span>
               </span>
-              <span style={{ fontWeight: 600, minWidth: 40, textAlign: 'right' }} className="text-text-secondary">
-                {entry.points} pts
+            </div>
+            <span className="font-mono" style={{ fontSize: 11,
+              color: e.is_current_user ? accent : 'var(--color-text-primary, #f0f0f0)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {e.full_name}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Expandable rest */}
+      {rest.length > 0 && (
+        <button onClick={() => setExpanded(!expanded)}
+          className="font-mono"
+          style={{ alignSelf: 'flex-start', fontSize: 10, color: '#555', letterSpacing: '0.1em',
+            textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+          {expanded ? 'Hide' : 'Show'} all {pulse.leaderboard.length} members
+          {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+        </button>
+      )}
+      {expanded && rest.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
+          background: 'var(--color-border-default, #2a2a2a)', borderRadius: 6, overflow: 'hidden',
+          border: '1px solid var(--color-border-default, #2a2a2a)' }}>
+          {rest.map((e, i) => (
+            <div key={e.user_id} style={{ padding: '8px 12px', background: 'var(--color-bg-surface, #141414)',
+              display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="font-mono" style={{ fontSize: 10, color: '#555', width: 18,
+                fontVariantNumeric: 'tabular-nums' }}>
+                {String(i + 4).padStart(2, '0')}
               </span>
-              <span className="text-text-tertiary" style={{ display: 'flex', gap: 6, marginLeft: 4 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}><Star size={10} />{entry.activity.rated}</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}><Headphones size={10} />{entry.activity.podcasts}</span>
+              <span className="font-mono" style={{ flex: 1, fontSize: 11, color: 'var(--color-text-primary, #f0f0f0)' }}>
+                {e.full_name}
+              </span>
+              <span className="font-mono" style={{ fontSize: 11, color: '#888', fontVariantNumeric: 'tabular-nums' }}>
+                {e.points}<span style={{ color: '#555' }}>pts</span>
               </span>
             </div>
           ))}

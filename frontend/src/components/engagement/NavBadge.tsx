@@ -1,28 +1,30 @@
+import { Check } from 'lucide-react';
+
 export default function NavBadge({ count }: { count: number }) {
-  const isZero = count <= 0;
+  if (count <= 0) {
+    return (
+      <span className="font-mono" style={{ fontSize: 10, color: '#555' }}>
+        <Check size={11} />
+      </span>
+    );
+  }
+
+  const amber = count >= 50;
 
   return (
     <span
       className="font-mono"
       style={{
-        position: 'absolute',
-        top: -6,
-        right: -8,
-        minWidth: 18,
-        height: 18,
-        borderRadius: 9,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         fontSize: 10,
-        fontWeight: 600,
-        lineHeight: 1,
-        padding: '0 4px',
-        background: isZero ? '#22c55e' : 'var(--color-danger, #ef4444)',
-        color: '#fff',
+        color: amber ? 'var(--color-warning, #f59e0b)' : '#888',
+        padding: '1px 6px',
+        borderRadius: 3,
+        background: 'var(--color-bg-elevated, #1c1c1c)',
+        border: '1px solid var(--color-border-default, #2a2a2a)',
+        fontVariantNumeric: 'tabular-nums',
       }}
     >
-      {isZero ? '\u2713' : count > 99 ? '99+' : count}
+      {count > 99 ? '99+' : count}
     </span>
   );
 }

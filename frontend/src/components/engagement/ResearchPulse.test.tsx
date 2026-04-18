@@ -3,7 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import ResearchPulse from './ResearchPulse';
 import type { PulseData } from '@/types';
 
-// Mock useEngagement hook
 const mockPulse: PulseData = {
   unreviewed_count: 6,
   weekly_stats: { rated: 8, podcasts: 3, collected: 2, shared: 1, opened: 5, login_days: 3 },
@@ -42,67 +41,56 @@ describe('ResearchPulse', () => {
   it('renders My Pulse tab by default', () => {
     render(<ResearchPulse />);
     expect(screen.getByText('My Pulse')).toBeInTheDocument();
-    expect(screen.getByText(/8\/14 rated/)).toBeInTheDocument();
+    expect(screen.getByText('This week')).toBeInTheDocument();
   });
 
-  it('shows progress bar with correct percentage', () => {
+  it('shows ring gauge with percentage', () => {
     render(<ResearchPulse />);
-    const bar = screen.getByRole('progressbar');
-    expect(bar).toHaveAttribute('aria-valuenow', '57');
+    expect(screen.getByText('RATED')).toBeInTheDocument();
+    // 8 of 14 = 57%
+    expect(screen.getByText('57')).toBeInTheDocument();
   });
 
-  it('shows streak count', () => {
+  it('shows streak strip', () => {
     render(<ResearchPulse />);
-    expect(screen.getByText(/5-day streak/)).toBeInTheDocument();
+    expect(screen.getByText(/-day streak/)).toBeInTheDocument();
+    expect(screen.getByText(/best 5d/)).toBeInTheDocument();
   });
 
-  it('shows activity breakdown', () => {
+  it('shows activity sparklets', () => {
     render(<ResearchPulse />);
-    expect(screen.getByText(/8 rated/)).toBeInTheDocument();
-    expect(screen.getByText(/3 podcasts/)).toBeInTheDocument();
-    expect(screen.getByText(/2 collected/)).toBeInTheDocument();
+    expect(screen.getByText('rated')).toBeInTheDocument();
+    expect(screen.getByText('podcasts')).toBeInTheDocument();
+    expect(screen.getByText('collected')).toBeInTheDocument();
   });
 
-  it('shows piling up warning when unreviewed > 3', () => {
+  it('shows nudge when unreviewed > 3', () => {
     render(<ResearchPulse />);
-    expect(screen.getByText(/6 papers piling up/)).toBeInTheDocument();
+    expect(screen.getByText(/unrated/)).toBeInTheDocument();
   });
 
-  it('does not show piling up warning when unreviewed <= 3', () => {
+  it('does not show nudge when unreviewed <= 3', () => {
     mockReturn = { data: { ...mockPulse, unreviewed_count: 2 }, isLoading: false, isError: false };
     render(<ResearchPulse />);
-    expect(screen.queryByText(/piling up/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/unrated/)).not.toBeInTheDocument();
   });
 
-  it('switches to Lab Pulse tab and shows leaderboard', () => {
+  it('switches to Lab Pulse and shows podium', () => {
     render(<ResearchPulse />);
     fireEvent.click(screen.getByText('Lab Pulse'));
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
-    expect(screen.getByText(/70%/)).toBeInTheDocument();
+    expect(screen.getByText('Team progress')).toBeInTheDocument();
   });
 
-  it('highlights current user in leaderboard', () => {
+  it('shows points in sparklets', () => {
     render(<ResearchPulse />);
-    fireEvent.click(screen.getByText('Lab Pulse'));
-    const currentUserRow = screen.getByTestId('leaderboard-current-user');
-    expect(currentUserRow).toBeInTheDocument();
-    expect(currentUserRow.textContent).toContain('You');
+    expect(screen.getByText('105')).toBeInTheDocument();
+    expect(screen.getByText(/pts earned/)).toBeInTheDocument();
   });
 
-  it('collapsed mode shows summary line', () => {
-    localStorage.setItem('litorbit-pulse-collapsed', 'true');
+  it('shows week number', () => {
     render(<ResearchPulse />);
-    expect(screen.getByText(/8\/14 rated/)).toBeInTheDocument();
-    expect(screen.getByText(/#2 in lab/)).toBeInTheDocument();
-  });
-
-  it('collapse persists to localStorage', () => {
-    render(<ResearchPulse />);
-    // Click the collapse (chevron up) button
-    const buttons = screen.getAllByRole('button');
-    const collapseBtn = buttons.find((b) => b.querySelector('svg.lucide-chevron-up'));
-    if (collapseBtn) fireEvent.click(collapseBtn);
-    expect(localStorage.getItem('litorbit-pulse-collapsed')).toBe('true');
+    expect(screen.getByText(/WK \d+/)).toBeInTheDocument();
   });
 });

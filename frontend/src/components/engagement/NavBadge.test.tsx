@@ -8,9 +8,10 @@ describe('NavBadge', () => {
     expect(screen.getByText('5')).toBeInTheDocument();
   });
 
-  it('shows green checkmark when count is 0', () => {
-    render(<NavBadge count={0} />);
-    expect(screen.getByText('\u2713')).toBeInTheDocument();
+  it('shows checkmark when count is 0', () => {
+    const { container } = render(<NavBadge count={0} />);
+    // Check icon renders an SVG with lucide-check class
+    expect(container.querySelector('svg')).toBeInTheDocument();
   });
 
   it('shows the correct number', () => {

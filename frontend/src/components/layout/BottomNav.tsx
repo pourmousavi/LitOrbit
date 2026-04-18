@@ -97,13 +97,13 @@ export default function BottomNav() {
               )
             }
           >
-            <div style={{ position: 'relative', display: 'inline-flex' }}>
-              <tab.icon size={20} />
+            <tab.icon size={20} />
+            <span className="font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {tab.label}
               {tab.label === 'Feed' && pulseSettings.showNavBadge && pulse && (
                 <NavBadge count={pulse.unreviewed_count} />
               )}
-            </div>
-            <span className="font-mono">{tab.label}</span>
+            </span>
           </NavLink>
         ))}
         <button
