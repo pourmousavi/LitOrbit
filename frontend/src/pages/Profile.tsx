@@ -1308,26 +1308,28 @@ function DisplayTab() {
           ))}
         </div>
 
-        {/* Save / Cancel buttons */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
+      </div>
+
+      {/* Save/Cancel */}
+      {hasChanges && (
+        <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={handleSave}
-            disabled={!hasChanges}
-            className="rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ padding: '8px 20px' }}
+            className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
+            style={{ gap: 8, padding: '14px 24px' }}
           >
-            {saved ? 'Saved!' : 'Save'}
+            <Check size={16} />
+            Save Changes
           </button>
           <button
             onClick={handleCancel}
-            disabled={!hasChanges}
-            className="rounded-xl font-mono text-sm text-text-secondary transition hover:bg-bg-elevated disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ padding: '8px 20px' }}
+            className="rounded-2xl font-mono text-sm text-text-secondary hover:text-text-primary"
+            style={{ padding: '14px 24px' }}
           >
             Cancel
           </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
