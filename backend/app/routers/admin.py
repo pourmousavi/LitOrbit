@@ -422,7 +422,6 @@ async def list_pipeline_runs(
 async def trigger_pipeline(
     background_tasks: BackgroundTasks,
     _admin: dict[str, Any] = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Trigger a manual pipeline run."""
     async def _run():
