@@ -7,6 +7,7 @@ import { useEngagement } from '@/hooks/useEngagement';
 import PaperFeed from '@/components/papers/PaperFeed';
 import PaperDetail from '@/components/papers/PaperDetail';
 import ResearchPulse from '@/components/engagement/ResearchPulse';
+import { usePulseSettings } from '@/stores/pulseSettingsStore';
 import { toast } from '@/components/ui/Toast';
 import api from '@/lib/api';
 
@@ -26,10 +27,11 @@ export default function Feed() {
   const { data: papersData } = usePapers({ search: debouncedSearch || undefined, sort, favorites: favoritesOnly });
   const totalPapers = papersData?.pages?.[0]?.total ?? null;
   const { data: pulse } = useEngagement();
+  const { showWeeklyToast } = usePulseSettings();
 
   // Weekly summary toast — show once per week on first visit
   useEffect(() => {
-    if (!pulse) return;
+    if (!pulse || !showWeeklyToast) return;
     const now = new Date();
     const monday = new Date(now);
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
@@ -39,7 +41,7 @@ export default function Feed() {
       toast('info', `Last week: ${pulse.last_week_rated} papers rated, ${pulse.last_week_points} pts`);
       localStorage.setItem('litorbit-weekly-summary-shown', weekKey);
     }
-  }, [pulse]);
+  }, [pulse, showWeeklyToast]);
 
   // Debounce search input by 400ms
   useEffect(() => {

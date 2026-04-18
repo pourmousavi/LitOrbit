@@ -1,45 +1,32 @@
-import { useState, useEffect } from 'react';
-import { Flame, Star, Headphones, FolderOpen, Share2, Eye, X, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
+import { useState } from 'react';
+import { Flame, Star, Headphones, FolderOpen, Share2, Eye, ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 import { useEngagement } from '@/hooks/useEngagement';
-
-function getISOWeek(): string {
-  const now = new Date();
-  const monday = new Date(now);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  return monday.toISOString().slice(0, 10);
-}
+import { usePulseSettings } from '@/stores/pulseSettingsStore';
 
 export default function ResearchPulse() {
-  const { data: pulse, isLoading } = useEngagement();
+  const { data: pulse, isLoading, isError } = useEngagement();
+  const { showPulseCard } = usePulseSettings();
   const [activeTab, setActiveTab] = useState<'my' | 'lab'>('my');
   const [collapsed, setCollapsed] = useState(() => {
     return localStorage.getItem('litorbit-pulse-collapsed') === 'true';
   });
-  const [dismissed, setDismissed] = useState(() => {
-    const stored = localStorage.getItem('litorbit-pulse-dismissed');
-    return stored === getISOWeek();
-  });
 
-  useEffect(() => {
-    localStorage.setItem('litorbit-pulse-collapsed', String(collapsed));
-  }, [collapsed]);
-
-  if (isLoading || !pulse || dismissed) return null;
+  if (!showPulseCard || isLoading || isError || !pulse) return null;
 
   const totalToReview = pulse.weekly_stats.rated + pulse.unreviewed_count;
   const pct = totalToReview > 0 ? Math.round((pulse.weekly_stats.rated / totalToReview) * 100) : 100;
   const myRank = pulse.leaderboard.findIndex((e) => e.is_current_user) + 1;
 
-  const handleDismiss = () => {
-    localStorage.setItem('litorbit-pulse-dismissed', getISOWeek());
-    setDismissed(true);
+  const handleCollapse = (v: boolean) => {
+    setCollapsed(v);
+    localStorage.setItem('litorbit-pulse-collapsed', String(v));
   };
 
   // Collapsed mode — compact summary line
   if (collapsed) {
     return (
       <button
-        onClick={() => setCollapsed(false)}
+        onClick={() => handleCollapse(false)}
         className="w-full rounded-xl border border-border-default bg-bg-surface font-mono text-sm text-text-secondary transition hover:bg-bg-elevated"
         style={{ padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
       >
@@ -82,20 +69,12 @@ export default function ResearchPulse() {
             Lab Pulse
           </button>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            onClick={() => setCollapsed(true)}
-            className="rounded p-1 text-text-tertiary transition hover:bg-bg-elevated hover:text-text-secondary"
-          >
-            <ChevronUp size={14} />
-          </button>
-          <button
-            onClick={handleDismiss}
-            className="rounded p-1 text-text-tertiary transition hover:bg-bg-elevated hover:text-text-secondary"
-          >
-            <X size={14} />
-          </button>
-        </div>
+        <button
+          onClick={() => handleCollapse(true)}
+          className="rounded p-1 text-text-tertiary transition hover:bg-bg-elevated hover:text-text-secondary"
+        >
+          <ChevronUp size={14} />
+        </button>
       </div>
 
       {/* Content */}

@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
-import { Plus, X, Loader2, RotateCcw, Copy, Check, Rss, User, Bell, Mic, Brain, BookOpen, Upload, Search, FileText, AlertCircle } from 'lucide-react';
+import { Plus, X, Loader2, RotateCcw, Copy, Check, Rss, User, Bell, Mic, Brain, BookOpen, Upload, Search, FileText, AlertCircle, BarChart3 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
+import { usePulseSettings } from '@/stores/pulseSettingsStore';
 import { useReferencePapers, useUploadReferencePaper, useAddReferencePaperByDOI, useAddReferencePaperManual, useDeleteReferencePaper } from '@/hooks/useReferencePapers';
 import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
-type Tab = 'account' | 'references' | 'digest' | 'podcast' | 'scoring';
+type Tab = 'account' | 'references' | 'digest' | 'podcast' | 'scoring' | 'display';
 
 interface TTSVoice {
   id: string;
@@ -74,6 +75,7 @@ export default function Profile() {
     { key: 'digest', label: 'Digest', icon: Bell },
     { key: 'podcast', label: 'Podcast', icon: Mic },
     { key: 'scoring', label: 'Scoring', icon: Brain },
+    { key: 'display', label: 'Display', icon: BarChart3 },
   ];
 
   if (isLoading || !profile) {
@@ -127,6 +129,7 @@ export default function Profile() {
         {tab === 'digest' && <DigestTab />}
         {tab === 'podcast' && <PodcastTab />}
         {tab === 'scoring' && <ScoringTab />}
+        {tab === 'display' && <DisplayTab />}
       </div>
     </div>
   );
@@ -1229,6 +1232,61 @@ function ReferencePapersTab() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+
+function DisplayTab() {
+  const settings = usePulseSettings();
+
+  const toggles: { key: 'showPulseCard' | 'showNavBadge' | 'showSidebarStat' | 'showWeeklyToast'; label: string; description: string }[] = [
+    { key: 'showPulseCard', label: 'Research Pulse card', description: 'Stats card at the top of the Feed page showing your weekly progress and lab leaderboard' },
+    { key: 'showNavBadge', label: 'Unreviewed papers badge', description: 'Red count badge on the Feed navigation item showing how many papers you haven\'t rated' },
+    { key: 'showSidebarStat', label: 'Sidebar status line', description: 'Streak or review status text below the LitOrbit logo in the sidebar' },
+    { key: 'showWeeklyToast', label: 'Weekly summary notification', description: 'Toast notification on first visit each week summarizing your previous week\'s activity' },
+  ];
+
+  const setters = {
+    showPulseCard: settings.setShowPulseCard,
+    showNavBadge: settings.setShowNavBadge,
+    showSidebarStat: settings.setShowSidebarStat,
+    showWeeklyToast: settings.setShowWeeklyToast,
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+        <h2 className="font-mono text-sm font-medium text-text-primary" style={{ marginBottom: 4 }}>
+          Research Pulse
+        </h2>
+        <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 20 }}>
+          Control which engagement elements are visible across the app
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {toggles.map((t) => (
+            <label
+              key={t.key}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}
+            >
+              <input
+                type="checkbox"
+                checked={settings[t.key]}
+                onChange={(e) => setters[t.key](e.target.checked)}
+                className="mt-0.5 accent-accent"
+                style={{ width: 16, height: 16, flexShrink: 0 }}
+              />
+              <div>
+                <span className="font-mono text-sm text-text-primary">{t.label}</span>
+                <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
+                  {t.description}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

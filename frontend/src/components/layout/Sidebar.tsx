@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useProfile } from '@/hooks/useProfile';
 import { useEngagement } from '@/hooks/useEngagement';
+import { usePulseSettings } from '@/stores/pulseSettingsStore';
 import NavBadge from '@/components/engagement/NavBadge';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +33,7 @@ export default function Sidebar() {
   const user = useAuthStore((s) => s.user);
   const { data: profile } = useProfile();
   const { data: pulse } = useEngagement();
+  const pulseSettings = usePulseSettings();
   const expanded = useUIStore((s) => s.sidebarExpanded);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const navigate = useNavigate();
@@ -56,7 +58,7 @@ export default function Sidebar() {
         {expanded && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span className="font-mono text-lg font-medium text-text-primary">LitOrbit</span>
-            {pulse && (
+            {pulseSettings.showSidebarStat && pulse && (
               <span className="font-mono text-text-tertiary" style={{ fontSize: 10, lineHeight: 1.2 }}>
                 {pulse.streak > 0
                   ? `\u{1F525} ${pulse.streak}-day streak`
@@ -98,8 +100,8 @@ export default function Sidebar() {
             >
               <div style={{ position: 'relative', display: 'inline-flex' }}>
                 <item.icon size={18} style={{ flexShrink: 0 }} />
-                {item.label === 'Feed' && (pulse?.unreviewed_count ?? 0) > 0 && (
-                  <NavBadge count={pulse!.unreviewed_count} />
+                {item.label === 'Feed' && pulseSettings.showNavBadge && pulse && (
+                  <NavBadge count={pulse.unreviewed_count} />
                 )}
               </div>
               {expanded && <span>{item.label}</span>}

@@ -23,22 +23,25 @@ const mockPulse: PulseData = {
   last_week_rated: 6,
 };
 
-let mockReturn = { data: mockPulse as PulseData | undefined, isLoading: false };
+let mockReturn = { data: mockPulse as PulseData | undefined, isLoading: false, isError: false };
 
 vi.mock('@/hooks/useEngagement', () => ({
   useEngagement: () => mockReturn,
 }));
 
+vi.mock('@/stores/pulseSettingsStore', () => ({
+  usePulseSettings: () => ({ showPulseCard: true }),
+}));
+
 describe('ResearchPulse', () => {
   beforeEach(() => {
-    mockReturn = { data: { ...mockPulse }, isLoading: false };
+    mockReturn = { data: { ...mockPulse }, isLoading: false, isError: false };
     localStorage.clear();
   });
 
   it('renders My Pulse tab by default', () => {
     render(<ResearchPulse />);
     expect(screen.getByText('My Pulse')).toBeInTheDocument();
-    // Progress text should be visible
     expect(screen.getByText(/8\/14 rated/)).toBeInTheDocument();
   });
 
@@ -66,7 +69,7 @@ describe('ResearchPulse', () => {
   });
 
   it('does not show piling up warning when unreviewed <= 3', () => {
-    mockReturn = { data: { ...mockPulse, unreviewed_count: 2 }, isLoading: false };
+    mockReturn = { data: { ...mockPulse, unreviewed_count: 2 }, isLoading: false, isError: false };
     render(<ResearchPulse />);
     expect(screen.queryByText(/piling up/)).not.toBeInTheDocument();
   });
@@ -87,19 +90,19 @@ describe('ResearchPulse', () => {
     expect(currentUserRow.textContent).toContain('You');
   });
 
-  it('dismiss persists to localStorage', () => {
-    render(<ResearchPulse />);
-    // Find and click the dismiss (X) button — it's the second small button in the header
-    const buttons = screen.getAllByRole('button');
-    const dismissBtn = buttons.find((b) => b.querySelector('svg.lucide-x'));
-    if (dismissBtn) fireEvent.click(dismissBtn);
-    expect(localStorage.getItem('litorbit-pulse-dismissed')).toBeTruthy();
-  });
-
   it('collapsed mode shows summary line', () => {
     localStorage.setItem('litorbit-pulse-collapsed', 'true');
     render(<ResearchPulse />);
     expect(screen.getByText(/8\/14 rated/)).toBeInTheDocument();
     expect(screen.getByText(/#2 in lab/)).toBeInTheDocument();
+  });
+
+  it('collapse persists to localStorage', () => {
+    render(<ResearchPulse />);
+    // Click the collapse (chevron up) button
+    const buttons = screen.getAllByRole('button');
+    const collapseBtn = buttons.find((b) => b.querySelector('svg.lucide-chevron-up'));
+    if (collapseBtn) fireEvent.click(collapseBtn);
+    expect(localStorage.getItem('litorbit-pulse-collapsed')).toBe('true');
   });
 });
