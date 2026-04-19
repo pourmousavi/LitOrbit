@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { X, ChevronDown, LibraryBig } from 'lucide-react'
+import { X, LibraryBig } from 'lucide-react'
 import { useScholarLibStore } from '@/stores/scholarLibStore'
+import FolderSelect from '@/components/integrations/FolderSelect'
 import { LibraryService } from '@/lib/scholarlib'
 import { mapPaperToScholarLib } from '@/lib/scholarlib-mapper'
 import { toast } from '@/components/ui/Toast'
@@ -128,24 +129,7 @@ export default function BulkScholarLibModal({ papers, onClose, onSuccess }: Bulk
           <label className="font-mono text-text-secondary" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}>
             Folder
           </label>
-          <div className="relative">
-            <select
-              value={selectedFolderId}
-              onChange={(e) => setSelectedFolderId(e.target.value)}
-              className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent appearance-none"
-              style={{ width: '100%', padding: '12px 16px', paddingRight: 40 }}
-            >
-              <option value="">Select a folder...</option>
-              {folders.map((f) => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
-            </select>
-            <ChevronDown
-              size={16}
-              className="text-text-tertiary"
-              style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-            />
-          </div>
+          <FolderSelect folders={folders} value={selectedFolderId} onChange={setSelectedFolderId} />
         </div>
 
         {/* Include summary checkbox */}

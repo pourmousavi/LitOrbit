@@ -1,5 +1,5 @@
-import { ChevronDown } from 'lucide-react'
 import { useScholarLibStore } from '@/stores/scholarLibStore'
+import FolderSelect from '@/components/integrations/FolderSelect'
 
 export default function IntegrationsTab() {
   const status = useScholarLibStore((s) => s.status)
@@ -61,24 +61,7 @@ export default function IntegrationsTab() {
               >
                 Default Folder
               </label>
-              <div className="relative">
-                <select
-                  value={defaultFolderId || ''}
-                  onChange={(e) => setDefaultFolder(e.target.value)}
-                  className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent appearance-none"
-                  style={{ width: '100%', padding: '12px 16px', paddingRight: 40 }}
-                >
-                  <option value="">Select a folder...</option>
-                  {folders.map((f) => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="text-text-tertiary"
-                  style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-                />
-              </div>
+              <FolderSelect folders={folders} value={defaultFolderId || ''} onChange={setDefaultFolder} />
               <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 8 }}>
                 Papers will be saved to this folder unless you choose a different one when sending.
               </p>
