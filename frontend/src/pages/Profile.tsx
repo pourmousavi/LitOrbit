@@ -114,7 +114,7 @@ export default function Profile() {
         {/* Tab bar */}
         <div
           className="rounded-2xl bg-bg-surface scrollbar-none"
-          style={{ display: 'flex', gap: 4, padding: 4, marginBottom: 24, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: 4, marginBottom: 24 }}
         >
           {tabs.map((t) => (
             <button
