@@ -69,8 +69,16 @@ export const useScholarLibStore = create<ScholarLibState>((set, get) => ({
   },
 
   handleCallback: async (code, state) => {
-    const { adapter } = get()
-    if (!adapter) throw new Error('No adapter — call connect() first')
+    let { adapter } = get()
+
+    // After OAuth redirect the page reloads and the store is fresh.
+    // Recreate the adapter from the provider saved before the redirect.
+    if (!adapter) {
+      const savedProvider = localStorage.getItem('scholarlib_provider') as StorageProvider | null
+      if (!savedProvider) throw new Error('No adapter and no saved provider')
+      adapter = createAdapter(savedProvider)
+      set({ provider: savedProvider, adapter, status: 'connecting' })
+    }
 
     await adapter.handleCallback(code, state)
     set({ status: 'connected' })
@@ -94,6 +102,9 @@ export const useScholarLibStore = create<ScholarLibState>((set, get) => ({
   },
 
   checkConnection: async () => {
+    // Skip check during OAuth callback — handleCallback will take over
+    if (window.location.pathname.startsWith('/auth/')) return
+
     const savedProvider = localStorage.getItem('scholarlib_provider') as StorageProvider | null
     if (!savedProvider) return
 
