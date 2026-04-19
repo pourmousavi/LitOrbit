@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw, Download, Plus, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Share2, Play, Loader2, Upload, FileText, Trash2, RefreshCw, Download, Plus, X, LibraryBig, Check } from 'lucide-react';
+import { useScholarLibStore } from '@/stores/scholarLibStore';
+import ScholarLibModal from '@/components/integrations/ScholarLibModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePaper } from '@/hooks/usePapers';
 import { usePodcastStatus, useGeneratePodcast, useDeletePodcast } from '@/hooks/usePodcast';
@@ -149,6 +151,9 @@ export default function PaperDetail() {
     enabled: !!selectedPaperId,
   });
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showScholarLibModal, setShowScholarLibModal] = useState(false);
+  const scholarLibConnected = useScholarLibStore((s) => s.status === 'connected');
+  const paperSentToScholarLib = useScholarLibStore((s) => selectedPaperId ? s.sentPaperIds.has(selectedPaperId) : false);
   const [voiceMode, setVoiceMode] = useState<'single' | 'dual'>('single');
   const { data: podcastStatus } = usePodcastStatus(selectedPaperId, voiceMode);
   const generatePodcast = useGeneratePodcast();
@@ -264,6 +269,22 @@ export default function PaperDetail() {
             >
               <Share2 size={16} />
             </button>
+            {scholarLibConnected && (
+              <button
+                onClick={() => { if (!paperSentToScholarLib) setShowScholarLibModal(true); }}
+                disabled={paperSentToScholarLib}
+                className={cn(
+                  'rounded-lg transition',
+                  paperSentToScholarLib
+                    ? 'text-success cursor-default'
+                    : 'text-text-secondary hover:bg-bg-elevated hover:text-accent',
+                )}
+                style={{ padding: 8 }}
+                title={paperSentToScholarLib ? 'In ScholarLib' : 'Add to ScholarLib'}
+              >
+                {paperSentToScholarLib ? <Check size={16} /> : <LibraryBig size={16} />}
+              </button>
+            )}
             <button
               onClick={() => { if (confirm('Delete this paper?')) deleteMutation.mutate(); }}
               disabled={deleteMutation.isPending}
@@ -579,6 +600,11 @@ export default function PaperDetail() {
       {/* Share modal */}
       {showShareModal && paper && (
         <ShareModal paper={paper} onClose={() => setShowShareModal(false)} />
+      )}
+
+      {/* ScholarLib modal */}
+      {showScholarLibModal && paper && (
+        <ScholarLibModal paper={paper} onClose={() => setShowScholarLibModal(false)} />
       )}
     </>
   );

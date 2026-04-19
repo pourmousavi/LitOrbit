@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
-import { Plus, X, Loader2, RotateCcw, Copy, Check, Rss, User, Bell, Mic, Brain, BookOpen, Upload, Search, FileText, AlertCircle, BarChart3 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, X, Loader2, RotateCcw, Copy, Check, Rss, User, Bell, Mic, Brain, BookOpen, Upload, Search, FileText, AlertCircle, BarChart3, Plug } from 'lucide-react';
+import IntegrationsTab from '@/components/settings/IntegrationsTab';
 import { useQuery } from '@tanstack/react-query';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
 import { usePulseSettings } from '@/stores/pulseSettingsStore';
@@ -9,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
-type Tab = 'account' | 'references' | 'digest' | 'podcast' | 'scoring' | 'display';
+type Tab = 'account' | 'references' | 'digest' | 'podcast' | 'scoring' | 'display' | 'integrations';
 
 interface TTSVoice {
   id: string;
@@ -67,7 +69,14 @@ function InterestChart({ vector }: { vector: Record<string, number> }) {
 
 export default function Profile() {
   const { data: profile, isLoading } = useProfile();
-  const [tab, setTab] = useState<Tab>('account');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get('tab');
+    if (t && ['account', 'references', 'digest', 'podcast', 'scoring', 'display', 'integrations'].includes(t)) {
+      return t as Tab;
+    }
+    return 'account';
+  });
 
   const tabs: { key: Tab; label: string; icon: typeof User }[] = [
     { key: 'account', label: 'Account', icon: User },
@@ -76,6 +85,7 @@ export default function Profile() {
     { key: 'podcast', label: 'Podcast', icon: Mic },
     { key: 'scoring', label: 'Scoring', icon: Brain },
     { key: 'display', label: 'Display', icon: BarChart3 },
+    { key: 'integrations', label: 'Integrations', icon: Plug },
   ];
 
   if (isLoading || !profile) {
@@ -130,6 +140,7 @@ export default function Profile() {
         {tab === 'podcast' && <PodcastTab />}
         {tab === 'scoring' && <ScoringTab />}
         {tab === 'display' && <DisplayTab />}
+        {tab === 'integrations' && <IntegrationsTab />}
       </div>
     </div>
   );

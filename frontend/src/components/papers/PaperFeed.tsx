@@ -1,12 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient, useMutation, type InfiniteData } from '@tanstack/react-query';
+import { CheckSquare, Check, X, LibraryBig } from 'lucide-react';
 import { usePapers } from '@/hooks/usePapers';
 import { useEngagement } from '@/hooks/useEngagement';
 import { useUIStore } from '@/stores/uiStore';
+import { useScholarLibStore } from '@/stores/scholarLibStore';
 import PaperCard from './PaperCard';
 import CaughtUpState from '@/components/engagement/CaughtUpState';
+import ScholarLibModal from '@/components/integrations/ScholarLibModal';
+import BulkScholarLibModal from '@/components/integrations/BulkScholarLibModal';
 import api from '@/lib/api';
-import type { PapersResponse } from '@/types';
+import { cn } from '@/lib/utils';
+import type { Paper, PapersResponse } from '@/types';
 
 function SkeletonCard() {
   return (
@@ -43,6 +48,22 @@ export default function PaperFeed({ journal, category, search, sort, favorites }
   const selectPaper = useUIStore((s) => s.selectPaper);
   const queryClient = useQueryClient();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const scholarLibConnected = useScholarLibStore((s) => s.status === 'connected');
+
+  // Bulk selection
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedPaperIds, setSelectedPaperIds] = useState<Set<string>>(new Set());
+  const [scholarLibPaper, setScholarLibPaper] = useState<Paper | null>(null);
+  const [showBulkScholarLibModal, setShowBulkScholarLibModal] = useState(false);
+
+  const toggleSelection = (id: string) => {
+    setSelectedPaperIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const setFavoriteInCache = (id: string, value: boolean) => {
     queryClient.setQueriesData<InfiniteData<PapersResponse>>({ queryKey: ['papers'] }, (old) => {
@@ -148,25 +169,109 @@ export default function PaperFeed({ journal, category, search, sort, favorites }
     );
   }
 
+  const allPapersMap = new Map(allPapers.map((p) => [p.id, p]));
+  const selectedPapers = [...selectedPaperIds].map((id) => allPapersMap.get(id)).filter(Boolean) as Paper[];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {allPapers.map((paper) => (
-        <PaperCard
-          key={paper.id}
-          paper={paper}
-          isSelected={selectedPaperId === paper.id}
-          onClick={() => handleSelectPaper(paper.id)}
-          onToggleFavorite={() => handleToggleFavorite(paper.id, !!paper.is_favorite)}
-        />
-      ))}
-
-      <div ref={sentinelRef} style={{ height: 16 }} />
-
-      {isFetchingNextPage && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
-          <span className="font-mono text-xs text-text-tertiary">Loading more...</span>
+    <>
+      {/* Bulk select toggle */}
+      {scholarLibConnected && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <button
+            onClick={() => { setBulkMode(!bulkMode); setSelectedPaperIds(new Set()); }}
+            className={cn(
+              'flex items-center rounded-xl font-mono text-xs transition',
+              bulkMode ? 'bg-accent/10 text-accent' : 'text-text-tertiary hover:text-text-secondary',
+            )}
+            style={{ gap: 4, padding: '6px 12px' }}
+          >
+            <CheckSquare size={13} />
+            {bulkMode ? `${selectedPaperIds.size} selected` : 'Select'}
+          </button>
         </div>
       )}
-    </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {allPapers.map((paper) => (
+          <div key={paper.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            {bulkMode && (
+              <div
+                onClick={(e) => { e.stopPropagation(); toggleSelection(paper.id); }}
+                className={cn(
+                  'flex items-center justify-center rounded-md border transition cursor-pointer',
+                  selectedPaperIds.has(paper.id)
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-border-default bg-bg-base text-transparent hover:border-border-strong',
+                )}
+                style={{ width: 20, height: 20, flexShrink: 0, marginTop: 18 }}
+              >
+                <Check size={13} />
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <PaperCard
+                paper={paper}
+                isSelected={selectedPaperId === paper.id}
+                onClick={() => handleSelectPaper(paper.id)}
+                onToggleFavorite={() => handleToggleFavorite(paper.id, !!paper.is_favorite)}
+                onSendToScholarLib={() => setScholarLibPaper(paper)}
+              />
+            </div>
+          </div>
+        ))}
+
+        <div ref={sentinelRef} style={{ height: 16 }} />
+
+        {isFetchingNextPage && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+            <span className="font-mono text-xs text-text-tertiary">Loading more...</span>
+          </div>
+        )}
+      </div>
+
+      {/* Floating bulk action bar */}
+      {bulkMode && selectedPaperIds.size > 0 && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center rounded-2xl border border-border-default bg-bg-surface shadow-lg"
+          style={{ gap: 12, padding: '12px 20px' }}
+        >
+          <span className="font-mono text-sm text-text-primary">
+            {selectedPaperIds.size} paper{selectedPaperIds.size > 1 ? 's' : ''} selected
+          </span>
+          <button
+            onClick={() => setShowBulkScholarLibModal(true)}
+            className="flex items-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
+            style={{ gap: 6, padding: '10px 16px' }}
+          >
+            <LibraryBig size={14} />
+            Add to ScholarLib
+          </button>
+          <button
+            onClick={() => { setBulkMode(false); setSelectedPaperIds(new Set()); }}
+            className="rounded-lg text-text-tertiary transition hover:text-text-primary"
+            style={{ padding: 6 }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Single paper ScholarLib modal */}
+      {scholarLibPaper && (
+        <ScholarLibModal
+          paper={scholarLibPaper}
+          onClose={() => setScholarLibPaper(null)}
+        />
+      )}
+
+      {/* Bulk ScholarLib modal */}
+      {showBulkScholarLibModal && selectedPapers.length > 0 && (
+        <BulkScholarLibModal
+          papers={selectedPapers}
+          onClose={() => setShowBulkScholarLibModal(false)}
+          onSuccess={() => { setBulkMode(false); setSelectedPaperIds(new Set()); }}
+        />
+      )}
+    </>
   );
 }

@@ -19,8 +19,13 @@ import MyRatings from '@/pages/MyRatings';
 import PodcastLibrary from '@/pages/PodcastLibrary';
 import Profile from '@/pages/Profile';
 import Admin from '@/pages/Admin';
+import OAuthCallback from '@/pages/OAuthCallback';
 import NotFound from '@/pages/NotFound';
 import Forbidden from '@/pages/Forbidden';
+import { initScholarLib } from '@/lib/scholarlib';
+import { useScholarLibStore } from '@/stores/scholarLibStore';
+
+initScholarLib();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -98,6 +103,7 @@ export default function App() {
 
   useEffect(() => {
     initialize();
+    useScholarLibStore.getState().checkConnection();
   }, [initialize]);
 
   return (
@@ -108,6 +114,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/update-password" element={<UpdatePassword />} />
+          <Route path="/auth/box" element={<OAuthCallback provider="box" />} />
+          <Route path="/auth/dropbox" element={<OAuthCallback provider="dropbox" />} />
           <Route path="/forbidden" element={<Forbidden />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Feed />} />

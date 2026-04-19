@@ -1,7 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import PaperCard from './PaperCard';
 import type { Paper } from '@/types';
+
+vi.mock('@/stores/scholarLibStore', () => ({
+  useScholarLibStore: vi.fn((selector: any) => {
+    const state = { status: 'disconnected', sentPaperIds: new Set() }
+    return selector ? selector(state) : state
+  }),
+}));
 
 const mockPaper: Paper = {
   id: '1',

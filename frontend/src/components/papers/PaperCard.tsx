@@ -1,4 +1,5 @@
-import { Bookmark, Check, Headphones, Info, Share2, Star } from 'lucide-react';
+import { Bookmark, Check, Headphones, Info, LibraryBig, Share2, Star } from 'lucide-react';
+import { useScholarLibStore } from '@/stores/scholarLibStore';
 import type { Paper } from '@/types';
 import { cn, getScoreColor, getScoreBgColor, formatDate } from '@/lib/utils';
 
@@ -23,9 +24,12 @@ interface PaperCardProps {
   isSelected?: boolean;
   onClick?: () => void;
   onToggleFavorite?: () => void;
+  onSendToScholarLib?: () => void;
 }
 
-export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite }: PaperCardProps) {
+export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite, onSendToScholarLib }: PaperCardProps) {
+  const scholarLibConnected = useScholarLibStore((s) => s.status === 'connected');
+  const paperSentToScholarLib = useScholarLibStore((s) => s.sentPaperIds.has(paper.id));
   const scoreColor = getScoreColor(paper.relevance_score);
   const scoreBg = getScoreBgColor(paper.relevance_score);
 
@@ -195,6 +199,22 @@ export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite
           >
             <Bookmark size={16} fill={paper.is_favorite ? 'currentColor' : 'none'} />
           </button>
+          {scholarLibConnected && (
+            <button
+              onClick={(e) => { e.stopPropagation(); if (!paperSentToScholarLib) onSendToScholarLib?.(); }}
+              disabled={paperSentToScholarLib}
+              className={cn(
+                'rounded-lg transition',
+                paperSentToScholarLib
+                  ? 'text-success cursor-default'
+                  : 'text-text-tertiary hover:bg-bg-elevated hover:text-accent',
+              )}
+              style={{ padding: 8 }}
+              title={paperSentToScholarLib ? 'In ScholarLib' : 'Add to ScholarLib'}
+            >
+              {paperSentToScholarLib ? <Check size={16} /> : <LibraryBig size={16} />}
+            </button>
+          )}
           <button
             className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
             onClick={(e) => { e.stopPropagation(); onClick?.(); }}
