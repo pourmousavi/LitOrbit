@@ -1,6 +1,5 @@
 import { ChevronDown } from 'lucide-react'
 import { useScholarLibStore } from '@/stores/scholarLibStore'
-import { cn } from '@/lib/utils'
 
 export default function IntegrationsTab() {
   const status = useScholarLibStore((s) => s.status)

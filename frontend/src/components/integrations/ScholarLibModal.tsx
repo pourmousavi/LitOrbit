@@ -31,7 +31,7 @@ export default function ScholarLibModal({ paper, onClose }: ScholarLibModalProps
   useEffect(() => {
     if (!adapter) return
     const service = LibraryService
-    service.loadLibrary(adapter).then((lib) => {
+    service.loadLibrary(adapter).then((lib: any) => {
       setLibrary(lib)
       if (paper.doi) {
         const dup = service.findDuplicateByDOI(lib, paper.doi)

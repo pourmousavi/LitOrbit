@@ -33,7 +33,7 @@ export default function BulkScholarLibModal({ papers, onClose, onSuccess }: Bulk
   useEffect(() => {
     if (!adapter) return
     const service = LibraryService
-    service.loadLibrary(adapter).then((lib) => {
+    service.loadLibrary(adapter).then((lib: any) => {
       setLibrary(lib)
       const dups: DuplicateMatch[] = []
       for (const paper of papers) {
