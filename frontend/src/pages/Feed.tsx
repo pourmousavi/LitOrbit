@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Search, X, Plus, Upload, Link, Loader2, ArrowUpDown, Bookmark } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, X, Plus, Link, Loader2, ArrowUpDown, Bookmark } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/uiStore';
 import { usePapers } from '@/hooks/usePapers';
@@ -20,7 +20,6 @@ export default function Feed() {
   const [doi, setDoi] = useState('');
   const [sort, setSort] = useState('score');
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   // Total paper count from current filtered query (shares cache with PaperFeed)
@@ -49,21 +48,6 @@ export default function Feed() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      const { data } = await api.post('/api/v1/papers/upload-new', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      return data as { paper_id: string; title: string };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['papers'] });
-      setShowAddMenu(false);
-    },
-  });
-
   const doiMutation = useMutation({
     mutationFn: async (doiValue: string) => {
       const { data } = await api.post('/api/v1/papers/doi-lookup', { doi: doiValue });
@@ -76,12 +60,6 @@ export default function Feed() {
       setShowAddMenu(false);
     },
   });
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) uploadMutation.mutate(file);
-    e.target.value = '';
-  };
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -115,18 +93,6 @@ export default function Feed() {
                 >
                   {!showDoiInput ? (
                     <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploadMutation.isPending}
-                        className="flex items-center rounded-lg font-mono text-sm text-text-primary transition hover:bg-bg-elevated"
-                        style={{ gap: 10, padding: '10px 12px', width: '100%', textAlign: 'left' }}
-                      >
-                        {uploadMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                        <div>
-                          <div>Upload PDF</div>
-                          <div className="text-text-tertiary" style={{ fontSize: 11 }}>Add a paper from a PDF file</div>
-                        </div>
-                      </button>
                       <button
                         onClick={() => setShowDoiInput(true)}
                         className="flex items-center rounded-lg font-mono text-sm text-text-primary transition hover:bg-bg-elevated"
@@ -176,26 +142,9 @@ export default function Feed() {
                     </div>
                   )}
 
-                  {uploadMutation.isSuccess && (
-                    <p className="font-mono text-success" style={{ fontSize: 11, padding: '0 12px 10px' }}>
-                      Paper added: {uploadMutation.data?.title?.slice(0, 50)}...
-                    </p>
-                  )}
-                  {uploadMutation.isError && (
-                    <p className="font-mono text-danger" style={{ fontSize: 11, padding: '0 12px 10px' }}>
-                      {(uploadMutation.error as any)?.response?.data?.detail || 'Failed to upload PDF'}
-                    </p>
-                  )}
                 </div>
               )}
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf"
-                onChange={handleFileSelect}
-                style={{ display: 'none' }}
-              />
             </div>
           </div>
 
