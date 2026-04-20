@@ -217,8 +217,16 @@ export default function NewsSourcesTab() {
 
             {/* Ingest result */}
             {ingestMutation.isSuccess && ingestMutation.variables === source.id && (
-              <div className="rounded-lg bg-success/10 font-mono text-xs text-success mt-3" style={{ padding: '8px 12px' }}>
-                Ingested: {(ingestMutation.data as any)?.new ?? 0} new, {(ingestMutation.data as any)?.skipped_exists ?? 0} skipped, {(ingestMutation.data as any)?.embedded ?? 0} embedded
+              <div className={`rounded-lg font-mono text-xs mt-3 ${(ingestMutation.data as any)?.error ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`} style={{ padding: '8px 12px' }}>
+                {(ingestMutation.data as any)?.error
+                  ? `Error: ${(ingestMutation.data as any)?.error}`
+                  : `${(ingestMutation.data as any)?.new ?? 0} new items, ${(ingestMutation.data as any)?.embedded ?? 0} embedded, ${(ingestMutation.data as any)?.skipped_exists ?? 0} skipped (exists), ${(ingestMutation.data as any)?.errors ?? 0} errors — ${(ingestMutation.data as any)?.total_visible ?? '?'} visible in feed`
+                }
+              </div>
+            )}
+            {ingestMutation.isError && ingestMutation.variables === source.id && (
+              <div className="rounded-lg bg-danger/10 font-mono text-xs text-danger mt-3" style={{ padding: '8px 12px' }}>
+                Ingest failed: {(ingestMutation.error as any)?.response?.data?.detail || (ingestMutation.error as any)?.message || 'Unknown error'}
               </div>
             )}
           </div>

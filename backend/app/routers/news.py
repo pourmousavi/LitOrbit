@@ -297,5 +297,18 @@ async def run_ingest_now(
         raise HTTPException(status_code=404, detail="Source not found")
 
     from app.services.news_ingest import ingest_source
+    from app.services.relevance_service import load_anchors
+    await load_anchors(db)
     stats = await ingest_source(db, source)
+
+    # Include total news_items count for debugging
+    from sqlalchemy import func as sa_func
+    total = (await db.execute(
+        select(sa_func.count(NewsItem.id)).where(
+            NewsItem.source_id == source.id,
+            NewsItem.is_cluster_primary == True,
+        )
+    )).scalar() or 0
+    stats["total_visible"] = total
+
     return stats
