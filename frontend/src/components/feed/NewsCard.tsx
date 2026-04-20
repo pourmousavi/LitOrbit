@@ -165,13 +165,18 @@ export default function NewsCard({ item, isSelected, onClick }: NewsCardProps) {
           </button>
           {scholarLibConnected && (
             <button
-              className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent cursor-default opacity-50"
+              className={cn(
+                'rounded-lg transition',
+                item.user_state.sent_to_scholarlib
+                  ? 'text-success cursor-default'
+                  : 'text-text-tertiary hover:bg-bg-elevated hover:text-accent',
+              )}
               style={{ padding: 8 }}
-              title="ScholarLib (coming soon)"
-              onClick={(e) => e.stopPropagation()}
-              disabled
+              title={item.user_state.sent_to_scholarlib ? 'In ScholarLib' : 'Add to ScholarLib'}
+              onClick={(e) => { e.stopPropagation(); if (!item.user_state.sent_to_scholarlib) onClick?.(); }}
+              disabled={item.user_state.sent_to_scholarlib}
             >
-              <LibraryBig size={16} />
+              {item.user_state.sent_to_scholarlib ? <Check size={16} /> : <LibraryBig size={16} />}
             </button>
           )}
           <button

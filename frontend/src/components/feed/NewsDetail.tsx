@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, Loader2, Info, Play, Download, Trash2, Share2, LibraryBig } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Info, Play, Download, Trash2, Share2, LibraryBig, Check } from 'lucide-react';
 import ShareModal from '@/components/sharing/ShareModal';
+import ScholarLibModal from '@/components/integrations/ScholarLibModal';
 import { useScholarLibStore } from '@/stores/scholarLibStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNewsItem } from '@/hooks/useNewsItem';
@@ -106,7 +107,9 @@ export default function NewsDetail() {
 
   // Share + ScholarLib
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showScholarLibModal, setShowScholarLibModal] = useState(false);
   const scholarLibConnected = useScholarLibStore((s) => s.status === 'connected');
+  const newsSentToScholarLib = useScholarLibStore((s) => selectedNewsId ? s.sentPaperIds.has(selectedNewsId) : false);
 
   // Mark as read on open
   useEffect(() => {
@@ -175,12 +178,18 @@ export default function NewsDetail() {
           </button>
           {scholarLibConnected && (
             <button
-              className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
+              onClick={() => { if (!newsSentToScholarLib) setShowScholarLibModal(true); }}
+              disabled={newsSentToScholarLib}
+              className={cn(
+                'rounded-lg transition',
+                newsSentToScholarLib
+                  ? 'text-success cursor-default'
+                  : 'text-text-secondary hover:bg-bg-elevated hover:text-accent',
+              )}
               style={{ padding: 8 }}
-              title="ScholarLib (coming soon)"
-              disabled
+              title={newsSentToScholarLib ? 'In ScholarLib' : 'Add to ScholarLib'}
             >
-              <LibraryBig size={16} />
+              {newsSentToScholarLib ? <Check size={16} /> : <LibraryBig size={16} />}
             </button>
           )}
           <a
@@ -533,6 +542,39 @@ export default function NewsDetail() {
           user_rating: null,
         }}
         onClose={() => setShowShareModal(false)}
+      />
+    )}
+
+    {/* ScholarLib modal */}
+    {showScholarLibModal && item && (
+      <ScholarLibModal
+        paper={{
+          id: item.id,
+          title: item.title,
+          authors: item.author ? [item.author] : [],
+          abstract: item.excerpt,
+          journal: item.source_name,
+          journal_source: 'news',
+          doi: null,
+          full_text: item.full_text,
+          published_date: item.published_at,
+          online_date: null,
+          early_access: false,
+          url: item.url,
+          pdf_path: null,
+          keywords: item.tags,
+          categories: item.categories,
+          summary: item.summary,
+          relevance_score: item.llm_score,
+          score_reasoning: item.llm_score_reasoning,
+          created_at: item.created_at,
+          created_by_name: null,
+          collections: [],
+          is_opened: true,
+          is_favorite: false,
+          user_rating: null,
+        }}
+        onClose={() => setShowScholarLibModal(false)}
       />
     )}
     </>
