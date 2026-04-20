@@ -1,14 +1,14 @@
 # LitOrbit — Future Roadmap
 
-## Phase 1 complete
+## Phase 2 complete
 
-Rating-aware relevance pipeline deployed. Phase 2 to follow with:
+Corpus migrated to Gemini's `task_type="SEMANTIC_SIMILARITY"` embedding space; two deterministic hard-reject filters shipped (title-only negative keywords, abstract-quality guard); admin tuning panel with signal histograms deployed; threshold suggestion script available.
 
-- Data-driven threshold and λ tuning from `scoring_signals` telemetry.
-- Narrow title-only negative keyword layer (user-curated, e.g. `tumor`, `antibody`, `crystallography`).
-- Abstract-quality guard (detect and downrank records where the "abstract" is author-bio text or otherwise malformed).
-- Methods-vs-applications two-track profile using the `tags` field already populated by Chunk 3.
-- **Coordinated re-embedding sweep** that walks every row in `papers` and `reference_papers`, re-embeds with `task_type="SEMANTIC_SIMILARITY"`, and overwrites the old vector. Respects the existing 950/day Gemini free-tier quota and runs as a background job over 1–4 days. Once complete, `task_type` becomes the default for all new embedding calls and the whole corpus sits in a cleaner, retrieval-optimised space.
+Phase 3 items (only worth doing if you still see leakage after Phase 2 settles):
+
+- **Methods-vs-applications two-track profile** using the `tags` field populated by Phase 1 Chunk 3. A paper passes if it matches *either* your methods anchors OR your applications anchors. Belt-and-braces for cross-disciplinary ML papers. Activate this only if Phase 2's negative keyword layer is still rejecting methods papers you wanted to see.
+- **Active-learning surfacing:** when the gate is uncertain (positive ≈ negative, effective_score near threshold ± 0.05), proactively present these papers for rating. Turns borderline cases into training examples.
+- **Author-watch list:** for 9–10 rated papers, add an option to monitor future publications by the same authors across the corpus.
 
 ---
 
