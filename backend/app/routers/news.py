@@ -18,6 +18,116 @@ from app.services import news_sources_service
 router = APIRouter(prefix="/api/v1", tags=["news"])
 
 
+# --- News actions ---
+
+@router.post("/news/{item_id}/star")
+async def star_news(
+    item_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.user_interaction import UserInteraction
+    user_id = uuid.UUID(user["id"])
+    nid = uuid.UUID(item_id)
+    existing = await db.execute(
+        select(UserInteraction).where(
+            UserInteraction.user_id == user_id,
+            UserInteraction.content_type == "news",
+            UserInteraction.content_id == nid,
+            UserInteraction.event_type == "starred",
+        )
+    )
+    if not existing.scalar_one_or_none():
+        db.add(UserInteraction(
+            user_id=user_id, content_type="news", content_id=nid, event_type="starred"
+        ))
+        # Extend retention indefinitely for starred items
+        item = await db.get(NewsItem, nid)
+        if item:
+            item.retention_until = None
+        await db.commit()
+    return {"status": "starred"}
+
+
+@router.post("/news/{item_id}/unstar")
+async def unstar_news(
+    item_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.user_interaction import UserInteraction
+    from sqlalchemy import delete
+    user_id = uuid.UUID(user["id"])
+    nid = uuid.UUID(item_id)
+    await db.execute(
+        delete(UserInteraction).where(
+            UserInteraction.user_id == user_id,
+            UserInteraction.content_type == "news",
+            UserInteraction.content_id == nid,
+            UserInteraction.event_type == "starred",
+        )
+    )
+    await db.commit()
+    return {"status": "unstarred"}
+
+
+class NewsRateBody(BaseModel):
+    rating: str  # "thumbs_up" | "thumbs_down"
+
+
+@router.post("/news/{item_id}/rate")
+async def rate_news(
+    item_id: str,
+    body: NewsRateBody,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.user_interaction import UserInteraction
+    user_id = uuid.UUID(user["id"])
+    nid = uuid.UUID(item_id)
+    # Upsert: delete existing rating, insert new
+    from sqlalchemy import delete
+    await db.execute(
+        delete(UserInteraction).where(
+            UserInteraction.user_id == user_id,
+            UserInteraction.content_type == "news",
+            UserInteraction.content_id == nid,
+            UserInteraction.event_type == "rated",
+        )
+    )
+    db.add(UserInteraction(
+        user_id=user_id, content_type="news", content_id=nid,
+        event_type="rated", event_value={"rating": body.rating},
+    ))
+    await db.commit()
+    return {"status": "rated", "rating": body.rating}
+
+
+@router.post("/news/{item_id}/mark_read")
+async def mark_read_news(
+    item_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.user_interaction import UserInteraction
+    user_id = uuid.UUID(user["id"])
+    nid = uuid.UUID(item_id)
+    existing = await db.execute(
+        select(UserInteraction).where(
+            UserInteraction.user_id == user_id,
+            UserInteraction.content_type == "news",
+            UserInteraction.content_id == nid,
+            UserInteraction.event_type == "marked_read",
+        )
+    )
+    if not existing.scalar_one_or_none():
+        db.add(UserInteraction(
+            user_id=user_id, content_type="news", content_id=nid, event_type="marked_read"
+        ))
+        await db.commit()
+    return {"status": "marked_read"}
+
+
 # --- News detail ---
 
 @router.get("/news/{item_id}")

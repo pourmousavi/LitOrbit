@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders, AlertTriangle, Info, BookOpen } from 'lucide-react';
+import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders, AlertTriangle, Info, BookOpen, Newspaper } from 'lucide-react';
+import NewsSourcesTab from '@/components/admin/NewsSourcesTab';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
-type Tab = 'journals' | 'users' | 'pipeline' | 'keywords' | 'digest' | 'settings' | 'tuning';
+type Tab = 'journals' | 'users' | 'pipeline' | 'keywords' | 'digest' | 'settings' | 'tuning' | 'news';
 
 interface Journal {
   id: string;
@@ -111,6 +112,7 @@ export default function Admin() {
     { key: 'digest', label: 'Digest', icon: Mail },
     { key: 'settings', label: 'Limits', icon: Sliders },
     { key: 'tuning', label: 'Tuning', icon: Activity },
+    { key: 'news', label: 'News Sources', icon: Newspaper },
   ];
 
   return (
@@ -264,6 +266,7 @@ export default function Admin() {
         {tab === 'digest' && <DigestTab />}
         {tab === 'settings' && <UsageLimitsTab />}
         {tab === 'tuning' && <TuningPanel />}
+        {tab === 'news' && <NewsSourcesTab />}
       </div>
     </div>
   );

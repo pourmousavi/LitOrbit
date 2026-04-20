@@ -615,6 +615,25 @@ async def run_scheduled_pipeline(
         logger.exception(f"Scheduled pipeline failed: {e}")
         pipeline_result = {"status": "failed", "error": str(e)}
 
+    # --- 1.5. Run news ingest ---
+    news_result = {}
+    try:
+        async with db_module.async_session_factory() as session:
+            from app.services.news_ingest import ingest_all_enabled_sources
+            news_results = await asyncio.wait_for(
+                ingest_all_enabled_sources(session),
+                timeout=300,  # 5 minutes for news ingest
+            )
+            total_new = sum(r.get("new", 0) for r in news_results if isinstance(r, dict))
+            logger.info(f"News ingest: {total_new} new items from {len(news_results)} sources")
+            news_result = {"sources": len(news_results), "new_items": total_new}
+    except TimeoutError:
+        logger.error("News ingest timed out after 300s")
+        news_result = {"error": "News ingest timed out"}
+    except Exception as e:
+        logger.exception(f"News ingest failed: {e}")
+        news_result = {"error": str(e)}
+
     # --- 2. Always run digests (independent of pipeline outcome) ---
     digest_summary = {}
     try:
@@ -635,6 +654,7 @@ async def run_scheduled_pipeline(
 
     return {
         "pipeline": pipeline_result,
+        "news": news_result,
         "digest": digest_summary,
     }
 
