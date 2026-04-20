@@ -23,6 +23,12 @@ from app.models.share import Share
 from app.models.digest_log import DigestLog
 from app.models.digest_run import DigestRun
 from app.models.scoring_signal import ScoringSignal
+from app.models.news_source import NewsSource
+from app.models.news_item import NewsItem
+from app.models.news_cluster import NewsCluster
+from app.models.relevance_anchor import RelevanceAnchor
+from app.models.user_interaction import UserInteraction
+from app.models.content_cross_link import ContentCrossLink
 
 # Use an in-memory SQLite for tests
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
