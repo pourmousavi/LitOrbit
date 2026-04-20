@@ -867,6 +867,29 @@ async def update_keywords(
     return {"status": "updated", "count": len(req.keywords)}
 
 
+# --- Negative Title Keywords ---
+
+@router.get("/negative-title-keywords")
+async def get_negative_title_keywords(
+    db: AsyncSession = Depends(get_db),
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> dict:
+    settings = await get_system_settings(db)
+    return {"keywords": settings.negative_title_keywords or []}
+
+
+@router.put("/negative-title-keywords")
+async def update_negative_title_keywords(
+    req: KeywordsUpdate,
+    db: AsyncSession = Depends(get_db),
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> dict:
+    settings = await get_system_settings(db)
+    settings.negative_title_keywords = req.keywords
+    await db.commit()
+    return {"status": "updated", "count": len(req.keywords)}
+
+
 # --- Digest ---
 
 class DigestTrigger(BaseModel):

@@ -201,3 +201,63 @@ async def test_reference_paper_delete_removes_from_positive_anchors(test_client,
     assert len(profile.positive_anchors) == 0
 
     del app.dependency_overrides[get_current_user]
+
+
+# ---------------------------------------------------------------------------
+# Negative title keywords endpoint tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_negative_title_keywords_defaults(test_client, db_session):
+    """GET /api/v1/admin/negative-title-keywords returns empty list on fresh settings."""
+    from app.auth import require_admin
+    from app.main import app
+
+    admin_user = {"id": str(uuid.uuid4()), "email": "admin@test.com", "role": "admin"}
+    app.dependency_overrides[require_admin] = lambda: admin_user
+
+    db_session.add(SystemSettings(id=1))
+    await db_session.commit()
+
+    resp = await test_client.get("/api/v1/admin/negative-title-keywords")
+    assert resp.status_code == 200
+    assert resp.json()["keywords"] == []
+
+    del app.dependency_overrides[require_admin]
+
+
+@pytest.mark.asyncio
+async def test_put_negative_title_keywords_updates(test_client, db_session):
+    """PUT updates; subsequent GET reflects the new list."""
+    from app.auth import require_admin
+    from app.main import app
+
+    admin_user = {"id": str(uuid.uuid4()), "email": "admin@test.com", "role": "admin"}
+    app.dependency_overrides[require_admin] = lambda: admin_user
+
+    db_session.add(SystemSettings(id=1))
+    await db_session.commit()
+
+    resp = await test_client.put("/api/v1/admin/negative-title-keywords", json={
+        "keywords": ["tumor", "antibody"],
+    })
+    assert resp.status_code == 200
+
+    resp = await test_client.get("/api/v1/admin/negative-title-keywords")
+    data = resp.json()
+    assert data["keywords"] == ["tumor", "antibody"]
+
+    del app.dependency_overrides[require_admin]
+
+
+@pytest.mark.asyncio
+async def test_negative_title_keywords_requires_admin(test_client, db_session):
+    """Non-admin user gets 401/403."""
+    resp = await test_client.get("/api/v1/admin/negative-title-keywords")
+    assert resp.status_code in (401, 403)
+
+    resp = await test_client.put("/api/v1/admin/negative-title-keywords", json={
+        "keywords": ["tumor"],
+    })
+    assert resp.status_code in (401, 403)

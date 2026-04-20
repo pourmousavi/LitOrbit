@@ -19,4 +19,5 @@ class SystemSettings(Base):
     similarity_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.50)
     negative_anchor_lambda: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     platform_keywords: Mapped[list] = mapped_column(JSONB(), nullable=False, default=list)
+    negative_title_keywords: Mapped[list] = mapped_column(JSONB(), nullable=False, default=list)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

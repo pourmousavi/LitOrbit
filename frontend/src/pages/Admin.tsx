@@ -254,7 +254,12 @@ export default function Admin() {
         {tab === 'journals' && <JournalConfigTab />}
         {tab === 'users' && <UserManagementTab />}
         {tab === 'pipeline' && <PipelineStatusTab />}
-        {tab === 'keywords' && <GlobalKeywordsTab />}
+        {tab === 'keywords' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+            <GlobalKeywordsTab />
+            <NegativeTitleKeywordsSection />
+          </div>
+        )}
         {tab === 'digest' && <DigestTab />}
         {tab === 'settings' && <UsageLimitsTab />}
       </div>
@@ -1189,6 +1194,97 @@ function GlobalKeywordsTab() {
     </div>
   );
 }
+
+function NegativeTitleKeywordsSection() {
+  const queryClient = useQueryClient();
+  const { data, isLoading, isError } = useQuery<{ keywords: string[] }>({
+    queryKey: ['admin', 'negative-title-keywords'],
+    queryFn: async () => (await api.get('/api/v1/admin/negative-title-keywords')).data,
+  });
+
+  const [newKeyword, setNewKeyword] = useState('');
+
+  const updateMutation = useMutation({
+    mutationFn: async (keywords: string[]) => {
+      await api.put('/api/v1/admin/negative-title-keywords', { keywords });
+    },
+    onMutate: async (keywords: string[]) => {
+      await queryClient.cancelQueries({ queryKey: ['admin', 'negative-title-keywords'] });
+      const previous = queryClient.getQueryData<{ keywords: string[] }>(['admin', 'negative-title-keywords']);
+      queryClient.setQueryData(['admin', 'negative-title-keywords'], { keywords });
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['admin', 'negative-title-keywords'], ctx.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['admin', 'negative-title-keywords'] }),
+  });
+
+  const addKeyword = () => {
+    if (!newKeyword.trim() || !data) return;
+    const updated = [...data.keywords, newKeyword.trim()];
+    updateMutation.mutate(updated);
+    setNewKeyword('');
+  };
+
+  const removeKeyword = (kw: string) => {
+    if (!data) return;
+    updateMutation.mutate(data.keywords.filter((k) => k !== kw));
+  };
+
+  if (isLoading) return <LoadingState />;
+  if (isError) return <ErrorState message="Failed to load negative title keywords" />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, borderTop: '1px solid var(--border-default)', paddingTop: 24 }}>
+      <p className="font-mono text-xs text-text-tertiary" style={{ lineHeight: 1.6 }}>
+        <strong>Negative title keywords</strong> — papers whose <strong>title</strong> (not abstract) matches any of these terms are rejected before LLM scoring. Keep the list narrow — these are blunt instruments. Useful for obvious out-of-domain terms like <code>tumor</code>, <code>antibody</code>, <code>crystallography</code>.
+      </p>
+      <div style={{ display: 'flex', gap: 12 }}>
+        <input
+          value={newKeyword}
+          onChange={(e) => setNewKeyword(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && addKeyword()}
+          placeholder="Add negative keyword..."
+          className="rounded-2xl border border-border-default bg-bg-surface text-sm text-text-primary placeholder-text-tertiary outline-none transition focus:border-accent"
+          style={{ flex: 1, padding: '12px 18px' }}
+        />
+        <button
+          onClick={addKeyword}
+          className="flex items-center rounded-2xl bg-accent font-mono text-sm text-white hover:bg-accent-hover"
+          style={{ gap: 8, padding: '12px 20px' }}
+        >
+          <Plus size={16} /> Add
+        </button>
+      </div>
+
+      {!data?.keywords.length ? (
+        <EmptyState title="No negative keywords" description="Add keywords to auto-reject out-of-domain papers by title." />
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {data.keywords.map((kw) => (
+              <span
+                key={kw}
+                className="flex items-center rounded-full border border-border-default bg-bg-surface font-mono text-text-secondary"
+                style={{ gap: 10, padding: '8px 16px', fontSize: 13 }}
+              >
+                {kw}
+                <button onClick={() => removeKeyword(kw)} className="text-text-tertiary hover:text-danger">
+                  <X size={14} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <p className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
+            {data.keywords.length} negative title keywords configured
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 
 interface DigestRunItem {
   id: string;

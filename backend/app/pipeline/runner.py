@@ -304,6 +304,7 @@ async def score_and_summarise_papers(
     platform_keywords = (settings_row.platform_keywords if settings_row and settings_row.platform_keywords else None)
     threshold = settings_row.similarity_threshold if settings_row else DEFAULT_SIMILARITY_THRESHOLD
     lam = settings_row.negative_anchor_lambda if settings_row else DEFAULT_NEGATIVE_ANCHOR_LAMBDA
+    neg_title_keywords = settings_row.negative_title_keywords or [] if settings_row else []
 
     # Keyword-filtered papers (computed once, used as fallback)
     keyword_filtered = prefilter_papers(paper_dicts, keywords=platform_keywords)
@@ -335,6 +336,8 @@ async def score_and_summarise_papers(
                 from app.services.ranking.prefilter import prefilter_papers as _pf
                 user_kw_ids = {p["id"] for p in _pf(user_unscored, keywords=user_kws)}
 
+            from app.services.ranking.negative_filter import paper_rejected_by_title
+
             matched = []
             for pd in user_unscored:
                 paper_emb = pd.get("embedding")
@@ -346,6 +349,11 @@ async def score_and_summarise_papers(
                     prefilter_matched = pd["id"] in keyword_filtered_ids
 
                     passed_gate = passed_semantic or (pd["id"] in user_kw_ids)
+
+                    # Determine rejected_by for signals
+                    sig_rejected_by = None
+                    if not passed_gate:
+                        sig_rejected_by = "knn_gate"
 
                     # Log signal for every evaluated (paper, user) pair
                     sig = ScoringSignal(
@@ -359,21 +367,35 @@ async def score_and_summarise_papers(
                         lambda_used=lam,
                         prefilter_matched=prefilter_matched,
                         passed_gate=passed_gate,
+                        rejected_by=sig_rejected_by,
                     )
                     signal_index[(pd["id"], user["id"])] = len(pending_signals)
                     pending_signals.append(sig)
 
-                    if passed_semantic:
-                        pd_copy = {**pd, "cosine_similarity": round(max_pos, 4), "cosine_negative": round(max_neg, 4)}
-                        matched.append(pd_copy)
-                    elif pd["id"] in user_kw_ids:
-                        # Personal-keyword escape hatch
+                    if passed_gate:
+                        # Apply negative title keyword filter AFTER k-NN gate
+                        rejected, matched_kw = paper_rejected_by_title(pd, neg_title_keywords)
+                        if rejected:
+                            logger.info(f"Paper {pd['id'][:8]} rejected by negative title keyword: '{matched_kw}'")
+                            sig.passed_gate = False
+                            sig.rejected_by = "negative_title"
+                            continue
+
                         pd_copy = {**pd, "cosine_similarity": round(max_pos, 4), "cosine_negative": round(max_neg, 4)}
                         matched.append(pd_copy)
                 elif pd["id"] in keyword_filtered_ids:
                     # Paper has no embedding — fall back to platform-scope keyword match
+                    # Still apply negative title filter
+                    rejected, matched_kw = paper_rejected_by_title(pd, neg_title_keywords)
+                    if rejected:
+                        logger.info(f"Paper {pd['id'][:8]} rejected by negative title keyword: '{matched_kw}'")
+                        continue
                     matched.append(pd)
                 elif pd["id"] in user_kw_ids:
+                    rejected, matched_kw = paper_rejected_by_title(pd, neg_title_keywords)
+                    if rejected:
+                        logger.info(f"Paper {pd['id'][:8]} rejected by negative title keyword: '{matched_kw}'")
+                        continue
                     matched.append(pd)
             user_papers_map[user["id"]] = matched
             embedding_filter_count += 1
