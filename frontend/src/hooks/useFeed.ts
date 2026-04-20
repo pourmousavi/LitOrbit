@@ -4,9 +4,10 @@ import type { FeedResponse, FeedFilters } from '@/types/feed';
 
 const PAGE_SIZE = 25;
 
-export function useFeed(filters: Partial<FeedFilters>) {
+export function useFeed(filters: Partial<FeedFilters>, enabled = true) {
   return useInfiniteQuery<FeedResponse>({
     queryKey: ['feed', filters],
+    enabled,
     queryFn: async ({ pageParam = 1 }) => {
       const params: Record<string, string> = {
         page: String(pageParam),

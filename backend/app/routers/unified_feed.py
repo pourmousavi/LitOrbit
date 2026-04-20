@@ -22,7 +22,6 @@ from app.models.rating import Rating
 from app.models.news_item import NewsItem
 from app.models.news_source import NewsSource
 from app.models.user_interaction import UserInteraction
-from app.models.content_cross_link import ContentCrossLink
 
 router = APIRouter(prefix="/api/v1", tags=["feed"])
 
@@ -216,44 +215,6 @@ async def unified_feed(
             item, source_name, source_authority = row
             user_ints = interactions_by_item.get(str(item.id), [])
             items.append(_serialize_news(item, source_name, source_authority, user_ints))
-
-    # --- Load cross-links for all items ---
-    all_item_ids = [(i["item_type"], i["item_id"]) for i in items]
-    if all_item_ids:
-        for item_dict in items:
-            cl_result = await db.execute(
-                select(
-                    ContentCrossLink.target_content_type,
-                    ContentCrossLink.target_content_id,
-                    ContentCrossLink.similarity,
-                )
-                .where(
-                    ContentCrossLink.source_content_type == item_dict["item_type"],
-                    ContentCrossLink.source_content_id == uuid.UUID(item_dict["item_id"]),
-                )
-                .order_by(ContentCrossLink.similarity.desc())
-                .limit(3)
-            )
-            cross_links = []
-            for tgt_type, tgt_id, sim in cl_result.all():
-                # Look up target title
-                if tgt_type == "paper":
-                    title_result = await db.execute(
-                        select(Paper.title).where(Paper.id == tgt_id)
-                    )
-                else:
-                    title_result = await db.execute(
-                        select(NewsItem.title).where(NewsItem.id == tgt_id)
-                    )
-                title = title_result.scalar()
-                if title:
-                    cross_links.append({
-                        "target_type": tgt_type,
-                        "target_id": str(tgt_id),
-                        "target_title": title,
-                        "similarity": float(sim),
-                    })
-            item_dict["cross_links"] = cross_links
 
     # --- Sort ---
     if sort == "relevance":

@@ -33,15 +33,15 @@ export default function Feed() {
   const { data: papersData } = usePapers({ search: debouncedSearch || undefined, sort, favorites: favoritesOnly });
   const totalPapers = papersData?.pages?.[0]?.total ?? null;
 
-  // Unified feed facets (for tab badges when not in papers-only mode)
+  // Unified feed filters
   const unifiedSort = sort === 'score' ? 'relevance' : sort === 'newest' ? 'date_desc' : sort === 'oldest' ? 'date_asc' : 'relevance';
   const feedFilters: Partial<FeedFilters> = {
     type: feedType,
     sort: unifiedSort as FeedFilters['sort'],
     search: debouncedSearch || null,
   };
-  const { data: feedData } = useFeed(feedType !== 'papers' ? feedFilters : { type: 'all', sort: 'relevance' });
-  const facets = feedData?.pages?.[0]?.facets?.by_type;
+  const feedQuery = useFeed(feedFilters, feedType !== 'papers');
+  const facets = feedQuery.data?.pages?.[0]?.facets?.by_type;
 
   const { data: pulse } = useEngagement();
   const { showWeeklyToast } = usePulseSettings();
