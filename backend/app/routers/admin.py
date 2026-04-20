@@ -634,6 +634,23 @@ async def run_scheduled_pipeline(
         logger.exception(f"News ingest failed: {e}")
         news_result = {"error": str(e)}
 
+    # --- 1.6. Compute cross-links (paper <-> news) ---
+    cross_links_result = {}
+    try:
+        async with db_module.async_session_factory() as session:
+            from app.services.cross_link_compute import build_cross_links
+            cross_links_result = await asyncio.wait_for(
+                build_cross_links(session),
+                timeout=120,
+            )
+            logger.info(f"Cross-links: {cross_links_result}")
+    except TimeoutError:
+        logger.error("Cross-links computation timed out")
+        cross_links_result = {"error": "Timed out"}
+    except Exception as e:
+        logger.exception(f"Cross-links computation failed: {e}")
+        cross_links_result = {"error": str(e)}
+
     # --- 2. Always run digests (independent of pipeline outcome) ---
     digest_summary = {}
     try:
@@ -655,6 +672,7 @@ async def run_scheduled_pipeline(
     return {
         "pipeline": pipeline_result,
         "news": news_result,
+        "cross_links": cross_links_result,
         "digest": digest_summary,
     }
 

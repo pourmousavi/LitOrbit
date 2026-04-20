@@ -83,6 +83,33 @@ DIGEST_TEMPLATE = Template("""<!DOCTYPE html>
   </div>
   {% endif %}
 
+  {% if news_items %}
+  <h2 style="border-top: 2px solid #2a2a2a; padding-top: 24px;">Industry News</h2>
+  {% for item in news_items %}
+  <div class="paper">
+    <div class="paper-meta">
+      <span class="score score-mid" style="font-size: 10px;">NEWS</span>
+      &nbsp;&middot;&nbsp;{{ item.source_name }}
+      {% if item.relevance_score is not none %}
+      &nbsp;&middot;&nbsp;
+      <span class="score {% if item.relevance_score >= 0.7 %}score-high{% elif item.relevance_score >= 0.4 %}score-mid{% else %}score-low{% endif %}">{{ "%.2f"|format(item.relevance_score) }}</span>
+      {% endif %}
+    </div>
+    <div class="paper-title">
+      <a href="{{ item.url }}" style="color: #f0f0f0; text-decoration: none;">{{ item.title }}</a>
+    </div>
+    {% if item.excerpt %}
+    <div class="paper-summary">{{ item.excerpt }}</div>
+    {% endif %}
+    {% if item.cross_link_title %}
+    <div class="paper-meta" style="margin-top: 8px; font-style: italic;">
+      &darr; See also in Papers: {{ item.cross_link_title }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
   {% if shared_papers %}
   <h2>Shared With You</h2>
   {% for share in shared_papers %}
@@ -114,6 +141,7 @@ def generate_digest_html(
     unsubscribe_url: str,
     frequency: str = "weekly",
     podcast: dict[str, Any] | None = None,
+    news_items: list[dict[str, Any]] | None = None,
 ) -> str:
     """Generate the HTML digest email."""
     return DIGEST_TEMPLATE.render(
@@ -125,6 +153,7 @@ def generate_digest_html(
         unsubscribe_url=unsubscribe_url,
         frequency=frequency,
         podcast=podcast,
+        news_items=news_items or [],
     )
 
 

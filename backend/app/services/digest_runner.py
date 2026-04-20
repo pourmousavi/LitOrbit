@@ -23,6 +23,9 @@ from app.models.user_profile import UserProfile
 from app.services.digest_podcast import generate_digest_podcast
 from app.services.email_digest import generate_digest_html, send_digest_email
 from app.services.storage import upload_audio
+from app.models.news_item import NewsItem
+from app.models.news_source import NewsSource
+from app.models.content_cross_link import ContentCrossLink
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +162,59 @@ async def _get_shared_papers(
         }
         for share, title, sharer_name in result.all()
     ]
+
+
+async def _get_digest_news(
+    db: AsyncSession,
+    frequency: str,
+    max_items: int = 10,
+) -> list[dict]:
+    """Fetch top news items for the digest window."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=_lookback_days(frequency))
+
+    result = await db.execute(
+        select(NewsItem, NewsSource.name)
+        .join(NewsSource, NewsSource.id == NewsItem.source_id)
+        .where(
+            NewsItem.created_at >= cutoff,
+            NewsItem.is_cluster_primary == True,
+            NewsItem.relevance_score.isnot(None),
+            NewsItem.relevance_score >= 0.30,
+        )
+        .order_by(NewsItem.relevance_score.desc())
+        .limit(max_items)
+    )
+    rows = result.all()
+
+    news_items = []
+    for item, source_name in rows:
+        # Look for a cross-link to a paper
+        cross_link_title = None
+        cl_result = await db.execute(
+            select(ContentCrossLink, Paper.title)
+            .join(Paper, Paper.id == ContentCrossLink.target_content_id)
+            .where(
+                ContentCrossLink.source_content_type == "news",
+                ContentCrossLink.source_content_id == item.id,
+                ContentCrossLink.target_content_type == "paper",
+            )
+            .order_by(ContentCrossLink.similarity.desc())
+            .limit(1)
+        )
+        cl_row = cl_result.first()
+        if cl_row:
+            cross_link_title = cl_row[1]
+
+        news_items.append({
+            "title": item.title,
+            "url": item.url,
+            "source_name": source_name,
+            "excerpt": (item.excerpt or "")[:250],
+            "relevance_score": float(item.relevance_score) if item.relevance_score else None,
+            "cross_link_title": cross_link_title,
+        })
+
+    return news_items
 
 
 def _build_paper_dicts(paper_score_pairs: list[tuple[Paper, float]]) -> tuple[list[dict], list[dict]]:
@@ -374,7 +430,10 @@ async def send_email_digest_for_user(
                 "play_url": f"{settings.frontend_url}/podcasts?play={podcast_record.id}",
             }
 
-    # 4. Generate and send email
+    # 4. Fetch news items for digest
+    news_items = await _get_digest_news(db, frequency, max_items=10)
+
+    # 5. Generate and send email
     freq_label = "Daily" if frequency == "daily" else "Weekly"
     today_str = datetime.now(timezone.utc).strftime("%b %d")
     subject = f"LitOrbit {freq_label} Digest — {today_str}"
@@ -387,6 +446,7 @@ async def send_email_digest_for_user(
         unsubscribe_url=f"{settings.frontend_url}/profile",
         frequency=frequency,
         podcast=podcast_info,
+        news_items=news_items,
     )
 
     sent = send_digest_email(user.email, subject, html)
