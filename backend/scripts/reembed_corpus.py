@@ -341,6 +341,10 @@ async def main():
 
     from app.database import init_db
     from app import database as _db
+    # Import all models so SQLAlchemy can resolve FK references during flush
+    import app.models.user_profile  # noqa: F401
+    import app.models.paper  # noqa: F401
+    import app.models.reference_paper  # noqa: F401
 
     init_db()
     if _db.async_session_factory is None:
