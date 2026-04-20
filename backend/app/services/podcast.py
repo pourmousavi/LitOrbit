@@ -147,13 +147,22 @@ async def _generate_silence_mp3(voice: str) -> str:
     return tmp_path
 
 
+async def _tts_segment(
+    text: str, voice: str, out_path: str, semaphore: asyncio.Semaphore,
+) -> None:
+    """Generate a single TTS segment, respecting concurrency limit."""
+    async with semaphore:
+        communicate = edge_tts.Communicate(text, voice)
+        await communicate.save(out_path)
+
+
 async def generate_audio_dual(
     script: str,
     output_path: str,
     alex_voice_id: str | None = None,
     sam_voice_id: str | None = None,
 ) -> None:
-    """Generate dual-voice MP3 by generating segments with pauses between turns."""
+    """Generate dual-voice MP3 by generating segments in parallel with pauses between turns."""
     segments = _parse_dual_script(script)
     if not segments:
         await generate_audio_single(script, output_path)
@@ -168,13 +177,18 @@ async def generate_audio_dual(
         # Pre-generate a single silence segment (reused between turns)
         silence_file = await _generate_silence_mp3(voice_alex)
 
-        for speaker, text in segments:
-            voice = voice_alex if speaker == "alex" else voice_sam
+        # Create temp files for all segments up front
+        for _ in segments:
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-                tmp_path = tmp.name
-            communicate = edge_tts.Communicate(text, voice)
-            await communicate.save(tmp_path)
-            segment_files.append(tmp_path)
+                segment_files.append(tmp.name)
+
+        # Generate all segments in parallel (limit concurrency to avoid overwhelming edge-tts)
+        sem = asyncio.Semaphore(5)
+        tasks = []
+        for i, (speaker, text) in enumerate(segments):
+            voice = voice_alex if speaker == "alex" else voice_sam
+            tasks.append(_tts_segment(text, voice, segment_files[i], sem))
+        await asyncio.gather(*tasks)
 
         # Concatenate MP3 files with silence gaps between speaker turns
         with open(output_path, 'wb') as outfile:

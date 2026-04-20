@@ -49,6 +49,7 @@ interface SystemSettingsData {
   max_podcasts_per_user_per_month: number;
   digest_podcast_enabled_global: boolean;
   max_papers_per_digest: number;
+  max_podcast_duration_minutes: number;
 }
 
 interface StorageUsage {
@@ -1575,6 +1576,25 @@ function UsageLimitsTab() {
           max={20}
           value={activeForm.max_papers_per_digest}
           onChange={(e) => setForm({ ...activeForm, max_papers_per_digest: parseInt(e.target.value) || 1 })}
+          className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
+          style={{ width: 120, padding: '10px 16px' }}
+        />
+      </div>
+
+      {/* Max podcast duration */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid var(--border-default)' }}>
+        <div>
+          <p className="font-mono text-sm font-medium text-text-primary">Max podcast duration (minutes)</p>
+          <p className="font-mono text-xs text-text-tertiary" style={{ maxWidth: 420, marginTop: 4 }}>
+            Maximum allowed podcast duration in minutes. Users can set their own limit up to this value.
+          </p>
+        </div>
+        <input
+          type="number"
+          min={1}
+          max={60}
+          value={activeForm.max_podcast_duration_minutes}
+          onChange={(e) => setForm({ ...activeForm, max_podcast_duration_minutes: parseInt(e.target.value) || 1 })}
           className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
           style={{ width: 120, padding: '10px 16px' }}
         />

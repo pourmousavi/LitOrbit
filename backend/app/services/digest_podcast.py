@@ -73,13 +73,17 @@ def _build_papers_block(papers: list[dict[str, Any]]) -> str:
     return "\n\n".join(lines)
 
 
-def _estimate_minutes(count: int) -> int:
-    """Rough target minutes based on paper count."""
+def _estimate_minutes(count: int, max_minutes: int | None = None) -> int:
+    """Target minutes based on paper count, capped by max_minutes if set."""
     if count <= 3:
-        return 5
-    if count <= 6:
-        return 8
-    return 12
+        target = 5
+    elif count <= 6:
+        target = 8
+    else:
+        target = 12
+    if max_minutes and max_minutes > 0:
+        return min(target, max_minutes)
+    return target
 
 
 async def generate_digest_script(
@@ -87,6 +91,7 @@ async def generate_digest_script(
     voice_mode: str = "dual",
     client: anthropic.AsyncAnthropic | None = None,
     custom_prompt: str | None = None,
+    max_minutes: int | None = None,
 ) -> str:
     """Generate a podcast script covering multiple papers."""
     settings = get_settings()
@@ -97,7 +102,7 @@ async def generate_digest_script(
 
     count = len(papers)
     papers_block = _build_papers_block(papers)
-    minutes = _estimate_minutes(count)
+    minutes = _estimate_minutes(count, max_minutes)
     words = minutes * 150  # ~150 wpm for natural speech
 
     is_dual = voice_mode == "dual"
@@ -140,6 +145,7 @@ async def generate_digest_podcast(
     output_path: str | None = None,
     custom_prompt: str | None = None,
     custom_voices: dict[str, str] | None = None,
+    max_minutes: int | None = None,
 ) -> tuple[str, str, int]:
     """Generate a complete digest podcast (script + audio).
 
@@ -147,7 +153,9 @@ async def generate_digest_podcast(
     """
     import tempfile
 
-    script = await generate_digest_script(papers, voice_mode, custom_prompt=custom_prompt)
+    script = await generate_digest_script(
+        papers, voice_mode, custom_prompt=custom_prompt, max_minutes=max_minutes,
+    )
 
     if output_path is None:
         output_path = tempfile.mktemp(suffix=".mp3")

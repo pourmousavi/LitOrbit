@@ -36,6 +36,7 @@ class UserProfile(Base):
     podcast_digest_day: Mapped[str] = mapped_column(String, default="monday")
     podcast_digest_top_papers: Mapped[int | None] = mapped_column(Integer, nullable=True)
     podcast_digest_voice_mode: Mapped[str] = mapped_column(String, default="dual")
+    podcast_digest_max_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # IANA timezone for day-of-week checks (e.g. "Australia/Adelaide")
     digest_timezone: Mapped[str] = mapped_column(String, default="Australia/Adelaide")
     scoring_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)

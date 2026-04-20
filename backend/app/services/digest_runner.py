@@ -188,6 +188,7 @@ async def _generate_and_upload_podcast(
     frequency: str,
     voice_mode: str = "dual",
     podcast_type: str = "digest",
+    max_minutes: int | None = None,
 ) -> Podcast | None:
     """Generate digest podcast audio, upload to storage, return Podcast record."""
 
@@ -219,6 +220,7 @@ async def _generate_and_upload_podcast(
             output_path=output_path,
             custom_prompt=custom_prompt,
             custom_voices=custom_voices or None,
+            max_minutes=max_minutes,
         )
 
         storage_key = f"{podcast_id}.mp3"
@@ -338,17 +340,21 @@ async def send_email_digest_for_user(
 
     if email_papers and user.digest_podcast_enabled and sys_settings.digest_podcast_enabled_global:
         voice_mode = user.digest_podcast_voice_mode or "dual"
+        admin_max = sys_settings.max_podcast_duration_minutes
+        user_max = user.podcast_digest_max_minutes
+        effective_max_minutes = min(user_max, admin_max) if user_max else admin_max
         # Try to reuse a podcast already generated today with the same frequency
         existing = await _find_reusable_podcast(db, user.id, frequency)
         if existing:
             logger.info(f"Reusing existing podcast for {user.full_name} email digest")
             podcast_record = existing
         else:
-            logger.info(f"Generating email digest podcast for {user.full_name} ({len(podcast_papers)} papers)")
+            logger.info(f"Generating email digest podcast for {user.full_name} ({len(podcast_papers)} papers, max {effective_max_minutes}min)")
             try:
                 podcast_record = await _generate_and_upload_podcast(
                     podcast_papers, user, frequency,
                     voice_mode=voice_mode, podcast_type="digest",
+                    max_minutes=effective_max_minutes,
                 )
             except Exception as gen_err:
                 logger.warning(f"Email digest podcast generation failed for {user.full_name}: {gen_err}")
@@ -443,18 +449,24 @@ async def send_podcast_digest_for_user(
         logger.info(f"No papers for {user.full_name} standalone podcast digest, skipping")
         return {"user": user.full_name, "papers": 0, "sent": False}
 
-    # 2. Try to reuse a podcast already generated today with the same frequency
+    # 2. Compute effective max duration (user pref capped by admin limit)
+    admin_max = sys_settings.max_podcast_duration_minutes
+    user_max = user.podcast_digest_max_minutes
+    effective_max_minutes = min(user_max, admin_max) if user_max else admin_max
+
+    # 3. Try to reuse a podcast already generated today with the same frequency
     voice_mode = user.podcast_digest_voice_mode or "dual"
     existing = await _find_reusable_podcast(db, user.id, frequency)
     if existing:
         logger.info(f"Reusing existing podcast for {user.full_name} standalone digest")
         podcast_record = existing
     else:
-        logger.info(f"Generating standalone podcast digest for {user.full_name} ({len(podcast_papers)} papers)")
+        logger.info(f"Generating standalone podcast digest for {user.full_name} ({len(podcast_papers)} papers, max {effective_max_minutes}min)")
         try:
             podcast_record = await _generate_and_upload_podcast(
                 podcast_papers, user, frequency,
                 voice_mode=voice_mode, podcast_type="standalone_digest",
+                max_minutes=effective_max_minutes,
             )
         except Exception as gen_err:
             podcast_record = None
@@ -597,12 +609,17 @@ async def _run_for_product(
                 if product == "email":
                     summary = await asyncio.wait_for(
                         send_email_digest_for_user(db, user),
-                        timeout=120,
+                        timeout=180,
                     )
                 else:
+                    # Dynamic timeout: script generation (~60s) + TTS (~30s per minute of audio) + upload (~30s)
+                    user_max = user.podcast_digest_max_minutes
+                    paper_count = user.podcast_digest_top_papers or DEFAULT_WEEKLY_TOP
+                    est_minutes = min(paper_count * 1.5, user_max or 20)
+                    podcast_timeout = int(90 + est_minutes * 30)  # base + per-minute TTS allowance
                     summary = await asyncio.wait_for(
                         send_podcast_digest_for_user(db, user),
-                        timeout=300,
+                        timeout=podcast_timeout,
                     )
                 results.append(summary)
 

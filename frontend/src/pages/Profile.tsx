@@ -255,11 +255,12 @@ function AccountTab() {
 function DigestTab() {
   const { data: profile } = useProfile();
   const updateProfile = useUpdateProfile();
-  const { data: limits } = useQuery<{ max_papers_per_digest: number; max_podcasts_per_user_per_month: number }>({
+  const { data: limits } = useQuery<{ max_papers_per_digest: number; max_podcasts_per_user_per_month: number; max_podcast_duration_minutes: number }>({
     queryKey: ['user-limits'],
     queryFn: async () => (await api.get('/api/v1/users/limits')).data,
   });
   const maxPapers = limits?.max_papers_per_digest ?? 20;
+  const maxDuration = limits?.max_podcast_duration_minutes ?? 20;
   const [form, setForm] = useState<{
     email_digest_enabled: boolean;
     digest_frequency: 'daily' | 'weekly';
@@ -272,6 +273,7 @@ function DigestTab() {
     podcast_digest_day: string;
     podcast_digest_top_papers: number | null;
     podcast_digest_voice_mode: 'single' | 'dual';
+    podcast_digest_max_minutes: number | null;
     digest_timezone: string;
   } | null>(null);
 
@@ -289,6 +291,7 @@ function DigestTab() {
         podcast_digest_day: profile.podcast_digest_day,
         podcast_digest_top_papers: profile.podcast_digest_top_papers,
         podcast_digest_voice_mode: profile.podcast_digest_voice_mode,
+        podcast_digest_max_minutes: profile.podcast_digest_max_minutes,
         digest_timezone: profile.digest_timezone || 'Australia/Adelaide',
       });
     }
@@ -308,6 +311,7 @@ function DigestTab() {
     form.podcast_digest_day !== profile.podcast_digest_day ||
     form.podcast_digest_top_papers !== profile.podcast_digest_top_papers ||
     form.podcast_digest_voice_mode !== profile.podcast_digest_voice_mode ||
+    form.podcast_digest_max_minutes !== profile.podcast_digest_max_minutes ||
     form.digest_timezone !== (profile.digest_timezone || 'Australia/Adelaide')
   );
 
@@ -328,6 +332,7 @@ function DigestTab() {
       podcast_digest_day: profile.podcast_digest_day,
       podcast_digest_top_papers: profile.podcast_digest_top_papers,
       podcast_digest_voice_mode: profile.podcast_digest_voice_mode,
+      podcast_digest_max_minutes: profile.podcast_digest_max_minutes,
       digest_timezone: profile.digest_timezone || 'Australia/Adelaide',
     });
   };
@@ -594,6 +599,28 @@ function DigestTab() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Max duration */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <p className="font-mono text-sm text-text-primary">Max duration</p>
+                  <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 2 }}>
+                    Minutes (limit {maxDuration})
+                  </p>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxDuration}
+                  value={Math.min(form.podcast_digest_max_minutes ?? maxDuration, maxDuration)}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    setForm({ ...form, podcast_digest_max_minutes: v ? Math.min(v, maxDuration) : null });
+                  }}
+                  className="w-16 rounded-xl border border-border-default bg-bg-base text-center font-mono text-sm text-text-primary outline-none focus:border-accent"
+                  style={{ padding: '6px 8px' }}
+                />
               </div>
             </>
           )}

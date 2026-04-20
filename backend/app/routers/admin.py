@@ -259,6 +259,7 @@ class SystemSettingsUpdate(BaseModel):
     max_podcasts_per_user_per_month: int | None = None
     digest_podcast_enabled_global: bool | None = None
     max_papers_per_digest: int | None = None
+    max_podcast_duration_minutes: int | None = None
 
 
 @router.get("/settings")
@@ -272,6 +273,7 @@ async def get_settings_endpoint(
         "max_podcasts_per_user_per_month": s.max_podcasts_per_user_per_month,
         "digest_podcast_enabled_global": s.digest_podcast_enabled_global,
         "max_papers_per_digest": s.max_papers_per_digest,
+        "max_podcast_duration_minutes": s.max_podcast_duration_minutes,
     }
 
 
@@ -289,6 +291,8 @@ async def update_settings_endpoint(
         s.digest_podcast_enabled_global = req.digest_podcast_enabled_global
     if req.max_papers_per_digest is not None:
         s.max_papers_per_digest = max(1, req.max_papers_per_digest)
+    if req.max_podcast_duration_minutes is not None:
+        s.max_podcast_duration_minutes = max(1, min(60, req.max_podcast_duration_minutes))
     await db.commit()
     return {"status": "updated"}
 
@@ -484,7 +488,7 @@ async def run_scheduled_pipeline(
     # papers unscored and PipelineRun stuck.  Give it a generous budget;
     # curl --max-time in the GitHub Actions workflow is the outer guard.
     PIPELINE_TIMEOUT = 2700  # 45 minutes for discovery + scoring
-    DIGEST_TIMEOUT = 300     # 5 minutes for digests
+    DIGEST_TIMEOUT = 900     # 15 minutes for digests (TTS generation can be slow)
 
     # --- 1. Run discovery pipeline ---
     pipeline_result = {}
