@@ -890,6 +890,27 @@ async def update_negative_title_keywords(
     return {"status": "updated", "count": len(req.keywords)}
 
 
+# --- Abstract Quality ---
+
+@router.get("/abstract-quality-summary")
+async def abstract_quality_summary(
+    db: AsyncSession = Depends(get_db),
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> dict:
+    """Return counts of each abstract_quality_flag across the papers table."""
+    from app.models.paper import Paper
+
+    result = await db.execute(
+        select(Paper.abstract_quality_flag, func.count())
+        .group_by(Paper.abstract_quality_flag)
+    )
+    counts = {}
+    for flag, count in result.all():
+        key = flag if flag else "unprocessed"
+        counts[key] = count
+    return counts
+
+
 # --- Digest ---
 
 class DigestTrigger(BaseModel):

@@ -337,6 +337,7 @@ async def score_and_summarise_papers(
                 user_kw_ids = {p["id"] for p in _pf(user_unscored, keywords=user_kws)}
 
             from app.services.ranking.negative_filter import paper_rejected_by_title
+            from app.services.ranking.abstract_quality import abstract_quality
 
             matched = []
             for pd in user_unscored:
@@ -380,6 +381,16 @@ async def score_and_summarise_papers(
                             sig.passed_gate = False
                             sig.rejected_by = "negative_title"
                             continue
+
+                        # Apply abstract quality guard
+                        quality, reason = abstract_quality(pd.get("abstract"))
+                        if quality in ("missing", "too_short", "author_bios"):
+                            logger.info(f"Paper {pd['id'][:8]} rejected by abstract quality: {quality} ({reason})")
+                            sig.passed_gate = False
+                            sig.rejected_by = f"abstract_quality:{quality}"
+                            continue
+                        elif quality == "no_methods_verbs":
+                            logger.info(f"Paper {pd['id'][:8]} has marginal abstract ({quality}) — passing to LLM anyway")
 
                         pd_copy = {**pd, "cosine_similarity": round(max_pos, 4), "cosine_negative": round(max_neg, 4)}
                         matched.append(pd_copy)
