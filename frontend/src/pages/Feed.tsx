@@ -215,8 +215,9 @@ export default function Feed() {
                 style={{ padding: '6px 12px', flexShrink: 0 }}
               >
                 {label}
-                {facets && value === 'papers' && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{facets.papers}</span>}
-                {facets && value === 'news' && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{facets.news}</span>}
+                {value === 'papers' && totalPapers !== null && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{totalPapers}</span>}
+                {value === 'news' && facets && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{facets.news}</span>}
+                {value === 'all' && totalPapers !== null && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{totalPapers + (facets?.news ?? 0)}</span>}
               </button>
             ))}
 
