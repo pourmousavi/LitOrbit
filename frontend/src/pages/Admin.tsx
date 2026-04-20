@@ -1587,13 +1587,13 @@ function UsageLimitsTab() {
       </div>
 
       {/* Max podcast duration */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid var(--border-default)' }}>
-        <div>
-          <p className="font-mono text-sm font-medium text-text-primary">Max podcast duration (minutes)</p>
-          <p className="font-mono text-xs text-text-tertiary" style={{ maxWidth: 420, marginTop: 4 }}>
-            Maximum allowed podcast duration in minutes. Users can set their own limit up to this value.
-          </p>
-        </div>
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
+        <label className="font-mono text-sm text-text-primary font-medium" style={{ display: 'block', marginBottom: 6 }}>
+          Max podcast duration (minutes)
+        </label>
+        <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginBottom: 12 }}>
+          Maximum allowed podcast duration in minutes. Users can set their own limit up to this value.
+        </p>
         <input
           type="number"
           min={1}
