@@ -7,6 +7,7 @@ import os
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,14 @@ DEFAULT_WEEKLY_TOP = 10
 
 def _default_top(frequency: str) -> int:
     return DEFAULT_DAILY_TOP if frequency == "daily" else DEFAULT_WEEKLY_TOP
+
+
+def _user_timezone(user: UserProfile) -> ZoneInfo:
+    """Return the user's ZoneInfo, falling back to Australia/Adelaide."""
+    try:
+        return ZoneInfo(user.digest_timezone or "Australia/Adelaide")
+    except (KeyError, Exception):
+        return ZoneInfo("Australia/Adelaide")
 
 
 def _lookback_days(frequency: str) -> float:
@@ -216,8 +225,8 @@ async def _generate_and_upload_podcast(
         public_url = await upload_audio(audio_path, storage_key)
 
         if not public_url:
-            logger.error(f"Failed to upload digest podcast for user {user.id}")
-            return None
+            logger.error(f"Failed to upload digest podcast audio to storage for user {user.id}")
+            raise RuntimeError("Audio upload to storage failed")
 
         freq_label = "Daily" if frequency == "daily" else "Weekly"
         today_str = datetime.now(timezone.utc).strftime("%b %d, %Y")
@@ -240,16 +249,23 @@ async def _generate_and_upload_podcast(
 
         return podcast
 
+    except RuntimeError:
+        # Expected failures (e.g. upload failed) — propagate to caller with message
+        if os.path.exists(output_path):
+            os.unlink(output_path)
+        raise
     except Exception as e:
         logger.exception(f"Digest podcast generation failed for user {user.id}: {e}")
         if os.path.exists(output_path):
             os.unlink(output_path)
-        return None
+        raise RuntimeError(f"Podcast generation error: {e}") from e
 
 
-async def _already_ran_today(db: AsyncSession, user_id: uuid.UUID, source: str) -> bool:
-    """Check if a digest was already processed for this user/source today."""
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+async def _already_ran_today(db: AsyncSession, user_id: uuid.UUID, source: str, user_tz: ZoneInfo | None = None) -> bool:
+    """Check if a digest was already processed for this user/source today (in user's timezone)."""
+    tz = user_tz or ZoneInfo("Australia/Adelaide")
+    now_local = datetime.now(tz)
+    today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
     result = await db.execute(
         select(DigestLog.id)
         .where(
@@ -299,8 +315,9 @@ async def send_email_digest_for_user(
 
     frequency = user.digest_frequency or "weekly"
 
-    # Guard: skip if already sent today
-    if await _already_ran_today(db, user.id, "email"):
+    # Guard: skip if already sent today (in user's timezone)
+    user_tz = _user_timezone(user)
+    if await _already_ran_today(db, user.id, "email", user_tz):
         logger.info(f"Email digest already sent to {user.full_name} today, skipping")
         return {"user": user.full_name, "papers": 0, "sent": False, "skipped_duplicate": True}
 
@@ -328,10 +345,14 @@ async def send_email_digest_for_user(
             podcast_record = existing
         else:
             logger.info(f"Generating email digest podcast for {user.full_name} ({len(podcast_papers)} papers)")
-            podcast_record = await _generate_and_upload_podcast(
-                podcast_papers, user, frequency,
-                voice_mode=voice_mode, podcast_type="digest",
-            )
+            try:
+                podcast_record = await _generate_and_upload_podcast(
+                    podcast_papers, user, frequency,
+                    voice_mode=voice_mode, podcast_type="digest",
+                )
+            except Exception as gen_err:
+                logger.warning(f"Email digest podcast generation failed for {user.full_name}: {gen_err}")
+                podcast_record = None
             if podcast_record:
                 db.add(podcast_record)
                 await db.flush()
@@ -378,7 +399,7 @@ async def send_email_digest_for_user(
         ))
     await db.commit()
 
-    return {
+    result: dict[str, Any] = {
         "user": user.full_name,
         "papers": len(email_papers),
         "shared": len(shared_papers),
@@ -386,6 +407,9 @@ async def send_email_digest_for_user(
         "sent": sent,
         "email_failed": not sent,
     }
+    if not sent:
+        result["error_detail"] = "Email delivery failed (check Resend API key or SMTP config)"
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -402,8 +426,9 @@ async def send_podcast_digest_for_user(
 
     frequency = user.podcast_digest_frequency or "weekly"
 
-    # Guard: skip if already generated today
-    if await _already_ran_today(db, user.id, "podcast"):
+    # Guard: skip if already generated today (in user's timezone)
+    user_tz = _user_timezone(user)
+    if await _already_ran_today(db, user.id, "podcast", user_tz):
         logger.info(f"Podcast digest already generated for {user.full_name} today, skipping")
         return {"user": user.full_name, "papers": 0, "sent": False, "skipped_duplicate": True}
 
@@ -426,17 +451,25 @@ async def send_podcast_digest_for_user(
         podcast_record = existing
     else:
         logger.info(f"Generating standalone podcast digest for {user.full_name} ({len(podcast_papers)} papers)")
-        podcast_record = await _generate_and_upload_podcast(
-            podcast_papers, user, frequency,
-            voice_mode=voice_mode, podcast_type="standalone_digest",
-        )
+        try:
+            podcast_record = await _generate_and_upload_podcast(
+                podcast_papers, user, frequency,
+                voice_mode=voice_mode, podcast_type="standalone_digest",
+            )
+        except Exception as gen_err:
+            podcast_record = None
+            logger.warning(f"Podcast generation failed for {user.full_name}: {gen_err}")
+            return {
+                "user": user.full_name, "papers": len(podcast_papers),
+                "sent": False, "error_detail": str(gen_err),
+            }
         if podcast_record:
             db.add(podcast_record)
             await db.flush()
 
     if not podcast_record:
-        logger.warning(f"Podcast generation failed for {user.full_name}")
-        return {"user": user.full_name, "papers": len(podcast_papers), "sent": False}
+        logger.warning(f"Podcast generation returned None for {user.full_name}")
+        return {"user": user.full_name, "papers": len(podcast_papers), "sent": False, "error_detail": "Podcast generation returned no result"}
 
     # 3. Log papers for dedup
     for paper, _score in paper_score_pairs:
@@ -517,12 +550,13 @@ async def _run_for_product(
         result = await db.execute(query)
         all_users = result.scalars().all()
 
-        # Filter weekly users by their chosen digest day
-        today_name = datetime.now(timezone.utc).strftime("%A").lower()
+        # Filter weekly users by their chosen digest day (in user's timezone)
         users = []
         skipped_day = 0
         for u in all_users:
             if not skip_day_check:
+                user_tz = _user_timezone(u)
+                today_name = datetime.now(user_tz).strftime("%A").lower()
                 if product == "email" and u.digest_frequency == "weekly":
                     user_day = (u.digest_day or "monday").lower()
                     if user_day != today_name:
@@ -578,8 +612,11 @@ async def _run_for_product(
                 elif summary.get("skipped_duplicate"):
                     run.users_skipped += 1
                     step = "user_skipped_duplicate"
+                elif product == "podcast":
+                    run.users_failed += 1
+                    step = "user_podcast_failed"
                 else:
-                    run.users_sent += 1
+                    run.users_failed += 1
                     step = "user_partial"
 
                 log_entry: dict[str, Any] = {
@@ -588,6 +625,8 @@ async def _run_for_product(
                     "papers": summary.get("papers", 0),
                     "podcast": summary.get("podcast", False),
                 }
+                if summary.get("error_detail"):
+                    log_entry["error_detail"] = summary["error_detail"]
                 if summary.get("email_failed"):
                     log_entry["email_failed"] = True
                 await _append_log(db, run, log_entry)

@@ -39,6 +39,7 @@ class ProfileUpdate(BaseModel):
     podcast_digest_day: str | None = None
     podcast_digest_top_papers: int | None = None
     podcast_digest_voice_mode: str | None = None
+    digest_timezone: str | None = None
     scoring_prompt: str | None = None
     single_voice_prompt: str | None = None
     dual_voice_prompt: str | None = None
@@ -99,6 +100,7 @@ async def get_my_profile(
         "podcast_digest_day": profile.podcast_digest_day,
         "podcast_digest_top_papers": profile.podcast_digest_top_papers,
         "podcast_digest_voice_mode": profile.podcast_digest_voice_mode,
+        "digest_timezone": profile.digest_timezone,
         "scoring_prompt": profile.scoring_prompt,
         "single_voice_prompt": profile.single_voice_prompt,
         "dual_voice_prompt": profile.dual_voice_prompt,
@@ -165,6 +167,8 @@ async def update_my_profile(
         profile.podcast_digest_top_papers = capped if capped > 0 else None
     if req.podcast_digest_voice_mode is not None:
         profile.podcast_digest_voice_mode = req.podcast_digest_voice_mode
+    if req.digest_timezone is not None:
+        profile.digest_timezone = req.digest_timezone
     if req.scoring_prompt is not None:
         profile.scoring_prompt = req.scoring_prompt if req.scoring_prompt.strip() else None
     if req.single_voice_prompt is not None:

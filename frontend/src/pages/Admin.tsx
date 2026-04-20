@@ -1204,7 +1204,8 @@ const DIGEST_STEP_LABELS: Record<string, string> = {
   users_found: 'Users identified',
   processing_user: 'Processing user',
   user_sent: 'Digest sent',
-  user_partial: 'Podcast saved (email failed)',
+  user_partial: 'Email failed (podcast saved)',
+  user_podcast_failed: 'Podcast generation failed',
   user_skipped: 'Skipped (no papers)',
   user_skipped_duplicate: 'Skipped (already sent today)',
   user_failed: 'Failed to send',
@@ -1346,7 +1347,7 @@ function DigestRunLogSteps({ log }: { log: Record<string, unknown>[] }) {
         const step = entry.step as string;
         const label = DIGEST_STEP_LABELS[step] || step;
         const isProcessing = step === 'processing_user';
-        const isWarning = step === 'user_partial' || (step === 'completed' && (entry.email_failed || entry.skipped));
+        const isWarning = step === 'user_partial' || step === 'user_podcast_failed' || (step === 'completed' && (entry.email_failed || entry.skipped));
         const isError = step === 'user_error' || step === 'user_failed';
         const details: string[] = [];
         if (entry.user) details.push(entry.user as string);
@@ -1360,6 +1361,7 @@ function DigestRunLogSteps({ log }: { log: Record<string, unknown>[] }) {
         if (step === 'completed' && entry.email_failed) details.push(`${entry.email_failed} email failed`);
         if (step === 'completed' && entry.skipped) details.push(`${entry.skipped} skipped`);
         if (entry.error) details.push(entry.error as string);
+        if (entry.error_detail) details.push(entry.error_detail as string);
         if (entry.detail) details.push(entry.detail as string);
         return (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

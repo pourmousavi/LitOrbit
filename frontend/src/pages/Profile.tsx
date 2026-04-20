@@ -272,6 +272,7 @@ function DigestTab() {
     podcast_digest_day: string;
     podcast_digest_top_papers: number | null;
     podcast_digest_voice_mode: 'single' | 'dual';
+    digest_timezone: string;
   } | null>(null);
 
   useEffect(() => {
@@ -288,6 +289,7 @@ function DigestTab() {
         podcast_digest_day: profile.podcast_digest_day,
         podcast_digest_top_papers: profile.podcast_digest_top_papers,
         podcast_digest_voice_mode: profile.podcast_digest_voice_mode,
+        digest_timezone: profile.digest_timezone || 'Australia/Adelaide',
       });
     }
   }, [profile]);
@@ -305,7 +307,8 @@ function DigestTab() {
     form.podcast_digest_frequency !== profile.podcast_digest_frequency ||
     form.podcast_digest_day !== profile.podcast_digest_day ||
     form.podcast_digest_top_papers !== profile.podcast_digest_top_papers ||
-    form.podcast_digest_voice_mode !== profile.podcast_digest_voice_mode
+    form.podcast_digest_voice_mode !== profile.podcast_digest_voice_mode ||
+    form.digest_timezone !== (profile.digest_timezone || 'Australia/Adelaide')
   );
 
   const handleSave = () => {
@@ -325,13 +328,46 @@ function DigestTab() {
       podcast_digest_day: profile.podcast_digest_day,
       podcast_digest_top_papers: profile.podcast_digest_top_papers,
       podcast_digest_voice_mode: profile.podcast_digest_voice_mode,
+      digest_timezone: profile.digest_timezone || 'Australia/Adelaide',
     });
   };
 
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
+  const timezones = [
+    'Australia/Adelaide', 'Australia/Sydney', 'Australia/Melbourne', 'Australia/Brisbane',
+    'Australia/Perth', 'Australia/Darwin', 'Australia/Hobart',
+    'Pacific/Auckland', 'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Singapore',
+    'Asia/Kolkata', 'Europe/London', 'Europe/Berlin', 'Europe/Paris',
+    'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+    'UTC',
+  ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* ── Timezone ── */}
+      <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
+        <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 20 }}>
+          Timezone
+        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <p className="font-mono text-sm text-text-primary">Your timezone</p>
+            <p className="font-mono text-xs text-text-tertiary">Used for digest day-of-week scheduling</p>
+          </div>
+          <select
+            value={form.digest_timezone}
+            onChange={(e) => setForm({ ...form, digest_timezone: e.target.value })}
+            className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none focus:border-accent font-mono"
+            style={{ padding: '6px 14px' }}
+          >
+            {timezones.map((tz) => (
+              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
+        </div>
+      </section>
+
       {/* ── Email Digest ── */}
       <section className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 24 }}>
         <h2 className="font-mono text-xs font-medium tracking-widest text-text-tertiary uppercase" style={{ marginBottom: 20 }}>

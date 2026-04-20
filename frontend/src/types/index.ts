@@ -62,6 +62,7 @@ export interface UserProfile {
   podcast_digest_day: string;
   podcast_digest_top_papers: number | null;
   podcast_digest_voice_mode: 'single' | 'dual';
+  digest_timezone: string;
   scoring_prompt: string | null;
   single_voice_prompt: string | null;
   dual_voice_prompt: string | null;
