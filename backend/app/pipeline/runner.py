@@ -23,6 +23,7 @@ from app.services.ranking.embedder import (
     prepare_paper_text,
     cosine_similarity,
     knn_max_similarity,
+    EMBEDDING_TASK_TYPE,
 )
 from app.services.summariser import generate_summary
 
@@ -217,6 +218,7 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
     for paper, embedding in zip(papers, embeddings):
         if embedding is not None:
             paper.embedding = embedding
+            paper.embedding_task_type = EMBEDDING_TASK_TYPE
             embedded += 1
         else:
             skipped += 1

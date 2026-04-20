@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIMS = 3072
+EMBEDDING_TASK_TYPE = "SEMANTIC_SIMILARITY"
 
 # Gemini Embedding free tier: 100 RPM, 1000 RPD, 30K TPM.
 # Safety margins to avoid hitting hard limits.
@@ -207,6 +208,7 @@ async def _embed_single(client: genai.Client, text: str) -> list[float] | None:
                 client.aio.models.embed_content(
                     model=EMBEDDING_MODEL,
                     contents=text,
+                    config=genai.types.EmbedContentConfig(task_type=EMBEDDING_TASK_TYPE),
                 ),
                 timeout=60,
             )

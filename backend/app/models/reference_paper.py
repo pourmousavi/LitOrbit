@@ -18,4 +18,5 @@ class ReferencePaper(Base):
     doi: Mapped[str | None] = mapped_column(String, nullable=True)
     source: Mapped[str] = mapped_column(String, nullable=False)  # 'pdf_upload', 'doi_lookup', 'manual'
     embedding: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
+    embedding_task_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

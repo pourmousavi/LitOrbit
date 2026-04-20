@@ -18,6 +18,7 @@ from app.services.ranking.embedder import (
     prepare_paper_text,
     compute_centroid,
     EmbeddingQuotaExhausted,
+    EMBEDDING_TASK_TYPE,
 )
 
 logger = logging.getLogger(__name__)
@@ -175,6 +176,7 @@ async def upload_reference_pdf(
         abstract=abstract,
         source="pdf_upload",
         embedding=embedding,
+        embedding_task_type=EMBEDDING_TASK_TYPE if embedding else None,
     )
     db.add(paper)
     await db.commit()
@@ -244,6 +246,7 @@ async def add_by_doi(
         doi=doi,
         source="doi_lookup",
         embedding=embedding,
+        embedding_task_type=EMBEDDING_TASK_TYPE if embedding else None,
     )
     db.add(paper)
     await db.commit()
@@ -298,6 +301,7 @@ async def add_manual(
         abstract=abstract,
         source="manual",
         embedding=embedding,
+        embedding_task_type=EMBEDDING_TASK_TYPE if embedding else None,
     )
     db.add(paper)
     await db.commit()
