@@ -1,8 +1,11 @@
-import { ArrowLeft, ExternalLink, Bookmark, ThumbsUp, ThumbsDown, Loader2, Info } from 'lucide-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, ExternalLink, Bookmark, Loader2, Info } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNewsItem } from '@/hooks/useNewsItem';
 import { useUIStore } from '@/stores/uiStore';
 import { cn, formatDate, getScoreColor } from '@/lib/utils';
+import RatingSlider from '@/components/ratings/RatingSlider';
+import FeedbackDialog from '@/components/ratings/FeedbackDialog';
 import api from '@/lib/api';
 
 function formatDateTime(dateStr: string | null): string {
@@ -49,16 +52,6 @@ export default function NewsDetail() {
     },
   });
 
-  const rateMutation = useMutation({
-    mutationFn: async (rating: string) => {
-      await api.post(`/api/v1/news/${selectedNewsId}/rate`, { rating });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['news-item', selectedNewsId] });
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
-    },
-  });
-
   const scrapeMutation = useMutation({
     mutationFn: async () => {
       await api.post(`/api/v1/news/${selectedNewsId}/scrape`);
@@ -68,12 +61,54 @@ export default function NewsDetail() {
     },
   });
 
-  // Mark as read on open
-  useMutation({
-    mutationFn: async () => {
-      await api.post(`/api/v1/news/${selectedNewsId}/mark_read`);
+  // Fetch existing rating
+  const { data: existingRating } = useQuery<{ rating: number | null }>({
+    queryKey: ['news-rating', selectedNewsId],
+    queryFn: async () => (await api.get(`/api/v1/news/${selectedNewsId}/my-rating`)).data,
+    enabled: !!selectedNewsId,
+  });
+
+  interface NewsRatingResult {
+    rating_id: string;
+    follow_up_question: string | null;
+    follow_up_options: string[] | null;
+  }
+
+  const [feedback, setFeedback] = useState<NewsRatingResult | null>(null);
+
+  const ratingMutation = useMutation({
+    mutationFn: async (value: number) => {
+      const { data } = await api.post<NewsRatingResult>(`/api/v1/news/${selectedNewsId}/rate`, { rating: value });
+      return data;
     },
-  }).mutate;
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['news-rating', selectedNewsId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['engagement', 'pulse'] });
+      if (data.follow_up_question && data.follow_up_options) {
+        setFeedback(data);
+      }
+    },
+  });
+
+  const feedbackMutation = useMutation({
+    mutationFn: async (option: string) => {
+      await api.post(`/api/v1/news/${selectedNewsId}/rate-feedback`, null, { params: { feedback_type: option } });
+    },
+  });
+
+  // Mark as read on open
+  useEffect(() => {
+    if (selectedNewsId) {
+      api.post(`/api/v1/news/${selectedNewsId}/mark_read`).catch(() => {});
+    }
+  }, [selectedNewsId]);
+
+  // Reset feedback on item change
+  useEffect(() => {
+    setFeedback(null);
+    ratingMutation.reset();
+  }, [selectedNewsId]);
 
   if (!selectedNewsId) return null;
 
@@ -98,6 +133,7 @@ export default function NewsDetail() {
   })();
 
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Sticky header */}
       <div
@@ -318,55 +354,49 @@ export default function NewsDetail() {
             </div>
           </Section>
 
-          {/* Actions — star + rate */}
-          <Section title="Actions">
-            <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Star */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button
-                  onClick={() => starMutation.mutate()}
-                  disabled={starMutation.isPending}
-                  className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-accent hover:text-accent"
-                  style={{ gap: 8, padding: '10px 16px' }}
-                >
-                  <Bookmark size={14} />
-                  Star
-                </button>
-                <button
-                  onClick={() => unstarMutation.mutate()}
-                  disabled={unstarMutation.isPending}
-                  className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                  style={{ gap: 8, padding: '10px 16px' }}
-                >
-                  Unstar
-                </button>
-              </div>
+          {/* Star */}
+          <Section title="Bookmark">
+            <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={() => starMutation.mutate()}
+                disabled={starMutation.isPending}
+                className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-accent hover:text-accent"
+                style={{ gap: 8, padding: '10px 16px' }}
+              >
+                <Bookmark size={14} />
+                Star
+              </button>
+              <button
+                onClick={() => unstarMutation.mutate()}
+                disabled={unstarMutation.isPending}
+                className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-border-strong hover:text-text-primary"
+                style={{ gap: 8, padding: '10px 16px' }}
+              >
+                Unstar
+              </button>
+            </div>
+          </Section>
 
-              {/* Rate */}
-              <div>
-                <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 10 }}>Rate this article:</p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => rateMutation.mutate('thumbs_up')}
-                    disabled={rateMutation.isPending}
-                    className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-success hover:text-success"
-                    style={{ gap: 6, padding: '10px 16px' }}
-                  >
-                    <ThumbsUp size={14} /> Useful
-                  </button>
-                  <button
-                    onClick={() => rateMutation.mutate('thumbs_down')}
-                    disabled={rateMutation.isPending}
-                    className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-danger hover:text-danger"
-                    style={{ gap: 6, padding: '10px 16px' }}
-                  >
-                    <ThumbsDown size={14} /> Not relevant
-                  </button>
-                </div>
-                {rateMutation.isSuccess && (
-                  <p className="font-mono text-xs text-success" style={{ marginTop: 8 }}>Rating submitted</p>
-                )}
-              </div>
+          {/* Rating */}
+          <Section title="Your Rating" key={`rating-${selectedNewsId}`}>
+            <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
+              {existingRating?.rating != null && (
+                <p className="font-mono text-xs text-text-secondary" style={{ textAlign: 'center', marginBottom: 12 }}>
+                  You rated this article <strong>{existingRating.rating}/10</strong>
+                </p>
+              )}
+              <RatingSlider
+                key={selectedNewsId}
+                initialValue={existingRating?.rating ?? undefined}
+                onSubmit={(value) => ratingMutation.mutate(value)}
+                loading={ratingMutation.isPending}
+              />
+              {ratingMutation.isSuccess && !feedback && (
+                <p className="font-mono text-xs text-success" style={{ textAlign: 'center', marginTop: 10 }}>Rating submitted</p>
+              )}
+              {ratingMutation.isError && (
+                <p className="font-mono text-xs text-danger" style={{ textAlign: 'center', marginTop: 10 }}>Failed to submit</p>
+              )}
             </div>
           </Section>
 
@@ -395,6 +425,17 @@ export default function NewsDetail() {
         </div>
       </div>
     </div>
+
+    {/* Feedback dialog */}
+    {feedback?.follow_up_question && feedback.follow_up_options && (
+      <FeedbackDialog
+        question={feedback.follow_up_question}
+        options={feedback.follow_up_options}
+        onSelect={(option) => feedbackMutation.mutate(option)}
+        onDismiss={() => setFeedback(null)}
+      />
+    )}
+    </>
   );
 }
 

@@ -115,7 +115,32 @@ async def unstar_news(
 
 
 class NewsRateBody(BaseModel):
-    rating: str  # "thumbs_up" | "thumbs_down"
+    rating: int = Field(ge=1, le=10)
+    feedback_type: str | None = None
+
+
+def _news_follow_up(rating: int) -> tuple[str | None, list[str] | None]:
+    """Return follow-up question and options based on news rating value."""
+    if 1 <= rating <= 3:
+        return (
+            "What was wrong with this article?",
+            ["Wrong topic / irrelevant", "Already knew this", "Low quality source", "Just not useful"],
+        )
+    elif 4 <= rating <= 6:
+        return (
+            "What kept it from scoring higher?",
+            ["Adjacent topic", "Too shallow", "Old news / already covered", "Skip"],
+        )
+    elif 7 <= rating <= 8:
+        return (
+            "What made this article useful?",
+            ["Market / policy insight", "Technology development", "Relevant to my research", "Skip"],
+        )
+    else:
+        return (
+            "Great article — what should we do?",
+            ["Promote to news anchor", "Save for reference", "Share with lab", "Skip"],
+        )
 
 
 @router.post("/news/{item_id}/rate")
@@ -126,24 +151,64 @@ async def rate_news(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     from app.models.user_interaction import UserInteraction
+    from sqlalchemy import delete as sa_delete
     user_id = uuid.UUID(user["id"])
     nid = uuid.UUID(item_id)
-    # Upsert: delete existing rating, insert new
-    from sqlalchemy import delete
+
+    # Upsert: delete existing, insert new
     await db.execute(
-        delete(UserInteraction).where(
+        sa_delete(UserInteraction).where(
             UserInteraction.user_id == user_id,
             UserInteraction.content_type == "news",
             UserInteraction.content_id == nid,
             UserInteraction.event_type == "rated",
         )
     )
-    db.add(UserInteraction(
+    interaction = UserInteraction(
         user_id=user_id, content_type="news", content_id=nid,
-        event_type="rated", event_value={"rating": body.rating},
-    ))
+        event_type="rated", event_value={"rating": body.rating, "feedback_type": body.feedback_type},
+    )
+    db.add(interaction)
     await db.commit()
-    return {"status": "rated", "rating": body.rating}
+    await db.refresh(interaction)
+
+    question, options = _news_follow_up(body.rating)
+    return {
+        "rating_id": str(interaction.id),
+        "follow_up_question": question,
+        "follow_up_options": options,
+    }
+
+
+@router.post("/news/{item_id}/rate-feedback")
+async def submit_news_feedback(
+    item_id: str,
+    feedback_type: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Submit follow-up feedback for a news rating."""
+    from app.models.user_interaction import UserInteraction
+    user_id = uuid.UUID(user["id"])
+    nid = uuid.UUID(item_id)
+
+    result = await db.execute(
+        select(UserInteraction).where(
+            UserInteraction.user_id == user_id,
+            UserInteraction.content_type == "news",
+            UserInteraction.content_id == nid,
+            UserInteraction.event_type == "rated",
+        )
+    )
+    interaction = result.scalar_one_or_none()
+    if not interaction:
+        raise HTTPException(status_code=404, detail="Rating not found")
+
+    event_value = dict(interaction.event_value or {})
+    event_value["feedback_type"] = feedback_type
+    interaction.event_value = event_value
+    await db.commit()
+    return {"status": "ok"}
 
 
 @router.post("/news/{item_id}/mark_read")
@@ -169,6 +234,29 @@ async def mark_read_news(
         ))
         await db.commit()
     return {"status": "marked_read"}
+
+
+@router.get("/news/{item_id}/my-rating")
+async def get_my_news_rating(
+    item_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.user_interaction import UserInteraction
+    user_id = uuid.UUID(user["id"])
+    nid = uuid.UUID(item_id)
+    result = await db.execute(
+        select(UserInteraction).where(
+            UserInteraction.user_id == user_id,
+            UserInteraction.content_type == "news",
+            UserInteraction.content_id == nid,
+            UserInteraction.event_type == "rated",
+        )
+    )
+    interaction = result.scalar_one_or_none()
+    if interaction and interaction.event_value:
+        return {"rating": interaction.event_value.get("rating")}
+    return {"rating": None}
 
 
 # --- News detail ---
