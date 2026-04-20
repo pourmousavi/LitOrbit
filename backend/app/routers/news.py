@@ -236,6 +236,237 @@ async def mark_read_news(
     return {"status": "marked_read"}
 
 
+@router.get("/news/{item_id}/podcast")
+async def get_news_podcast(
+    item_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    voice_mode: str = Query("single"),
+) -> dict:
+    """Get podcast status for a news item."""
+    from app.models.podcast import Podcast
+    from datetime import timedelta
+
+    nid = uuid.UUID(item_id)
+    result = await db.execute(
+        select(Podcast).where(
+            Podcast.news_item_id == nid,
+            Podcast.voice_mode == voice_mode,
+        ).order_by(Podcast.generated_at.desc())
+    )
+    podcast = result.scalar_one_or_none()
+
+    if not podcast:
+        return {"status": "not_generated", "podcast": None}
+
+    if podcast.audio_path:
+        return {
+            "status": "ready",
+            "podcast": {
+                "id": str(podcast.id),
+                "news_item_id": str(podcast.news_item_id),
+                "voice_mode": podcast.voice_mode,
+                "audio_url": f"/api/v1/podcasts/audio/{podcast.id}",
+                "duration_seconds": podcast.duration_seconds,
+                "generated_at": podcast.generated_at.isoformat() if podcast.generated_at else None,
+            },
+        }
+
+    if podcast.script and podcast.script.startswith("ERROR:"):
+        return {"status": "failed", "error": podcast.script, "podcast": None}
+
+    from datetime import datetime, timezone
+    if podcast.generated_at:
+        age = datetime.now(timezone.utc) - podcast.generated_at.replace(tzinfo=timezone.utc)
+        if age > timedelta(minutes=10):
+            await db.delete(podcast)
+            await db.commit()
+            return {"status": "not_generated", "podcast": None}
+
+    return {"status": "generating", "podcast": None}
+
+
+@router.post("/news/{item_id}/podcast/generate")
+async def generate_news_podcast(
+    item_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    voice_mode: str = Query("single"),
+) -> dict:
+    """Start podcast generation for a news item."""
+    import json
+    import os
+    from datetime import datetime, timezone
+    from app.models.podcast import Podcast
+    from app.services.podcast import generate_podcast
+    from app.services.storage import upload_audio
+    from sqlalchemy import func as sa_func
+
+    nid = uuid.UUID(item_id)
+    item = await db.get(NewsItem, nid)
+    if not item:
+        raise HTTPException(status_code=404, detail="News item not found")
+
+    # Build content for podcast
+    content = ""
+    if item.summary:
+        try:
+            summary_data = json.loads(item.summary)
+            parts = []
+            for key in ("key_points", "industry_impact", "relevance"):
+                val = summary_data.get(key)
+                if val and isinstance(val, str):
+                    parts.append(val)
+            content = " ".join(parts)
+        except json.JSONDecodeError:
+            content = item.summary
+
+    if not content and item.full_text:
+        content = item.full_text[:4000]
+    if not content and item.excerpt:
+        content = item.excerpt
+    if not content:
+        raise HTTPException(status_code=400, detail="News item has no content to generate podcast from")
+
+    # Check existing
+    existing = await db.execute(
+        select(Podcast).where(
+            Podcast.news_item_id == nid,
+            Podcast.voice_mode == voice_mode,
+            Podcast.audio_path.isnot(None),
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Podcast already exists. Delete it first to regenerate.")
+
+    # Clean up old failed records
+    old_result = await db.execute(
+        select(Podcast).where(
+            Podcast.news_item_id == nid,
+            Podcast.voice_mode == voice_mode,
+            Podcast.audio_path.is_(None),
+        )
+    )
+    for old in old_result.scalars().all():
+        await db.delete(old)
+
+    # Get avg generation time
+    avg_result = await db.execute(
+        select(sa_func.avg(Podcast.generation_time_seconds)).where(
+            Podcast.generation_time_seconds.isnot(None),
+            Podcast.audio_path.isnot(None),
+        )
+    )
+    avg_time = avg_result.scalar()
+
+    # Create placeholder
+    podcast = Podcast(
+        id=uuid.uuid4(),
+        news_item_id=nid,
+        user_id=uuid.UUID(user["id"]),
+        voice_mode=voice_mode,
+        podcast_type="news",
+        title=f"News: {item.title[:80]}",
+    )
+    db.add(podcast)
+    await db.commit()
+
+    # Generate in background (reuse the paper podcast generator)
+    import asyncio
+    asyncio.create_task(_generate_news_podcast_bg(
+        str(podcast.id), item.title, content, voice_mode, user["id"],
+    ))
+
+    return {
+        "status": "generating",
+        "podcast_id": str(podcast.id),
+        "estimated_seconds": int(avg_time) if avg_time else 45,
+    }
+
+
+async def _generate_news_podcast_bg(
+    podcast_id: str, title: str, content: str, voice_mode: str, user_id: str,
+) -> None:
+    """Background task to generate news podcast audio."""
+    import logging
+    import os
+    import time
+    import app.database as _db_module
+
+    logger = logging.getLogger(__name__)
+
+    if _db_module.async_session_factory is None:
+        _db_module.init_db()
+
+    start_time = time.time()
+    async with _db_module.async_session_factory() as db:
+        try:
+            # Get user voice settings
+            user_profile = (await db.execute(
+                select(UserProfile).where(UserProfile.id == uuid.UUID(user_id))
+            )).scalar_one_or_none()
+
+            custom_prompt = None
+            custom_voices = None
+            if user_profile:
+                if voice_mode == "single" and user_profile.single_voice_prompt:
+                    custom_prompt = user_profile.single_voice_prompt
+                elif voice_mode == "dual" and user_profile.dual_voice_prompt:
+                    custom_prompt = user_profile.dual_voice_prompt
+                voices: dict[str, str] = {}
+                if voice_mode == "single" and user_profile.single_voice_id:
+                    voices["single"] = user_profile.single_voice_id
+                elif voice_mode == "dual":
+                    if user_profile.dual_voice_alex_id:
+                        voices["alex"] = user_profile.dual_voice_alex_id
+                    if user_profile.dual_voice_sam_id:
+                        voices["sam"] = user_profile.dual_voice_sam_id
+                if voices:
+                    custom_voices = voices
+
+            output_dir = os.path.join("/tmp", "litorbit_podcasts")
+            os.makedirs(output_dir, exist_ok=True)
+            output_path = os.path.join(output_dir, f"{podcast_id}.mp3")
+
+            from app.services.podcast import generate_podcast
+            script, audio_path, duration = await generate_podcast(
+                title=title, summary=content, voice_mode=voice_mode,
+                output_path=output_path, custom_prompt=custom_prompt,
+                custom_voices=custom_voices,
+            )
+
+            from app.services.storage import upload_audio
+            storage_key = f"{podcast_id}.mp3"
+            public_url = await upload_audio(audio_path, storage_key)
+            if not public_url:
+                raise RuntimeError("Audio upload failed")
+
+            gen_time = int(time.time() - start_time)
+            from app.models.podcast import Podcast
+            result = await db.execute(select(Podcast).where(Podcast.id == uuid.UUID(podcast_id)))
+            podcast = result.scalar_one_or_none()
+            if podcast:
+                podcast.script = script
+                podcast.audio_path = public_url
+                podcast.duration_seconds = duration
+                podcast.generation_time_seconds = gen_time
+                await db.commit()
+
+            if os.path.exists(audio_path):
+                os.unlink(audio_path)
+
+        except Exception as e:
+            gen_time = int(time.time() - start_time)
+            logger.exception(f"News podcast generation failed: {e}")
+            from app.models.podcast import Podcast
+            result = await db.execute(select(Podcast).where(Podcast.id == uuid.UUID(podcast_id)))
+            podcast = result.scalar_one_or_none()
+            if podcast:
+                podcast.script = f"ERROR: {e}"
+                podcast.generation_time_seconds = gen_time
+                await db.commit()
+
+
 @router.get("/news/{item_id}/my-rating")
 async def get_my_news_rating(
     item_id: str,

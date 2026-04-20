@@ -13,6 +13,7 @@ class Podcast(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(), primary_key=True, default=uuid.uuid4)
     paper_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("papers.id", ondelete="CASCADE"), nullable=True)
+    news_item_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("news_items.id", ondelete="CASCADE"), nullable=True)
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("user_profiles.id"), nullable=True)
     voice_mode: Mapped[str] = mapped_column(String, nullable=False, default="single")
     podcast_type: Mapped[str] = mapped_column(String, nullable=False, default="paper")  # "paper" | "digest"

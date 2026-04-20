@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, Bookmark, Loader2, Info } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Bookmark, Loader2, Info, Play, Download, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNewsItem } from '@/hooks/useNewsItem';
 import { useUIStore } from '@/stores/uiStore';
+import { usePlayerStore } from '@/stores/playerStore';
 import { cn, formatDate, getScoreColor } from '@/lib/utils';
 import RatingSlider from '@/components/ratings/RatingSlider';
 import FeedbackDialog from '@/components/ratings/FeedbackDialog';
+import { useDeletePodcast } from '@/hooks/usePodcast';
 import api from '@/lib/api';
 
 function formatDateTime(dateStr: string | null): string {
@@ -96,6 +98,30 @@ export default function NewsDetail() {
       await api.post(`/api/v1/news/${selectedNewsId}/rate-feedback`, null, { params: { feedback_type: option } });
     },
   });
+
+  // Podcast
+  const [voiceMode, setVoiceMode] = useState<'single' | 'dual'>('single');
+  const { data: podcastStatus } = useQuery<{
+    status: string; podcast: { id: string; audio_url: string; duration_seconds: number | null } | null; error?: string; estimated_seconds?: number;
+  }>({
+    queryKey: ['news-podcast', selectedNewsId, voiceMode],
+    queryFn: async () => (await api.get(`/api/v1/news/${selectedNewsId}/podcast`, { params: { voice_mode: voiceMode } })).data,
+    enabled: !!selectedNewsId,
+    refetchInterval: (query) => query.state.data?.status === 'generating' ? 3000 : false,
+  });
+  const generatePodcast = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/api/v1/news/${selectedNewsId}/podcast/generate`, null, { params: { voice_mode: voiceMode } });
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['news-podcast', selectedNewsId, voiceMode], { status: 'generating', podcast: null, estimated_seconds: data.estimated_seconds });
+      queryClient.invalidateQueries({ queryKey: ['news-podcast', selectedNewsId] });
+    },
+  });
+  const deletePodcast = useDeletePodcast();
+  const setTrack = usePlayerStore((s) => s.setTrack);
+  const apiBase = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
   // Mark as read on open
   useEffect(() => {
@@ -306,6 +332,67 @@ export default function NewsDetail() {
           )}
 
           {/* Full text */}
+          {/* Podcast */}
+          <Section title="Podcast">
+            <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(['single', 'dual'] as const).map((mode) => (
+                  <button key={mode} onClick={() => setVoiceMode(mode)}
+                    className={cn('rounded-xl font-mono text-xs transition', voiceMode === mode ? 'bg-accent text-white' : 'bg-bg-elevated text-text-secondary hover:text-text-primary')}
+                    style={{ padding: '8px 16px' }}>
+                    {mode === 'single' ? 'Single voice' : 'Dual voice'}
+                  </button>
+                ))}
+              </div>
+
+              {podcastStatus?.status === 'ready' && podcastStatus.podcast ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setTrack(`${apiBase}${podcastStatus.podcast!.audio_url}`, item.title, item.source_name)}
+                    className="flex items-center justify-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover"
+                    style={{ gap: 8, padding: '12px 0', flex: 1 }}>
+                    <Play size={15} />
+                    Play {podcastStatus.podcast.duration_seconds ? `(${Math.floor(podcastStatus.podcast.duration_seconds / 60)}m ${podcastStatus.podcast.duration_seconds % 60}s)` : ''}
+                  </button>
+                  <a href={`${apiBase}/api/v1/podcasts/download/${podcastStatus.podcast.id}`}
+                    className="flex items-center justify-center rounded-xl border border-border-default bg-bg-elevated text-text-secondary transition hover:border-accent hover:text-accent"
+                    style={{ padding: '12px 14px' }} title="Download MP3">
+                    <Download size={16} />
+                  </a>
+                  <button onClick={() => { if (confirm('Delete this podcast?')) deletePodcast.mutate(podcastStatus.podcast!.id); }}
+                    disabled={deletePodcast.isPending}
+                    className="flex items-center justify-center rounded-xl border border-border-default bg-bg-elevated text-text-secondary transition hover:border-danger hover:text-danger disabled:opacity-50"
+                    style={{ padding: '12px 14px' }} title="Delete podcast">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ) : podcastStatus?.status === 'generating' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Loader2 size={16} className="animate-spin text-accent" />
+                    <span className="font-mono text-sm text-text-secondary">Generating podcast...</span>
+                  </div>
+                  <span className="font-mono text-text-tertiary" style={{ fontSize: 11 }}>
+                    You can navigate away — it runs in the background.
+                  </span>
+                </div>
+              ) : (
+                <button onClick={() => generatePodcast.mutate()}
+                  disabled={generatePodcast.isPending || (!item.summary && !item.full_text && !item.excerpt)}
+                  className="flex items-center justify-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-accent hover:text-accent disabled:opacity-50"
+                  style={{ gap: 8, padding: '12px 0', width: '100%' }}>
+                  {generatePodcast.isPending ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
+                  Generate Podcast
+                </button>
+              )}
+
+              {podcastStatus?.status === 'failed' && (
+                <div className="rounded-xl bg-danger/10" style={{ padding: '10px 14px' }}>
+                  <p className="font-mono text-xs text-danger">Generation failed.</p>
+                </div>
+              )}
+            </div>
+          </Section>
+
           <Section title="Article Content">
             <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
               {item.full_text ? (
