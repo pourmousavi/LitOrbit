@@ -1,5 +1,17 @@
 # LitOrbit — Future Roadmap
 
+## Phase 1 complete
+
+Rating-aware relevance pipeline deployed. Phase 2 to follow with:
+
+- Data-driven threshold and λ tuning from `scoring_signals` telemetry.
+- Narrow title-only negative keyword layer (user-curated, e.g. `tumor`, `antibody`, `crystallography`).
+- Abstract-quality guard (detect and downrank records where the "abstract" is author-bio text or otherwise malformed).
+- Methods-vs-applications two-track profile using the `tags` field already populated by Chunk 3.
+- **Coordinated re-embedding sweep** that walks every row in `papers` and `reference_papers`, re-embeds with `task_type="SEMANTIC_SIMILARITY"`, and overwrites the old vector. Respects the existing 950/day Gemini free-tier quota and runs as a background job over 1–4 days. Once complete, `task_type` becomes the default for all new embedding calls and the whole corpus sits in a cleaner, retrieval-optimised space.
+
+---
+
 ## Layer 2: Semi-Agentic (6-12 months)
 
 ### LangGraph Integration
