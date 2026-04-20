@@ -5,7 +5,7 @@ import type { PulseData } from '@/types';
 
 const mockPulse: PulseData = {
   unreviewed_count: 6,
-  weekly_stats: { rated: 8, podcasts: 3, collected: 2, shared: 1, opened: 5, login_days: 3 },
+  weekly_stats: { rated: 8, podcasts: 3, collected: 2, shared: 1, opened: 5, login_days: 3, news_viewed: 0, news_rated: 0, news_starred: 0 },
   weekly_points: 105,
   streak: 5,
   best_streak: 5,
@@ -13,9 +13,9 @@ const mockPulse: PulseData = {
   lab_reviewed: 14,
   lab_review_pct: 70.0,
   leaderboard: [
-    { user_id: 'u1', full_name: 'Alice', points: 120, activity: { rated: 10, podcasts: 4, collected: 3, shared: 2, opened: 8, login_days: 4 }, is_current_user: false },
-    { user_id: 'u2', full_name: 'You', points: 105, activity: { rated: 8, podcasts: 3, collected: 2, shared: 1, opened: 5, login_days: 3 }, is_current_user: true },
-    { user_id: 'u3', full_name: 'Bob', points: 30, activity: { rated: 3, podcasts: 0, collected: 0, shared: 0, opened: 2, login_days: 2 }, is_current_user: false },
+    { user_id: 'u1', full_name: 'Alice', points: 120, activity: { rated: 10, podcasts: 4, collected: 3, shared: 2, opened: 8, login_days: 4, news_viewed: 0, news_rated: 0, news_starred: 0 }, is_current_user: false },
+    { user_id: 'u2', full_name: 'You', points: 105, activity: { rated: 8, podcasts: 3, collected: 2, shared: 1, opened: 5, login_days: 3, news_viewed: 0, news_rated: 0, news_starred: 0 }, is_current_user: true },
+    { user_id: 'u3', full_name: 'Bob', points: 30, activity: { rated: 3, podcasts: 0, collected: 0, shared: 0, opened: 2, login_days: 2, news_viewed: 0, news_rated: 0, news_starred: 0 }, is_current_user: false },
   ],
   week_start: '2026-04-13',
   last_week_points: 80,

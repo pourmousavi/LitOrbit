@@ -19,6 +19,7 @@ from app.models.podcast import Podcast
 from app.models.rating import Rating
 from app.models.share import Share
 from app.models.user_profile import UserProfile
+from app.models.user_interaction import UserInteraction
 
 router = APIRouter(prefix="/api/v1/engagement", tags=["engagement"])
 
@@ -34,6 +35,10 @@ class ActivityBreakdown(BaseModel):
     shared: int
     opened: int
     login_days: int
+    # News engagement
+    news_viewed: int = 0
+    news_rated: int = 0
+    news_starred: int = 0
 
 
 class LeaderboardEntry(BaseModel):
@@ -153,9 +158,41 @@ async def _user_weekly_stats(
         select(func.count(func.distinct(union.c.d)))
     )).scalar() or 0
 
+    # News interactions
+    news_viewed = (await db.execute(
+        select(func.count()).where(
+            UserInteraction.user_id == user_uuid,
+            UserInteraction.content_type == "news",
+            UserInteraction.event_type == "marked_read",
+            UserInteraction.created_at >= start,
+            UserInteraction.created_at < end,
+        )
+    )).scalar() or 0
+
+    news_rated = (await db.execute(
+        select(func.count()).where(
+            UserInteraction.user_id == user_uuid,
+            UserInteraction.content_type == "news",
+            UserInteraction.event_type == "rated",
+            UserInteraction.created_at >= start,
+            UserInteraction.created_at < end,
+        )
+    )).scalar() or 0
+
+    news_starred = (await db.execute(
+        select(func.count()).where(
+            UserInteraction.user_id == user_uuid,
+            UserInteraction.content_type == "news",
+            UserInteraction.event_type == "starred",
+            UserInteraction.created_at >= start,
+            UserInteraction.created_at < end,
+        )
+    )).scalar() or 0
+
     return ActivityBreakdown(
         rated=rated, podcasts=podcasts, collected=collected,
         shared=shared, opened=opened, login_days=login_days,
+        news_viewed=news_viewed, news_rated=news_rated, news_starred=news_starred,
     )
 
 
@@ -167,6 +204,10 @@ def _compute_points(stats: ActivityBreakdown) -> int:
         + stats.shared * 5
         + stats.opened * 1
         + stats.login_days * 2
+        # News events (same weight parity as papers per OP6)
+        + stats.news_viewed * 1
+        + stats.news_rated * 2
+        + stats.news_starred * 3
     )
 
 

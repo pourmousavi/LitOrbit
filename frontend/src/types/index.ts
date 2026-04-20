@@ -142,6 +142,9 @@ export interface ActivityBreakdown {
   shared: number;
   opened: number;
   login_days: number;
+  news_viewed: number;
+  news_rated: number;
+  news_starred: number;
 }
 
 export interface LeaderboardEntry {

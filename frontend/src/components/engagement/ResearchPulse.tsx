@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Flame, Star, Headphones, FolderOpen, Share2, Eye, ChevronDown, ChevronUp, Trophy, AlertTriangle } from 'lucide-react';
+import { Flame, Star, Headphones, FolderOpen, Share2, Eye, ChevronDown, ChevronUp, Trophy, AlertTriangle, Newspaper, ThumbsUp, Bookmark } from 'lucide-react';
 import { useEngagement } from '@/hooks/useEngagement';
 import { usePulseSettings } from '@/stores/pulseSettingsStore';
 import type { PulseData } from '@/types';
@@ -96,11 +96,14 @@ export default function ResearchPulse() {
 }
 
 // ---------------------------------------------------------------------------
-// My Pulse — Orbit variant
+// My Pulse
 // ---------------------------------------------------------------------------
 
 function MyOrbit({ pulse, pct, total }: { pulse: PulseData; pct: number; total: number }) {
   const bar = pctColor(pct);
+  const newsTotal = (pulse.weekly_stats.news_viewed || 0)
+    + (pulse.weekly_stats.news_rated || 0)
+    + (pulse.weekly_stats.news_starred || 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -138,14 +141,33 @@ function MyOrbit({ pulse, pct, total }: { pulse: PulseData; pct: number; total: 
       {/* Streak strip */}
       <StreakStrip streak={pulse.streak} best={pulse.best_streak} />
 
-      {/* Activity sparklets */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <Sparklet label="rated" v={pulse.weekly_stats.rated} Icon={Star} />
-        <Sparklet label="podcasts" v={pulse.weekly_stats.podcasts} Icon={Headphones} />
-        <Sparklet label="collected" v={pulse.weekly_stats.collected} Icon={FolderOpen} />
-        <Sparklet label="shared" v={pulse.weekly_stats.shared} Icon={Share2} />
-        <Sparklet label="opened" v={pulse.weekly_stats.opened} Icon={Eye} />
+      {/* Paper activity sparklets */}
+      <div>
+        <span className="font-mono" style={{ fontSize: 9, color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6, display: 'block' }}>
+          Papers
+        </span>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <Sparklet label="rated" v={pulse.weekly_stats.rated} Icon={Star} />
+          <Sparklet label="podcasts" v={pulse.weekly_stats.podcasts} Icon={Headphones} />
+          <Sparklet label="collected" v={pulse.weekly_stats.collected} Icon={FolderOpen} />
+          <Sparklet label="shared" v={pulse.weekly_stats.shared} Icon={Share2} />
+          <Sparklet label="opened" v={pulse.weekly_stats.opened} Icon={Eye} />
+        </div>
       </div>
+
+      {/* News activity sparklets */}
+      {newsTotal > 0 && (
+        <div>
+          <span className="font-mono" style={{ fontSize: 9, color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6, display: 'block' }}>
+            News
+          </span>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <Sparklet label="read" v={pulse.weekly_stats.news_viewed || 0} Icon={Newspaper} accent="#f59e0b" />
+            <Sparklet label="rated" v={pulse.weekly_stats.news_rated || 0} Icon={ThumbsUp} accent="#f59e0b" />
+            <Sparklet label="starred" v={pulse.weekly_stats.news_starred || 0} Icon={Bookmark} accent="#f59e0b" />
+          </div>
+        </div>
+      )}
 
       {/* Nudge */}
       {pulse.unreviewed_count > 3 && (
@@ -163,10 +185,10 @@ function MyOrbit({ pulse, pct, total }: { pulse: PulseData; pct: number; total: 
   );
 }
 
-function Sparklet({ label, v, Icon }: { label: string; v: number; Icon: typeof Star }) {
+function Sparklet({ label, v, Icon, accent }: { label: string; v: number; Icon: typeof Star; accent?: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 48 }}>
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#555' }}>
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: accent || '#555' }}>
         <Icon size={10} />
         <span className="font-mono" style={{ fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
       </div>
@@ -203,7 +225,7 @@ function StreakStrip({ streak, best }: { streak: number; best: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Lab Pulse — Orbit variant
+// Lab Pulse
 // ---------------------------------------------------------------------------
 
 function LabOrbit({ pulse }: { pulse: PulseData }) {
@@ -249,29 +271,37 @@ function LabOrbit({ pulse }: { pulse: PulseData }) {
 
       {/* Podium — top 3 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        {top3.map((e, i) => (
-          <div key={e.user_id} style={{ padding: '10px 12px', borderRadius: 8,
-            background: e.is_current_user ? 'rgba(8,145,178,0.09)' : 'var(--color-bg-elevated, #1c1c1c)',
-            border: e.is_current_user ? '1px solid rgba(8,145,178,0.33)' : '1px solid var(--color-border-default, #2a2a2a)',
-            display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="font-mono" style={{ fontSize: 10, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
-                {String(i + 1).padStart(2, '0')}
+        {top3.map((e, i) => {
+          const newsTotal = (e.activity.news_viewed || 0) + (e.activity.news_rated || 0) + (e.activity.news_starred || 0);
+          return (
+            <div key={e.user_id} style={{ padding: '10px 12px', borderRadius: 8,
+              background: e.is_current_user ? 'rgba(8,145,178,0.09)' : 'var(--color-bg-elevated, #1c1c1c)',
+              border: e.is_current_user ? '1px solid rgba(8,145,178,0.33)' : '1px solid var(--color-border-default, #2a2a2a)',
+              display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="font-mono" style={{ fontSize: 10, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                {i === 0 && <Trophy size={11} style={{ color: '#f59e0b' }} />}
+                <span style={{ flex: 1 }} />
+                <span className="font-mono" style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums',
+                  color: e.is_current_user ? accent : 'var(--color-text-primary, #f0f0f0)' }}>
+                  {e.points}<span style={{ color: '#555' }}>pts</span>
+                </span>
+              </div>
+              <span className="font-mono" style={{ fontSize: 11,
+                color: e.is_current_user ? accent : 'var(--color-text-primary, #f0f0f0)',
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {e.full_name}
               </span>
-              {i === 0 && <Trophy size={11} style={{ color: '#f59e0b' }} />}
-              <span style={{ flex: 1 }} />
-              <span className="font-mono" style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums',
-                color: e.is_current_user ? accent : 'var(--color-text-primary, #f0f0f0)' }}>
-                {e.points}<span style={{ color: '#555' }}>pts</span>
-              </span>
+              {/* Compact breakdown */}
+              <div className="font-mono" style={{ fontSize: 9, color: '#555', display: 'flex', gap: 6 }}>
+                <span>{e.activity.rated}r</span>
+                {newsTotal > 0 && <span style={{ color: '#f59e0b' }}>{newsTotal}n</span>}
+              </div>
             </div>
-            <span className="font-mono" style={{ fontSize: 11,
-              color: e.is_current_user ? accent : 'var(--color-text-primary, #f0f0f0)',
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {e.full_name}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Expandable rest */}
@@ -288,21 +318,29 @@ function LabOrbit({ pulse }: { pulse: PulseData }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
           background: 'var(--color-border-default, #2a2a2a)', borderRadius: 6, overflow: 'hidden',
           border: '1px solid var(--color-border-default, #2a2a2a)' }}>
-          {rest.map((e, i) => (
-            <div key={e.user_id} style={{ padding: '8px 12px', background: 'var(--color-bg-surface, #141414)',
-              display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="font-mono" style={{ fontSize: 10, color: '#555', width: 18,
-                fontVariantNumeric: 'tabular-nums' }}>
-                {String(i + 4).padStart(2, '0')}
-              </span>
-              <span className="font-mono" style={{ flex: 1, fontSize: 11, color: 'var(--color-text-primary, #f0f0f0)' }}>
-                {e.full_name}
-              </span>
-              <span className="font-mono" style={{ fontSize: 11, color: '#888', fontVariantNumeric: 'tabular-nums' }}>
-                {e.points}<span style={{ color: '#555' }}>pts</span>
-              </span>
-            </div>
-          ))}
+          {rest.map((e, i) => {
+            const newsTotal = (e.activity.news_viewed || 0) + (e.activity.news_rated || 0) + (e.activity.news_starred || 0);
+            return (
+              <div key={e.user_id} style={{ padding: '8px 12px', background: 'var(--color-bg-surface, #141414)',
+                display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="font-mono" style={{ fontSize: 10, color: '#555', width: 18,
+                  fontVariantNumeric: 'tabular-nums' }}>
+                  {String(i + 4).padStart(2, '0')}
+                </span>
+                <span className="font-mono" style={{ flex: 1, fontSize: 11, color: 'var(--color-text-primary, #f0f0f0)' }}>
+                  {e.full_name}
+                </span>
+                {newsTotal > 0 && (
+                  <span className="font-mono" style={{ fontSize: 9, color: '#f59e0b', fontVariantNumeric: 'tabular-nums' }}>
+                    {newsTotal}n
+                  </span>
+                )}
+                <span className="font-mono" style={{ fontSize: 11, color: '#888', fontVariantNumeric: 'tabular-nums' }}>
+                  {e.points}<span style={{ color: '#555' }}>pts</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
