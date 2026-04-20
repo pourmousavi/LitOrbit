@@ -28,7 +28,9 @@ MAX_REFERENCE_PAPERS = 20
 
 
 async def _recompute_profile_embedding(db: AsyncSession, user_id: uuid.UUID):
-    """Recompute user's profile embedding from their reference papers."""
+    """Recompute user's profile embedding and positive_anchors from reference papers."""
+    from datetime import datetime, timezone
+
     result = await db.execute(
         select(ReferencePaper).where(
             ReferencePaper.user_id == user_id,
@@ -44,11 +46,30 @@ async def _recompute_profile_embedding(db: AsyncSession, user_id: uuid.UUID):
     if not profile:
         return
 
+    # Update legacy interest_vector (back-compat)
     if not papers:
         profile.interest_vector = {}
     else:
         vectors = [p.embedding for p in papers]
         profile.interest_vector = compute_centroid(vectors)
+
+    # Rebuild reference-sourced positive_anchors while preserving rating-sourced ones
+    existing_anchors = list(profile.positive_anchors or [])
+    non_reference = [a for a in existing_anchors if a.get("source") != "reference"]
+
+    reference_anchors = [
+        {
+            "paper_id": str(p.id),
+            "embedding": p.embedding,
+            "source": "reference",
+            "weight": 1.0,
+            "added_at": datetime.now(timezone.utc).isoformat(),
+            "tags": [],
+        }
+        for p in papers
+    ]
+
+    profile.positive_anchors = reference_anchors + non_reference
 
     await db.commit()
 

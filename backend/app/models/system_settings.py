@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Integer, Boolean, DateTime, CheckConstraint, func, String
+from sqlalchemy import Integer, Float, Boolean, DateTime, CheckConstraint, func, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -16,5 +16,7 @@ class SystemSettings(Base):
     digest_podcast_enabled_global: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     max_papers_per_digest: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     max_podcast_duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    similarity_threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.50)
+    negative_anchor_lambda: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
     platform_keywords: Mapped[list] = mapped_column(JSONB(), nullable=False, default=list)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

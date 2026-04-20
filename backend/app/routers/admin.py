@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -293,6 +293,40 @@ async def update_settings_endpoint(
         s.max_papers_per_digest = max(1, req.max_papers_per_digest)
     if req.max_podcast_duration_minutes is not None:
         s.max_podcast_duration_minutes = max(1, min(60, req.max_podcast_duration_minutes))
+    await db.commit()
+    return {"status": "updated"}
+
+
+# --- Thresholds ---
+
+class ThresholdsUpdate(BaseModel):
+    similarity_threshold: float = Field(ge=0.0, le=1.0)
+    negative_anchor_lambda: float = Field(ge=0.0, le=2.0)
+
+
+@router.get("/thresholds")
+async def get_thresholds(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get current similarity threshold and negative anchor lambda."""
+    s = await get_system_settings(db)
+    return {
+        "similarity_threshold": s.similarity_threshold,
+        "negative_anchor_lambda": s.negative_anchor_lambda,
+    }
+
+
+@router.put("/thresholds")
+async def update_thresholds(
+    req: ThresholdsUpdate,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update similarity threshold and negative anchor lambda."""
+    s = await get_system_settings(db)
+    s.similarity_threshold = req.similarity_threshold
+    s.negative_anchor_lambda = req.negative_anchor_lambda
     await db.commit()
     return {"status": "updated"}
 
