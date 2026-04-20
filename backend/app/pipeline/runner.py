@@ -307,6 +307,12 @@ async def score_and_summarise_papers(
     keyword_filtered = prefilter_papers(paper_dicts, keywords=platform_keywords)
     keyword_filtered_ids = {p["id"] for p in keyword_filtered}
 
+    # Collect scoring signals for all (paper, user) pairs evaluated
+    from app.models.scoring_signal import ScoringSignal
+    pending_signals: list[ScoringSignal] = []
+    # Map (paper_id_str, user_id_str) -> signal index for backfilling llm_score later
+    signal_index: dict[tuple[str, str], int] = {}
+
     for user in users:
         uid = uuid.UUID(user["id"])
         positive_anchors = user.get("positive_anchors") or []
@@ -335,6 +341,25 @@ async def score_and_summarise_papers(
                     max_neg, best_neg_id, _ = knn_max_similarity(paper_emb, negative_anchors)
                     effective = max_pos - lam * max_neg
                     passed_semantic = effective >= threshold
+                    prefilter_matched = pd["id"] in keyword_filtered_ids
+
+                    passed_gate = passed_semantic or (pd["id"] in user_kw_ids)
+
+                    # Log signal for every evaluated (paper, user) pair
+                    sig = ScoringSignal(
+                        id=uuid.uuid4(),
+                        paper_id=uuid.UUID(pd["id"]),
+                        user_id=uid,
+                        max_positive_sim=round(max_pos, 6),
+                        max_negative_sim=round(max_neg, 6),
+                        effective_score=round(effective, 6),
+                        threshold_used=threshold,
+                        lambda_used=lam,
+                        prefilter_matched=prefilter_matched,
+                        passed_gate=passed_gate,
+                    )
+                    signal_index[(pd["id"], user["id"])] = len(pending_signals)
+                    pending_signals.append(sig)
 
                     if passed_semantic:
                         pd_copy = {**pd, "cosine_similarity": round(max_pos, 4), "cosine_negative": round(max_neg, 4)}
@@ -430,6 +455,28 @@ async def score_and_summarise_papers(
 
     total_papers_with_scores = len(all_scores)
     logger.info(f"Scored {scored_count} (paper, user) pairs across {total_papers_with_scores} papers")
+
+    # Backfill llm_score and llm_errored on scoring signals, then persist
+    for paper_id_str, scores in all_scores.items():
+        for s in scores:
+            key = (paper_id_str, s["user_id"])
+            idx = signal_index.get(key)
+            if idx is not None:
+                pending_signals[idx].llm_score = s["score"]
+                pending_signals[idx].llm_errored = s.get("error", False)
+
+    # Persist signals — must never abort scoring/summarisation
+    try:
+        for sig in pending_signals:
+            db.add(sig)
+        await db.commit()
+        logger.info(f"Logged {len(pending_signals)} scoring signals")
+    except Exception as e:
+        logger.warning(f"Failed to persist scoring signals: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
 
     # Phase 2: Summarise qualifying papers in batches.
     # Run LLM calls *without* holding a DB connection, then write results sequentially.
