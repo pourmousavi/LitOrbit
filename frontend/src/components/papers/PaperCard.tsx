@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import { Bookmark, Check, Headphones, Info, LibraryBig, Share2, Star } from 'lucide-react';
 import { useScholarLibStore } from '@/stores/scholarLibStore';
 import type { Paper } from '@/types';
@@ -17,6 +18,42 @@ function formatDateTime(dateStr: string | null): string {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
+}
+
+function InfoTooltip({ paper }: { paper: Paper }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('pointerdown', handleClick);
+    return () => document.removeEventListener('pointerdown', handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-lg text-text-tertiary transition hover:text-text-secondary"
+        style={{ padding: 2 }}
+        aria-label="Paper info"
+      >
+        <Info size={14} />
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 top-full z-50 mt-1 rounded-xl border border-border-default bg-bg-surface font-mono text-xs text-text-secondary shadow-lg"
+          style={{ padding: '10px 14px', width: 260, lineHeight: 1.7 }}
+        >
+          <div>Fetched: <strong className="text-text-primary">{formatDateTime(paper.created_at)}</strong></div>
+          <div>Source: <strong className="text-text-primary">{SOURCE_LABELS[paper.journal_source] || paper.journal_source}</strong></div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface PaperCardProps {
@@ -64,18 +101,7 @@ export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite
               Early Access
             </span>
           )}
-          <div className="group/info relative" onClick={(e) => e.stopPropagation()}>
-            <div className="rounded-lg text-text-tertiary transition hover:text-text-secondary" style={{ padding: 2, cursor: 'default' }}>
-              <Info size={14} />
-            </div>
-            <div
-              className="pointer-events-none absolute left-0 top-full z-50 mt-1 rounded-xl border border-border-default bg-bg-surface font-mono text-xs text-text-secondary opacity-0 shadow-lg transition-opacity group-hover/info:pointer-events-auto group-hover/info:opacity-100"
-              style={{ padding: '10px 14px', width: 260, lineHeight: 1.7 }}
-            >
-              <div>Fetched: <strong className="text-text-primary">{formatDateTime(paper.created_at)}</strong></div>
-              <div>Source: <strong className="text-text-primary">{SOURCE_LABELS[paper.journal_source] || paper.journal_source}</strong></div>
-            </div>
-          </div>
+          <InfoTooltip paper={paper} />
         </div>
         {paper.relevance_score !== null ? (
           <span
