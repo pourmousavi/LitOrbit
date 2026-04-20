@@ -118,6 +118,40 @@ def compute_centroid(vectors: list[list[float]]) -> list[float]:
     return _normalize(centroid)
 
 
+def knn_max_similarity(
+    paper_embedding: list[float],
+    anchors: list[dict],
+) -> tuple[float, str | None, float]:
+    """Return (max_weighted_similarity, best_anchor_paper_id, best_anchor_raw_weight).
+
+    For each anchor, compute cosine_similarity(paper_embedding, anchor["embedding"])
+    and multiply by anchor["weight"]. Return the maximum weighted similarity,
+    the paper_id of that best anchor, and its raw weight.
+
+    If anchors is empty or paper_embedding is None, return (0.0, None, 0.0).
+    """
+    if not paper_embedding or not anchors:
+        return (0.0, None, 0.0)
+
+    best_sim = 0.0
+    best_id: str | None = None
+    best_weight = 0.0
+
+    for anchor in anchors:
+        anchor_emb = anchor.get("embedding")
+        if not anchor_emb:
+            continue
+        weight = float(anchor.get("weight", 1.0))
+        sim = cosine_similarity(paper_embedding, anchor_emb)
+        weighted = sim * weight
+        if weighted > best_sim or best_id is None:
+            best_sim = weighted
+            best_id = anchor.get("paper_id")
+            best_weight = weight
+
+    return (best_sim, best_id, best_weight)
+
+
 async def embed_text(text: str) -> list[float] | None:
     """Embed a single text using Gemini Embedding API.
 

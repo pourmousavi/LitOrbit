@@ -22,6 +22,7 @@ from app.services.ranking.embedder import (
     embed_texts,
     prepare_paper_text,
     cosine_similarity,
+    knn_max_similarity,
 )
 from app.services.summariser import generate_summary
 
@@ -55,9 +56,12 @@ async def get_all_users(db: AsyncSession) -> list[dict]:
             "full_name": u.full_name,
             "interest_keywords": u.interest_keywords or [],
             "interest_categories": u.interest_categories or [],
+            # DEPRECATED: interest_vector replaced by positive_anchors; kept for back-compat
             "interest_vector": u.interest_vector or {},
             "category_weights": u.category_weights or {},
             "scoring_prompt": u.scoring_prompt,
+            "positive_anchors": u.positive_anchors or [],
+            "negative_anchors": u.negative_anchors or [],
         }
         for u in users
     ]
@@ -283,39 +287,46 @@ async def score_and_summarise_papers(
         for p in papers_needing_scores
     ]
 
-    SIMILARITY_THRESHOLD = 0.35
+    DEFAULT_SIMILARITY_THRESHOLD = 0.50
+    DEFAULT_NEGATIVE_ANCHOR_LAMBDA = 0.5
 
-    # Per-user filtering: embedding similarity if available, keyword fallback otherwise
+    # Per-user filtering: k-NN max-over-anchors if available, keyword fallback otherwise
     # Build a map of user_id -> papers to score for that user (excluding already-scored pairs)
     user_papers_map: dict[str, list[dict]] = {}
     keyword_fallback_count = 0
     embedding_filter_count = 0
 
-    # Load admin-managed platform-scope keywords from system_settings
+    # Load admin-managed platform-scope keywords and thresholds from system_settings
     from app.models.system_settings import SystemSettings
     settings_row = (await db.execute(select(SystemSettings).where(SystemSettings.id == 1))).scalar_one_or_none()
     platform_keywords = (settings_row.platform_keywords if settings_row and settings_row.platform_keywords else None)
+    threshold = settings_row.similarity_threshold if settings_row else DEFAULT_SIMILARITY_THRESHOLD
+    lam = settings_row.negative_anchor_lambda if settings_row else DEFAULT_NEGATIVE_ANCHOR_LAMBDA
 
     # Keyword-filtered papers (computed once, used as fallback)
     keyword_filtered = prefilter_papers(paper_dicts, keywords=platform_keywords)
     keyword_filtered_ids = {p["id"] for p in keyword_filtered}
 
+    # Collect scoring signals for all (paper, user) pairs evaluated
+    from app.models.scoring_signal import ScoringSignal
+    pending_signals: list[ScoringSignal] = []
+    # Map (paper_id_str, user_id_str) -> signal index for backfilling llm_score later
+    signal_index: dict[tuple[str, str], int] = {}
+
     for user in users:
         uid = uuid.UUID(user["id"])
-        profile_embedding = user.get("interest_vector")
-        # interest_vector is a list when populated, empty dict {} when not
-        has_profile = isinstance(profile_embedding, list) and len(profile_embedding) > 0
+        positive_anchors = user.get("positive_anchors") or []
+        negative_anchors = user.get("negative_anchors") or []
+        has_anchors = bool(positive_anchors) or bool(negative_anchors)
 
         # Only include papers this user hasn't scored yet
         user_unscored = [pd for pd in paper_dicts if (uuid.UUID(pd["id"]), uid) not in existing_score_pairs]
         if not user_unscored:
             continue
 
-        if has_profile:
-            # Embedding-based per-user filter, with the user's own keyword list
-            # acting as an additive escape hatch (Phase 2 / Option C): a paper
-            # passes if its embedding is similar enough OR its title/abstract
-            # mentions one of the keywords this user explicitly cares about.
+        if has_anchors:
+            # k-NN max-over-anchors filter with negative anchor penalty.
+            # Personal-keyword escape hatch preserved from the old centroid path.
             user_kw_ids: set[str] = set()
             user_kws = user.get("interest_keywords") or []
             if user_kws:
@@ -325,31 +336,47 @@ async def score_and_summarise_papers(
             matched = []
             for pd in user_unscored:
                 paper_emb = pd.get("embedding")
-                passed_by_embedding = False
-                sim_value: float | None = None
                 if isinstance(paper_emb, list) and len(paper_emb) > 0:
-                    sim = cosine_similarity(profile_embedding, paper_emb)
-                    sim_value = sim
-                    if sim >= SIMILARITY_THRESHOLD:
-                        passed_by_embedding = True
+                    max_pos, best_pos_id, _ = knn_max_similarity(paper_emb, positive_anchors)
+                    max_neg, best_neg_id, _ = knn_max_similarity(paper_emb, negative_anchors)
+                    effective = max_pos - lam * max_neg
+                    passed_semantic = effective >= threshold
+                    prefilter_matched = pd["id"] in keyword_filtered_ids
 
-                if passed_by_embedding:
-                    pd_copy = {**pd, "cosine_similarity": round(sim_value, 4)}
-                    matched.append(pd_copy)
+                    passed_gate = passed_semantic or (pd["id"] in user_kw_ids)
+
+                    # Log signal for every evaluated (paper, user) pair
+                    sig = ScoringSignal(
+                        id=uuid.uuid4(),
+                        paper_id=uuid.UUID(pd["id"]),
+                        user_id=uid,
+                        max_positive_sim=round(max_pos, 6),
+                        max_negative_sim=round(max_neg, 6),
+                        effective_score=round(effective, 6),
+                        threshold_used=threshold,
+                        lambda_used=lam,
+                        prefilter_matched=prefilter_matched,
+                        passed_gate=passed_gate,
+                    )
+                    signal_index[(pd["id"], user["id"])] = len(pending_signals)
+                    pending_signals.append(sig)
+
+                    if passed_semantic:
+                        pd_copy = {**pd, "cosine_similarity": round(max_pos, 4), "cosine_negative": round(max_neg, 4)}
+                        matched.append(pd_copy)
+                    elif pd["id"] in user_kw_ids:
+                        # Personal-keyword escape hatch
+                        pd_copy = {**pd, "cosine_similarity": round(max_pos, 4), "cosine_negative": round(max_neg, 4)}
+                        matched.append(pd_copy)
+                elif pd["id"] in keyword_filtered_ids:
+                    # Paper has no embedding — fall back to platform-scope keyword match
+                    matched.append(pd)
                 elif pd["id"] in user_kw_ids:
-                    # Personal-keyword escape hatch — keep semantic similarity
-                    # in the payload if we computed one, so the LLM still sees it.
-                    pd_copy = {**pd}
-                    if sim_value is not None:
-                        pd_copy["cosine_similarity"] = round(sim_value, 4)
-                    matched.append(pd_copy)
-                elif sim_value is None and pd["id"] in keyword_filtered_ids:
-                    # Paper has no embedding at all — fall back to platform-scope match
                     matched.append(pd)
             user_papers_map[user["id"]] = matched
             embedding_filter_count += 1
         else:
-            # No profile embedding — use keyword fallback (only unscored papers)
+            # No anchors — use keyword fallback (only unscored papers)
             user_papers_map[user["id"]] = [pd for pd in user_unscored if pd["id"] in keyword_filtered_ids]
             keyword_fallback_count += 1
 
@@ -389,7 +416,12 @@ async def score_and_summarise_papers(
 
             async def _score(pd: dict, u: dict = user) -> tuple[str, dict]:
                 result = await score_paper_for_user(pd, u, _client, u.get("scoring_prompt"))
-                return pd["id"], {"user_id": u["id"], "score": result["score"], "reasoning": result["reasoning"]}
+                return pd["id"], {
+                    "user_id": u["id"],
+                    "score": result["score"],
+                    "reasoning": result["reasoning"],
+                    "error": result.get("error", False),
+                }
 
             results = await aio.gather(*[_score(pd) for pd in batch])
 
@@ -403,17 +435,48 @@ async def score_and_summarise_papers(
 
     for paper_id_str, scores in all_scores.items():
         paper_id = uuid.UUID(paper_id_str)
-        await save_scores(db, paper_id, scores)
-        max_score = max(s["score"] for s in scores) if scores else 0
+        # Filter out errored scores — do not persist them; they'll be retried next run
+        valid_scores = [s for s in scores if not s.get("error") and s.get("score") is not None]
+        errored = [s for s in scores if s.get("error")]
+        for e in errored:
+            logger.warning(
+                f"Scorer error for paper {paper_id_str[:8]} user {e['user_id'][:8]}: {e['reasoning']}"
+            )
+        if valid_scores:
+            await save_scores(db, paper_id, valid_scores)
+        non_none_scores = [s["score"] for s in valid_scores if s["score"] is not None]
+        max_score = max(non_none_scores) if non_none_scores else 0
         if max_score >= 5.0:
             papers_to_summarise.append((paper_dict_map[paper_id_str], paper_id))
-        logger.info(f"Saved scores for paper {paper_id_str[:8]}...: max_score={max_score:.1f}")
+        logger.info(f"Saved scores for paper {paper_id_str[:8]}...: max_score={max_score:.1f} ({len(errored)} errored)")
         # Commit per paper so the connection is returned to the pool between writes
         # rather than held across the whole scoring-save phase.
         await db.commit()
 
     total_papers_with_scores = len(all_scores)
     logger.info(f"Scored {scored_count} (paper, user) pairs across {total_papers_with_scores} papers")
+
+    # Backfill llm_score and llm_errored on scoring signals, then persist
+    for paper_id_str, scores in all_scores.items():
+        for s in scores:
+            key = (paper_id_str, s["user_id"])
+            idx = signal_index.get(key)
+            if idx is not None:
+                pending_signals[idx].llm_score = s["score"]
+                pending_signals[idx].llm_errored = s.get("error", False)
+
+    # Persist signals — must never abort scoring/summarisation
+    try:
+        for sig in pending_signals:
+            db.add(sig)
+        await db.commit()
+        logger.info(f"Logged {len(pending_signals)} scoring signals")
+    except Exception as e:
+        logger.warning(f"Failed to persist scoring signals: {e}")
+        try:
+            await db.rollback()
+        except Exception:
+            pass
 
     # Phase 2: Summarise qualifying papers in batches.
     # Run LLM calls *without* holding a DB connection, then write results sequentially.

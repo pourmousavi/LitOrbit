@@ -159,7 +159,8 @@ async def test_rating_1_to_3_question(test_client, db_session):
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert "irrelevant" in data["follow_up_question"].lower()
+    # Phase 1: follow-up redesigned — rating 1-3 asks "What was wrong..."
+    assert "wrong" in data["follow_up_question"].lower()
 
     del app.dependency_overrides[get_current_user]
 
@@ -188,7 +189,8 @@ async def test_rating_9_to_10_question(test_client, db_session):
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert "related work" in data["follow_up_question"].lower()
+    # Phase 1: follow-up redesigned — rating 9-10 asks "Great find..."
+    assert "great find" in data["follow_up_question"].lower()
 
     del app.dependency_overrides[get_current_user]
 

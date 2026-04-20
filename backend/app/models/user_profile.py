@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Text, Boolean, Integer, DateTime, func
+from sqlalchemy import String, Text, Boolean, Integer, Float, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -17,9 +17,14 @@ class UserProfile(Base):
     email: Mapped[str] = mapped_column(Text, nullable=False)
     interest_keywords: Mapped[list[str]] = mapped_column(StringArray(), default=list)
     interest_categories: Mapped[list[str]] = mapped_column(StringArray(), default=list)
+    # DEPRECATED: replaced by positive_anchors; kept for migration compat.
     # Embedding centroid of reference papers — used by the pipeline pre-filter.
     # Stored as a JSON list under the hood; values are floats indexed by position.
     interest_vector: Mapped[dict] = mapped_column(JSONB(), default=dict)
+    # Per-paper anchor sets for k-NN semantic gate (Phase 1).
+    # Each entry: {paper_id, embedding, source, weight, added_at, tags}
+    positive_anchors: Mapped[list] = mapped_column(JSONB(), default=list)
+    negative_anchors: Mapped[list] = mapped_column(JSONB(), default=list)
     # Human-readable {category_name: weight in [-1, 1]} learned from user ratings.
     # Powers the Interest Profile chart in the UI.
     category_weights: Mapped[dict] = mapped_column(JSONB(), default=dict)

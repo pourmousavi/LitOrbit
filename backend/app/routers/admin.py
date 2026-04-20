@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -295,6 +295,115 @@ async def update_settings_endpoint(
         s.max_podcast_duration_minutes = max(1, min(60, req.max_podcast_duration_minutes))
     await db.commit()
     return {"status": "updated"}
+
+
+# --- Thresholds ---
+
+class ThresholdsUpdate(BaseModel):
+    similarity_threshold: float = Field(ge=0.0, le=1.0)
+    negative_anchor_lambda: float = Field(ge=0.0, le=2.0)
+
+
+@router.get("/thresholds")
+async def get_thresholds(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get current similarity threshold and negative anchor lambda."""
+    s = await get_system_settings(db)
+    return {
+        "similarity_threshold": s.similarity_threshold,
+        "negative_anchor_lambda": s.negative_anchor_lambda,
+    }
+
+
+@router.put("/thresholds")
+async def update_thresholds(
+    req: ThresholdsUpdate,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update similarity threshold and negative anchor lambda."""
+    s = await get_system_settings(db)
+    s.similarity_threshold = req.similarity_threshold
+    s.negative_anchor_lambda = req.negative_anchor_lambda
+    await db.commit()
+    return {"status": "updated"}
+
+
+# --- Tuning Signal Export ---
+
+@router.get("/tuning/signals.csv")
+async def export_scoring_signals(
+    user_id: str | None = None,
+    limit: int = 1000,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export scoring signals as CSV for threshold tuning."""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    from app.models.scoring_signal import ScoringSignal
+    from app.models.paper import Paper
+    from app.models.rating import Rating
+
+    limit = min(max(1, limit), 10000)
+
+    query = (
+        select(
+            ScoringSignal,
+            Paper.title.label("paper_title"),
+            Rating.rating.label("user_rating"),
+        )
+        .join(Paper, ScoringSignal.paper_id == Paper.id)
+        .outerjoin(
+            Rating,
+            (Rating.paper_id == ScoringSignal.paper_id) & (Rating.user_id == ScoringSignal.user_id),
+        )
+    )
+    if user_id:
+        query = query.where(ScoringSignal.user_id == uuid.UUID(user_id))
+    query = query.order_by(ScoringSignal.created_at.desc()).limit(limit)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    header = [
+        "created_at", "user_id", "paper_id", "paper_title",
+        "max_positive_sim", "max_negative_sim", "effective_score",
+        "threshold_used", "lambda_used", "prefilter_matched",
+        "passed_gate", "llm_score", "llm_errored", "rating",
+    ]
+    writer.writerow(header)
+
+    for row in rows:
+        sig = row[0]
+        writer.writerow([
+            sig.created_at.isoformat() if sig.created_at else "",
+            str(sig.user_id),
+            str(sig.paper_id),
+            row.paper_title or "",
+            sig.max_positive_sim,
+            sig.max_negative_sim,
+            sig.effective_score,
+            sig.threshold_used,
+            sig.lambda_used,
+            sig.prefilter_matched,
+            sig.passed_gate,
+            sig.llm_score if sig.llm_score is not None else "",
+            sig.llm_errored,
+            row.user_rating if row.user_rating is not None else "",
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=scoring_signals.csv"},
+    )
 
 
 # --- User Stats ---
