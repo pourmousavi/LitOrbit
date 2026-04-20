@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, Bookmark, Loader2, Info, Play, Download, Trash2, Share2, LibraryBig } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Info, Play, Download, Trash2, Share2, LibraryBig } from 'lucide-react';
 import ShareModal from '@/components/sharing/ShareModal';
 import { useScholarLibStore } from '@/stores/scholarLibStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -34,27 +34,6 @@ export default function NewsDetail() {
   const selectNews = useUIStore((s) => s.selectNews);
   const { data: item, isLoading } = useNewsItem(selectedNewsId);
   const queryClient = useQueryClient();
-
-  const starMutation = useMutation({
-    mutationFn: async () => {
-      // Toggle — check current state from detail endpoint? For now just star.
-      await api.post(`/api/v1/news/${selectedNewsId}/star`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['news-item', selectedNewsId] });
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
-    },
-  });
-
-  const unstarMutation = useMutation({
-    mutationFn: async () => {
-      await api.post(`/api/v1/news/${selectedNewsId}/unstar`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['news-item', selectedNewsId] });
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
-    },
-  });
 
   const scrapeMutation = useMutation({
     mutationFn: async () => {
@@ -462,29 +441,6 @@ export default function NewsDetail() {
                   </button>
                 </div>
               )}
-            </div>
-          </Section>
-
-          {/* Star */}
-          <Section title="Bookmark">
-            <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button
-                onClick={() => starMutation.mutate()}
-                disabled={starMutation.isPending}
-                className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-accent hover:text-accent"
-                style={{ gap: 8, padding: '10px 16px' }}
-              >
-                <Bookmark size={14} />
-                Star
-              </button>
-              <button
-                onClick={() => unstarMutation.mutate()}
-                disabled={unstarMutation.isPending}
-                className="flex items-center rounded-xl border border-border-default bg-bg-elevated font-mono text-sm text-text-secondary transition hover:border-border-strong hover:text-text-primary"
-                style={{ gap: 8, padding: '10px 16px' }}
-              >
-                Unstar
-              </button>
             </div>
           </Section>
 

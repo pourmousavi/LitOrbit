@@ -1,5 +1,6 @@
-import { ExternalLink, Bookmark, ThumbsUp, ThumbsDown, Check } from 'lucide-react';
+import { Bookmark, Headphones, Share2, Star, LibraryBig, Check } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useScholarLibStore } from '@/stores/scholarLibStore';
 import type { FeedItem } from '@/types/feed';
 import { cn, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
@@ -24,40 +25,31 @@ function relevanceColor(score: number | null): string {
 
 interface NewsCardProps {
   item: FeedItem;
+  isSelected?: boolean;
   onClick?: () => void;
 }
 
-export default function NewsCard({ item, onClick }: NewsCardProps) {
+export default function NewsCard({ item, isSelected, onClick }: NewsCardProps) {
   const news = item.news;
   const queryClient = useQueryClient();
-
-  const invalidateFeed = () => queryClient.invalidateQueries({ queryKey: ['feed'] });
+  const scholarLibConnected = useScholarLibStore((s) => s.status === 'connected');
 
   const starMutation = useMutation({
     mutationFn: async () => {
       const endpoint = item.user_state.starred ? 'unstar' : 'star';
       await api.post(`/api/v1/news/${item.item_id}/${endpoint}`);
     },
-    onSuccess: invalidateFeed,
-  });
-
-  const rateMutation = useMutation({
-    mutationFn: async (rating: string) => {
-      await api.post(`/api/v1/news/${item.item_id}/rate`, { rating });
-    },
-    onSuccess: invalidateFeed,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['feed'] }),
   });
 
   const markReadMutation = useMutation({
     mutationFn: async () => {
       await api.post(`/api/v1/news/${item.item_id}/mark_read`);
     },
-    onSuccess: invalidateFeed,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['feed'] }),
   });
 
   if (!news) return null;
-
-  const currentRating = item.user_state.rating;
 
   return (
     <article
@@ -68,7 +60,8 @@ export default function NewsCard({ item, onClick }: NewsCardProps) {
       className={cn(
         'group cursor-pointer rounded-2xl border border-border-default bg-bg-surface transition-all overflow-hidden',
         'hover:border-border-strong',
-        item.user_state.read && 'opacity-60 hover:opacity-100',
+        isSelected && 'border-accent bg-bg-elevated',
+        item.user_state.read && !isSelected && 'opacity-60 hover:opacity-100',
       )}
       style={{ padding: 14 }}
     >
@@ -97,7 +90,7 @@ export default function NewsCard({ item, onClick }: NewsCardProps) {
             className={cn('rounded-xl font-mono text-sm font-semibold', relevanceColor(item.relevance_score))}
             style={{ padding: '6px 12px', flexShrink: 0, backgroundColor: 'var(--color-bg-elevated)' }}
           >
-            {item.relevance_score.toFixed(2)}
+            {item.relevance_score.toFixed(1)}
           </span>
         )}
       </div>
@@ -125,11 +118,7 @@ export default function NewsCard({ item, onClick }: NewsCardProps) {
       {news.tags.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 12 }}>
           {news.tags.slice(0, 6).map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-warning/10 font-mono text-xs text-warning"
-              style={{ padding: '2px 10px' }}
-            >
+            <span key={tag} className="rounded-full bg-warning/10 font-mono text-xs text-warning" style={{ padding: '2px 10px' }}>
               {tag}
             </span>
           ))}
@@ -153,52 +142,66 @@ export default function NewsCard({ item, onClick }: NewsCardProps) {
         </p>
       )}
 
-      {/* Actions */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
-        <button
-          className={cn(
-            'rounded-lg transition hover:bg-bg-elevated',
-            item.user_state.starred ? 'text-accent' : 'text-text-tertiary hover:text-accent',
+      {/* Bottom row: categories + actions — matches PaperCard layout */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {news.categories.slice(0, 3).map((cat) => (
+            <span key={cat} className="rounded-full bg-bg-elevated font-mono text-xs text-text-tertiary" style={{ padding: '3px 10px' }}>
+              {cat}
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button
+            className={cn(
+              'rounded-lg transition hover:bg-bg-elevated',
+              item.user_state.starred ? 'text-accent' : 'text-text-tertiary hover:text-accent',
+            )}
+            onClick={(e) => { e.stopPropagation(); starMutation.mutate(); }}
+            title={item.user_state.starred ? 'Remove from favorites' : 'Save for later'}
+            style={{ padding: 8 }}
+          >
+            <Bookmark size={16} fill={item.user_state.starred ? 'currentColor' : 'none'} />
+          </button>
+          {scholarLibConnected && (
+            <button
+              className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent cursor-default opacity-50"
+              style={{ padding: 8 }}
+              title="ScholarLib (coming soon)"
+              onClick={(e) => e.stopPropagation()}
+              disabled
+            >
+              <LibraryBig size={16} />
+            </button>
           )}
-          onClick={(e) => { e.stopPropagation(); starMutation.mutate(); }}
-          title={item.user_state.starred ? 'Unstar' : 'Star'}
-          style={{ padding: 8 }}
-        >
-          <Bookmark size={16} fill={item.user_state.starred ? 'currentColor' : 'none'} />
-        </button>
-        <button
-          className={cn(
-            'rounded-lg transition hover:bg-bg-elevated',
-            currentRating === 'thumbs_up' ? 'text-success' : 'text-text-tertiary hover:text-success',
-          )}
-          onClick={(e) => { e.stopPropagation(); rateMutation.mutate('thumbs_up'); }}
-          title="Thumbs up"
-          style={{ padding: 8 }}
-        >
-          <ThumbsUp size={16} fill={currentRating === 'thumbs_up' ? 'currentColor' : 'none'} />
-        </button>
-        <button
-          className={cn(
-            'rounded-lg transition hover:bg-bg-elevated',
-            currentRating === 'thumbs_down' ? 'text-danger' : 'text-text-tertiary hover:text-danger',
-          )}
-          onClick={(e) => { e.stopPropagation(); rateMutation.mutate('thumbs_down'); }}
-          title="Thumbs down"
-          style={{ padding: 8 }}
-        >
-          <ThumbsDown size={16} fill={currentRating === 'thumbs_down' ? 'currentColor' : 'none'} />
-        </button>
-        <a
-          href={news.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
-          onClick={(e) => e.stopPropagation()}
-          title="Open article"
-          style={{ padding: 8 }}
-        >
-          <ExternalLink size={16} />
-        </a>
+          <button
+            className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
+            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+            title="Podcast & details"
+            style={{ padding: 8 }}
+          >
+            <Headphones size={16} />
+          </button>
+          <button
+            className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-accent"
+            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+            title="Share"
+            style={{ padding: 8 }}
+          >
+            <Share2 size={16} />
+          </button>
+          <button
+            className={cn(
+              'rounded-lg transition hover:bg-bg-elevated',
+              item.user_state.rating != null ? 'text-warning' : 'text-text-tertiary hover:text-warning',
+            )}
+            onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+            title={item.user_state.rating != null ? `Your rating: ${item.user_state.rating}/10` : 'Rate'}
+            style={{ padding: 8 }}
+          >
+            <Star size={16} fill={item.user_state.rating != null ? 'currentColor' : 'none'} />
+          </button>
+        </div>
       </div>
     </article>
   );
