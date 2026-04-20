@@ -32,7 +32,7 @@ export type FeedItem = {
   user_state: {
     starred: boolean;
     read: boolean;
-    rating: number | null;
+    rating: number | string | null;
     sent_to_scholarlib: boolean;
   };
   cross_links: Array<{

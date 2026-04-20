@@ -38,7 +38,7 @@ function feedItemToPaper(item: FeedItem): Paper {
     collections: [],
     is_opened: item.user_state.read,
     is_favorite: item.user_state.starred,
-    user_rating: item.user_state.rating,
+    user_rating: typeof item.user_state.rating === 'number' ? item.user_state.rating : null,
   };
 }
 

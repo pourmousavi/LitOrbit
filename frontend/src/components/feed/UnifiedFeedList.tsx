@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { useQueryClient, useMutation, type InfiniteData } from '@tanstack/react-query';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useFeed } from '@/hooks/useFeed';
 import { useUIStore } from '@/stores/uiStore';
 import FeedItemCard from './FeedItemCard';
-import type { FeedFilters, FeedResponse } from '@/types/feed';
+import type { FeedFilters } from '@/types/feed';
 import api from '@/lib/api';
 
 function SkeletonCard() {

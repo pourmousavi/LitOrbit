@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Play, Check, X, Loader2, ToggleLeft, ToggleRight, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Play, Loader2, ToggleLeft, ToggleRight, AlertTriangle } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 import type { NewsSource } from '@/types/feed';
