@@ -52,6 +52,11 @@ interface SystemSettingsData {
   max_podcast_duration_minutes: number;
 }
 
+interface ThresholdsData {
+  similarity_threshold: number;
+  negative_anchor_lambda: number;
+}
+
 interface StorageUsage {
   used_mb: number;
   limit_mb: number;
@@ -1624,6 +1629,110 @@ function UsageLimitsTab() {
 
       {saveMutation.isError && (
         <p className="font-mono text-danger" style={{ fontSize: 12 }}>Failed to save settings. Try again.</p>
+      )}
+
+      {/* Relevance Thresholds — separate endpoint */}
+      <ThresholdsSection />
+    </div>
+  );
+}
+
+
+function ThresholdsSection() {
+  const queryClient = useQueryClient();
+
+  const { data: thresholds, isLoading } = useQuery<ThresholdsData>({
+    queryKey: ['admin', 'thresholds'],
+    queryFn: async () => (await api.get('/api/v1/admin/thresholds')).data,
+  });
+
+  const [form, setForm] = useState<ThresholdsData | null>(null);
+  const active = form || thresholds;
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: ThresholdsData) => {
+      await api.put('/api/v1/admin/thresholds', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'thresholds'] });
+      setForm(null);
+    },
+  });
+
+  if (isLoading || !active) return null;
+
+  const hasChanges = form !== null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 16, borderTop: '1px solid var(--border-default)', paddingTop: 24 }}>
+      <p className="font-mono text-xs text-text-tertiary" style={{ lineHeight: 1.6 }}>
+        Tune the semantic relevance gate. These values control which papers pass the k-NN filter before LLM scoring.
+      </p>
+
+      {/* Similarity threshold */}
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
+        <label className="font-mono text-sm text-text-primary font-medium" style={{ display: 'block', marginBottom: 6 }}>
+          Similarity threshold
+        </label>
+        <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginBottom: 12 }}>
+          Minimum effective similarity score for a paper to pass the semantic gate (0.0 – 1.0). Higher = stricter filtering.
+        </p>
+        <input
+          type="number"
+          min={0}
+          max={1}
+          step={0.05}
+          value={active.similarity_threshold}
+          onChange={(e) => setForm({ ...active, similarity_threshold: parseFloat(e.target.value) || 0 })}
+          className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
+          style={{ width: 120, padding: '10px 16px' }}
+        />
+      </div>
+
+      {/* Negative anchor lambda */}
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: 20 }}>
+        <label className="font-mono text-sm text-text-primary font-medium" style={{ display: 'block', marginBottom: 6 }}>
+          Negative anchor weight (λ)
+        </label>
+        <p className="font-mono text-text-tertiary" style={{ fontSize: 11, marginBottom: 12 }}>
+          How strongly low-rated papers repel similar future papers (0.0 – 2.0). Higher = more aggressive topic suppression.
+        </p>
+        <input
+          type="number"
+          min={0}
+          max={2}
+          step={0.1}
+          value={active.negative_anchor_lambda}
+          onChange={(e) => setForm({ ...active, negative_anchor_lambda: parseFloat(e.target.value) || 0 })}
+          className="rounded-xl border border-border-default bg-bg-base text-sm text-text-primary outline-none transition focus:border-accent"
+          style={{ width: 120, padding: '10px 16px' }}
+        />
+      </div>
+
+      {/* Save button */}
+      {hasChanges && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => form && saveMutation.mutate(form)}
+            disabled={saveMutation.isPending}
+            className="flex items-center rounded-2xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+            style={{ gap: 8, padding: '14px 24px' }}
+          >
+            {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            Save Thresholds
+          </button>
+          <button
+            onClick={() => setForm(null)}
+            className="rounded-2xl font-mono text-sm text-text-secondary hover:text-text-primary"
+            style={{ padding: '14px 24px' }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {saveMutation.isError && (
+        <p className="font-mono text-danger" style={{ fontSize: 12 }}>Failed to save thresholds. Try again.</p>
       )}
     </div>
   );
