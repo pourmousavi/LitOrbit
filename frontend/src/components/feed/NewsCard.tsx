@@ -1,6 +1,8 @@
 import { ExternalLink, Bookmark, ThumbsUp, ThumbsDown, Check } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { FeedItem } from '@/types/feed';
 import { cn, formatDate } from '@/lib/utils';
+import api from '@/lib/api';
 
 function timeAgo(dateStr: string | null): string {
   if (!dateStr) return '';
@@ -27,14 +29,46 @@ interface NewsCardProps {
 
 export default function NewsCard({ item, onClick }: NewsCardProps) {
   const news = item.news;
+  const queryClient = useQueryClient();
+
+  const invalidateFeed = () => queryClient.invalidateQueries({ queryKey: ['feed'] });
+
+  const starMutation = useMutation({
+    mutationFn: async () => {
+      const endpoint = item.user_state.starred ? 'unstar' : 'star';
+      await api.post(`/api/v1/news/${item.item_id}/${endpoint}`);
+    },
+    onSuccess: invalidateFeed,
+  });
+
+  const rateMutation = useMutation({
+    mutationFn: async (rating: string) => {
+      await api.post(`/api/v1/news/${item.item_id}/rate`, { rating });
+    },
+    onSuccess: invalidateFeed,
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: async () => {
+      await api.post(`/api/v1/news/${item.item_id}/mark_read`);
+    },
+    onSuccess: invalidateFeed,
+  });
+
   if (!news) return null;
+
+  const currentRating = item.user_state.rating;
 
   return (
     <article
-      onClick={onClick}
+      onClick={() => {
+        if (!item.user_state.read) markReadMutation.mutate();
+        onClick?.();
+      }}
       className={cn(
         'group cursor-pointer rounded-2xl border border-border-default bg-bg-surface transition-all overflow-hidden',
         'hover:border-border-strong',
+        item.user_state.read && 'opacity-60 hover:opacity-100',
       )}
       style={{ padding: 14 }}
     >
@@ -52,6 +86,11 @@ export default function NewsCard({ item, onClick }: NewsCardProps) {
           <span className="font-mono text-xs text-text-tertiary">
             {timeAgo(item.published_at)}
           </span>
+          {item.user_state.read && (
+            <span className="flex items-center rounded-lg bg-bg-elevated font-mono text-xs text-text-tertiary" style={{ padding: '4px 10px', gap: 4 }}>
+              <Check size={11} /> Read
+            </span>
+          )}
         </div>
         {item.relevance_score !== null && (
           <span
@@ -121,33 +160,34 @@ export default function NewsCard({ item, onClick }: NewsCardProps) {
             'rounded-lg transition hover:bg-bg-elevated',
             item.user_state.starred ? 'text-accent' : 'text-text-tertiary hover:text-accent',
           )}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); starMutation.mutate(); }}
           title={item.user_state.starred ? 'Unstar' : 'Star'}
           style={{ padding: 8 }}
         >
           <Bookmark size={16} fill={item.user_state.starred ? 'currentColor' : 'none'} />
         </button>
         <button
-          className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-success"
-          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            'rounded-lg transition hover:bg-bg-elevated',
+            currentRating === 'thumbs_up' ? 'text-success' : 'text-text-tertiary hover:text-success',
+          )}
+          onClick={(e) => { e.stopPropagation(); rateMutation.mutate('thumbs_up'); }}
           title="Thumbs up"
           style={{ padding: 8 }}
         >
-          <ThumbsUp size={16} />
+          <ThumbsUp size={16} fill={currentRating === 'thumbs_up' ? 'currentColor' : 'none'} />
         </button>
         <button
-          className="rounded-lg text-text-tertiary transition hover:bg-bg-elevated hover:text-danger"
-          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            'rounded-lg transition hover:bg-bg-elevated',
+            currentRating === 'thumbs_down' ? 'text-danger' : 'text-text-tertiary hover:text-danger',
+          )}
+          onClick={(e) => { e.stopPropagation(); rateMutation.mutate('thumbs_down'); }}
           title="Thumbs down"
           style={{ padding: 8 }}
         >
-          <ThumbsDown size={16} />
+          <ThumbsDown size={16} fill={currentRating === 'thumbs_down' ? 'currentColor' : 'none'} />
         </button>
-        {item.user_state.read && (
-          <span className="rounded-lg text-text-tertiary" style={{ padding: 8 }} title="Read">
-            <Check size={16} />
-          </span>
-        )}
         <a
           href={news.url}
           target="_blank"

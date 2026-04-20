@@ -21,6 +21,7 @@ from app.models.paper_favorite import PaperFavorite
 from app.models.rating import Rating
 from app.models.news_item import NewsItem
 from app.models.news_source import NewsSource
+from app.models.user_interaction import UserInteraction
 
 router = APIRouter(prefix="/api/v1", tags=["feed"])
 
@@ -59,7 +60,19 @@ def _serialize_paper(paper, score, viewed_at, favorited_at, user_rating) -> dict
     }
 
 
-def _serialize_news(item, source_name, source_authority) -> dict:
+def _serialize_news(item, source_name, source_authority, user_interactions=None) -> dict:
+    starred = False
+    read = False
+    rating = None
+    if user_interactions:
+        for ui in user_interactions:
+            if ui.event_type == "starred":
+                starred = True
+            elif ui.event_type == "marked_read":
+                read = True
+            elif ui.event_type == "rated" and ui.event_value:
+                rating = ui.event_value.get("rating")
+
     return {
         "item_type": "news",
         "item_id": str(item.id),
@@ -79,9 +92,9 @@ def _serialize_news(item, source_name, source_authority) -> dict:
             "cluster_also_covered_in": [],
         },
         "user_state": {
-            "starred": False,
-            "read": False,
-            "rating": None,
+            "starred": starred,
+            "read": read,
+            "rating": rating,
             "sent_to_scholarlib": bool(item.scholarlib_ref_id),
         },
         "cross_links": [],
@@ -183,9 +196,25 @@ async def unified_feed(
 
         # Fetch all for merging
         news_results = (await db.execute(news_query)).all()
+
+        # Bulk-load user interactions for these news items
+        news_ids = [row[0].id for row in news_results]
+        interactions_by_item: dict[str, list] = {}
+        if news_ids:
+            ui_result = await db.execute(
+                select(UserInteraction).where(
+                    UserInteraction.user_id == user_id,
+                    UserInteraction.content_type == "news",
+                    UserInteraction.content_id.in_(news_ids),
+                )
+            )
+            for ui in ui_result.scalars().all():
+                interactions_by_item.setdefault(str(ui.content_id), []).append(ui)
+
         for row in news_results:
             item, source_name, source_authority = row
-            items.append(_serialize_news(item, source_name, source_authority))
+            user_ints = interactions_by_item.get(str(item.id), [])
+            items.append(_serialize_news(item, source_name, source_authority, user_ints))
 
     # --- Sort ---
     if sort == "relevance":
