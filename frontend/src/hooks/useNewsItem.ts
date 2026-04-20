@@ -18,6 +18,10 @@ export interface NewsItemDetail {
   tags: string[];
   categories: string[];
   relevance_score: number | null;
+  llm_score: number | null;
+  llm_score_reasoning: string | null;
+  summary: string | null;
+  summary_generated_at: string | null;
   is_cluster_primary: boolean;
   scholarlib_ref_id: string | null;
   cluster_also_covered_in: Array<{ id: string; url: string; title: string; source_name: string }>;

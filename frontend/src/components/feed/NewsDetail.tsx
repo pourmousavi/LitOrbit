@@ -2,7 +2,7 @@ import { ArrowLeft, ExternalLink, Bookmark, ThumbsUp, ThumbsDown, Loader2, Info 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNewsItem } from '@/hooks/useNewsItem';
 import { useUIStore } from '@/stores/uiStore';
-import { cn, formatDate } from '@/lib/utils';
+import { cn, formatDate, getScoreColor } from '@/lib/utils';
 import api from '@/lib/api';
 
 function formatDateTime(dateStr: string | null): string {
@@ -21,12 +21,6 @@ function relevanceColor(score: number | null): string {
   return 'text-score-low';
 }
 
-function relevanceBg(score: number | null): string {
-  if (score === null) return 'bg-bg-elevated';
-  if (score >= 0.7) return 'bg-score-high/20';
-  if (score >= 0.4) return 'bg-score-mid/20';
-  return 'bg-score-low/20';
-}
 
 export default function NewsDetail() {
   const selectedNewsId = useUIStore((s) => s.selectedNewsId);
@@ -96,6 +90,12 @@ export default function NewsDetail() {
   }
 
   if (!item) return null;
+
+  const scoreColor = getScoreColor;
+  const parsedSummary: { key_points?: string; industry_impact?: string; relevance?: string; suggested_action?: string } | null = (() => {
+    if (!item.summary) return null;
+    try { return JSON.parse(item.summary); } catch { return null; }
+  })();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -184,27 +184,67 @@ export default function NewsDetail() {
             </div>
           )}
 
-          {/* Relevance Score */}
-          {item.relevance_score !== null && (
+          {/* Relevance Score (LLM-scored, same 0-10 scale as papers) */}
+          {item.llm_score !== null ? (
             <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <span className="font-mono text-text-secondary" style={{ fontSize: 12 }}>Relevance Score</span>
-                <span className={cn('font-mono font-semibold', relevanceColor(item.relevance_score))} style={{ fontSize: 28 }}>
-                  {item.relevance_score.toFixed(2)}
+                <span className={cn('font-mono font-semibold', scoreColor(item.llm_score))} style={{ fontSize: 28 }}>
+                  {item.llm_score.toFixed(1)}
+                  <span className="text-text-tertiary" style={{ fontSize: 14 }}>/10</span>
                 </span>
               </div>
               <div className="rounded-full bg-border-default" style={{ height: 6, overflow: 'hidden' }}>
                 <div
-                  className={cn('rounded-full', relevanceBg(item.relevance_score).replace('bg-', 'bg-').replace('/20', ''))}
                   style={{
                     height: '100%',
-                    width: `${Math.min(item.relevance_score * 100, 100)}%`,
+                    width: `${(item.llm_score / 10) * 100}%`,
                     transition: 'width 0.3s',
-                    backgroundColor: item.relevance_score >= 0.7 ? 'var(--color-score-high, #22c55e)' : item.relevance_score >= 0.4 ? 'var(--color-score-mid, #f59e0b)' : '#888',
+                    borderRadius: 999,
+                    backgroundColor: item.llm_score >= 8 ? 'var(--color-score-high, #22c55e)' : item.llm_score >= 5 ? 'var(--color-score-mid, #f59e0b)' : '#888',
                   }}
                 />
               </div>
+              {item.llm_score_reasoning && (
+                <p className="text-text-secondary" style={{ fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>{item.llm_score_reasoning}</p>
+              )}
             </div>
+          ) : item.relevance_score !== null ? (
+            <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span className="font-mono text-text-secondary" style={{ fontSize: 12 }}>Anchor Similarity</span>
+                <span className={cn('font-mono font-semibold', relevanceColor(item.relevance_score))} style={{ fontSize: 20 }}>
+                  {item.relevance_score.toFixed(2)}
+                </span>
+              </div>
+              <p className="font-mono text-xs text-text-tertiary">
+                Not yet scored by AI. Score will be generated on next ingest run.
+              </p>
+            </div>
+          ) : null}
+
+          {/* AI Summary */}
+          {parsedSummary && (
+            <Section title="AI Summary">
+              <div className="rounded-2xl border border-border-default bg-bg-base" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {parsedSummary.key_points && <SummaryBlock label="Key Points" text={parsedSummary.key_points} />}
+                {parsedSummary.industry_impact && <SummaryBlock label="Industry Impact" text={parsedSummary.industry_impact} />}
+                {parsedSummary.relevance && <SummaryBlock label="Relevance" text={parsedSummary.relevance} />}
+                {parsedSummary.suggested_action && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>Suggested:</span>
+                    <span className={cn(
+                      'rounded-full font-mono',
+                      parsedSummary.suggested_action === 'read_fully' && 'bg-success/15 text-success',
+                      parsedSummary.suggested_action === 'skim' && 'bg-warning/15 text-warning',
+                      parsedSummary.suggested_action === 'monitor' && 'bg-bg-elevated text-text-secondary',
+                    )} style={{ fontSize: 12, padding: '4px 12px' }}>
+                      {parsedSummary.suggested_action.replace('_', ' ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </Section>
           )}
 
           {/* Cluster siblings */}
@@ -368,6 +408,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         {title}
       </h3>
       {children}
+    </div>
+  );
+}
+
+function SummaryBlock({ label, text }: { label: string; text: string }) {
+  return (
+    <div>
+      <p className="font-mono text-accent" style={{ fontSize: 12, marginBottom: 6 }}>{label}</p>
+      <p className="text-text-primary" style={{ fontSize: 13, lineHeight: 1.6 }}>{text}</p>
     </div>
   );
 }

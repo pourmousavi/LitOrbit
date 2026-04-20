@@ -224,6 +224,19 @@ async def _process_batch(
         stats["new"] += 1
 
     await db.commit()
+
+    # Score and summarise high-relevance items
+    scored = 0
+    for item in items_to_insert:
+        if item.is_cluster_primary and item.relevance_score and float(item.relevance_score) >= float(source.per_source_min_relevance):
+            try:
+                from app.services.news_scorer import score_and_summarise_news_item
+                await score_and_summarise_news_item(db, item, source.name)
+                scored += 1
+            except Exception as e:
+                logger.warning("Score/summarise failed for '%s': %s", item.title[:50], e)
+    stats["scored"] = scored
+
     return stats
 
 

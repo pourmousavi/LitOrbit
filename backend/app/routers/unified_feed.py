@@ -82,7 +82,7 @@ def _serialize_news(item, source_name, source_authority, user_interactions=None)
         "title": item.title,
         "excerpt": item.excerpt,
         "published_at": item.published_at.isoformat() if item.published_at else None,
-        "relevance_score": float(item.relevance_score) if item.relevance_score else None,
+        "relevance_score": float(item.llm_score) if item.llm_score else (float(item.relevance_score) if item.relevance_score else None),
         "source_name": source_name,
         "source_id": str(item.source_id),
         "paper": None,
