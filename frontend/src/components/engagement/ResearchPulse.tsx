@@ -101,9 +101,6 @@ export default function ResearchPulse() {
 
 function MyOrbit({ pulse, pct, total }: { pulse: PulseData; pct: number; total: number }) {
   const bar = pctColor(pct);
-  const newsTotal = (pulse.weekly_stats.news_viewed || 0)
-    + (pulse.weekly_stats.news_rated || 0)
-    + (pulse.weekly_stats.news_starred || 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -141,33 +138,33 @@ function MyOrbit({ pulse, pct, total }: { pulse: PulseData; pct: number; total: 
       {/* Streak strip */}
       <StreakStrip streak={pulse.streak} best={pulse.best_streak} />
 
-      {/* Paper activity sparklets */}
-      <div>
-        <span className="font-mono" style={{ fontSize: 9, color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6, display: 'block' }}>
-          Papers
-        </span>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-          <Sparklet label="rated" v={pulse.weekly_stats.rated} Icon={Star} />
-          <Sparklet label="podcasts" v={pulse.weekly_stats.podcasts} Icon={Headphones} />
-          <Sparklet label="collected" v={pulse.weekly_stats.collected} Icon={FolderOpen} />
-          <Sparklet label="shared" v={pulse.weekly_stats.shared} Icon={Share2} />
-          <Sparklet label="opened" v={pulse.weekly_stats.opened} Icon={Eye} />
-        </div>
-      </div>
-
-      {/* News activity sparklets */}
-      {newsTotal > 0 && (
+      {/* Activity sparklets — Papers + News side by side */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div>
-          <span className="font-mono" style={{ fontSize: 9, color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6, display: 'block' }}>
+          <span className="font-mono" style={{ fontSize: 9, color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 2, background: 'var(--color-accent, #0891b2)', display: 'inline-block' }} />
+            Papers
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Sparklet label="rated" v={pulse.weekly_stats.rated} Icon={Star} />
+            <Sparklet label="podcasts" v={pulse.weekly_stats.podcasts} Icon={Headphones} />
+            <Sparklet label="opened" v={pulse.weekly_stats.opened} Icon={Eye} />
+            <Sparklet label="collected" v={pulse.weekly_stats.collected} Icon={FolderOpen} />
+            <Sparklet label="shared" v={pulse.weekly_stats.shared} Icon={Share2} />
+          </div>
+        </div>
+        <div>
+          <span className="font-mono" style={{ fontSize: 9, color: '#555', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 2, background: '#f59e0b', display: 'inline-block' }} />
             News
           </span>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Sparklet label="read" v={pulse.weekly_stats.news_viewed || 0} Icon={Newspaper} accent="#f59e0b" />
             <Sparklet label="rated" v={pulse.weekly_stats.news_rated || 0} Icon={ThumbsUp} accent="#f59e0b" />
             <Sparklet label="starred" v={pulse.weekly_stats.news_starred || 0} Icon={Bookmark} accent="#f59e0b" />
           </div>
         </div>
-      )}
+      </div>
 
       {/* Nudge */}
       {pulse.unreviewed_count > 3 && (
