@@ -220,7 +220,7 @@ export default function NewsSourcesTab() {
               <div className={`rounded-lg font-mono text-xs mt-3 ${(ingestMutation.data as any)?.error ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`} style={{ padding: '8px 12px' }}>
                 {(ingestMutation.data as any)?.error
                   ? `Error: ${(ingestMutation.data as any)?.error}`
-                  : `${(ingestMutation.data as any)?.new ?? 0} new items, ${(ingestMutation.data as any)?.embedded ?? 0} embedded, ${(ingestMutation.data as any)?.skipped_exists ?? 0} skipped (exists), ${(ingestMutation.data as any)?.errors ?? 0} errors — ${(ingestMutation.data as any)?.total_visible ?? '?'} visible in feed`
+                  : `${(ingestMutation.data as any)?.new ?? 0} new, ${(ingestMutation.data as any)?.embedded ?? 0} embedded, ${(ingestMutation.data as any)?.scored ?? 0} scored, ${(ingestMutation.data as any)?.skipped_exists ?? 0} skipped — ${(ingestMutation.data as any)?.total_visible ?? '?'} visible`
                 }
               </div>
             )}

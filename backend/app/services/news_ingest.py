@@ -240,6 +240,29 @@ async def _process_batch(
     return stats
 
 
+async def _score_unscored_items(db: AsyncSession, source: NewsSource) -> int:
+    """Score and summarise existing news items that haven't been LLM-scored yet."""
+    from app.services.news_scorer import score_and_summarise_news_item
+
+    result = await db.execute(
+        select(NewsItem).where(
+            NewsItem.source_id == source.id,
+            NewsItem.is_cluster_primary == True,
+            NewsItem.llm_score.is_(None),
+            NewsItem.embedding.isnot(None),
+        ).order_by(NewsItem.created_at.desc()).limit(25)
+    )
+    unscored = result.scalars().all()
+    scored = 0
+    for item in unscored:
+        try:
+            await score_and_summarise_news_item(db, item, source.name)
+            scored += 1
+        except Exception as e:
+            logger.warning("Score/summarise failed for '%s': %s", item.title[:50], e)
+    return scored
+
+
 async def ingest_source(db: AsyncSession, source: NewsSource) -> dict:
     """Ingest news from a single source. Returns stats dict."""
     feed = await _fetch_feed(source)
@@ -248,12 +271,17 @@ async def ingest_source(db: AsyncSession, source: NewsSource) -> dict:
         return {"source": source.name, "error": "Feed fetch/parse failed"}
 
     stats = await _process_batch(db, source, feed.entries)
+
+    # Also score any existing items that haven't been LLM-scored yet
+    backfill_scored = await _score_unscored_items(db, source)
+    stats["scored"] = stats.get("scored", 0) + backfill_scored
+
     await news_sources_service.mark_fetched(db, source.id, status="ok")
 
     logger.info(
-        "Ingested %s: %d new, %d skipped (exists), %d skipped (cap), %d embedded, %d errors",
+        "Ingested %s: %d new, %d skipped (exists), %d skipped (cap), %d embedded, %d scored, %d errors",
         source.name, stats["new"], stats["skipped_exists"],
-        stats["skipped_cap"], stats["embedded"], stats["errors"],
+        stats["skipped_cap"], stats["embedded"], stats.get("scored", 0), stats["errors"],
     )
     return {"source": source.name, **stats}
 
