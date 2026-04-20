@@ -4,7 +4,7 @@ import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
-type Tab = 'journals' | 'users' | 'pipeline' | 'keywords' | 'digest' | 'settings';
+type Tab = 'journals' | 'users' | 'pipeline' | 'keywords' | 'digest' | 'settings' | 'tuning';
 
 interface Journal {
   id: string;
@@ -110,6 +110,7 @@ export default function Admin() {
     { key: 'keywords', label: 'Platform Scope', icon: Tags },
     { key: 'digest', label: 'Digest', icon: Mail },
     { key: 'settings', label: 'Limits', icon: Sliders },
+    { key: 'tuning', label: 'Tuning', icon: Activity },
   ];
 
   return (
@@ -262,6 +263,7 @@ export default function Admin() {
         )}
         {tab === 'digest' && <DigestTab />}
         {tab === 'settings' && <UsageLimitsTab />}
+        {tab === 'tuning' && <TuningPanel />}
       </div>
     </div>
   );
@@ -1844,6 +1846,234 @@ function LoadingState() {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Tuning Panel — signal histograms and scatter
+// ---------------------------------------------------------------------------
+
+interface SignalRow {
+  max_positive_sim: number;
+  max_negative_sim: number;
+  effective_score: number;
+  passed_gate: boolean;
+  rating: number | null;
+  paper_title: string;
+}
+
+function parseCSV(text: string): SignalRow[] {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const header = lines[0].split(',');
+  const idx = (name: string) => header.indexOf(name);
+  const rows: SignalRow[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',');
+    rows.push({
+      max_positive_sim: parseFloat(cols[idx('max_positive_sim')] || '0'),
+      max_negative_sim: parseFloat(cols[idx('max_negative_sim')] || '0'),
+      effective_score: parseFloat(cols[idx('effective_score')] || '0'),
+      passed_gate: cols[idx('passed_gate')] === 'True',
+      rating: cols[idx('rating')] ? parseInt(cols[idx('rating')], 10) : null,
+      paper_title: cols[idx('paper_title')] || '',
+    });
+  }
+  return rows;
+}
+
+function buildHistogramBins(values: { val: number; passed: boolean }[], binSize: number = 0.05, maxVal: number = 1.2): { start: number; passed: number; rejected: number }[] {
+  const numBins = Math.ceil(maxVal / binSize);
+  const bins = Array.from({ length: numBins }, (_, i) => ({ start: +(i * binSize).toFixed(3), passed: 0, rejected: 0 }));
+  for (const { val, passed } of values) {
+    const idx = Math.min(Math.floor(val / binSize), numBins - 1);
+    if (idx >= 0) {
+      if (passed) bins[idx].passed++;
+      else bins[idx].rejected++;
+    }
+  }
+  return bins;
+}
+
+function Histogram({ bins, threshold, caption }: { bins: { start: number; passed: number; rejected: number }[]; threshold: number; caption: string }) {
+  const maxCount = Math.max(1, ...bins.map(b => b.passed + b.rejected));
+  const w = 600;
+  const h = 200;
+  const barW = w / bins.length;
+  const threshX = (threshold / 1.2) * w;
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <svg viewBox={`0 0 ${w} ${h + 30}`} width="100%" style={{ maxWidth: w, fontFamily: 'monospace', fontSize: 10 }}>
+        {bins.map((bin, i) => {
+          const total = bin.passed + bin.rejected;
+          const barH = (total / maxCount) * h;
+          const passH = (bin.passed / maxCount) * h;
+          const rejH = barH - passH;
+          return (
+            <g key={i}>
+              <rect x={i * barW} y={h - barH} width={barW - 1} height={rejH} fill="#f59e0b" opacity={0.7} />
+              <rect x={i * barW} y={h - barH + rejH} width={barW - 1} height={passH} fill="#22c55e" opacity={0.7} />
+            </g>
+          );
+        })}
+        <line x1={threshX} y1={0} x2={threshX} y2={h} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={2} />
+        {/* X-axis labels */}
+        {[0, 0.2, 0.4, 0.6, 0.8, 1.0].map(v => (
+          <text key={v} x={(v / 1.2) * w} y={h + 14} fill="currentColor" textAnchor="middle">{v.toFixed(1)}</text>
+        ))}
+      </svg>
+      <p className="font-mono text-xs text-text-tertiary" style={{ marginTop: 4 }}>{caption}</p>
+    </div>
+  );
+}
+
+function ratingColor(r: number): string {
+  if (r >= 9) return '#22c55e';
+  if (r >= 7) return '#86efac';
+  if (r >= 5) return '#fbbf24';
+  if (r >= 3) return '#f97316';
+  return '#ef4444';
+}
+
+function ScatterPlot({ rows }: { rows: SignalRow[] }) {
+  const rated = rows.filter(r => r.rating !== null && !isNaN(r.rating));
+  if (!rated.length) return <p className="font-mono text-xs text-text-tertiary">No rated signals yet — rate some papers to see the scatter plot.</p>;
+  const w = 500;
+  const h = 400;
+  const pad = 40;
+  const [tooltip, setTooltip] = useState<SignalRow | null>(null);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <svg viewBox={`0 0 ${w + pad * 2} ${h + pad * 2}`} width="100%" style={{ maxWidth: w + pad * 2, fontFamily: 'monospace', fontSize: 10 }}>
+        {/* axes */}
+        <line x1={pad} y1={h + pad} x2={w + pad} y2={h + pad} stroke="currentColor" opacity={0.3} />
+        <line x1={pad} y1={pad} x2={pad} y2={h + pad} stroke="currentColor" opacity={0.3} />
+        <text x={w / 2 + pad} y={h + pad + 30} fill="currentColor" textAnchor="middle">max_positive_sim</text>
+        <text x={12} y={h / 2 + pad} fill="currentColor" textAnchor="middle" transform={`rotate(-90, 12, ${h / 2 + pad})`}>max_negative_sim</text>
+        {/* dots */}
+        {rated.map((r, i) => (
+          <circle
+            key={i}
+            cx={pad + r.max_positive_sim * w}
+            cy={pad + h - r.max_negative_sim * h}
+            r={4}
+            fill={ratingColor(r.rating!)}
+            opacity={0.7}
+            onMouseEnter={() => setTooltip(r)}
+            onMouseLeave={() => setTooltip(null)}
+            style={{ cursor: 'pointer' }}
+          />
+        ))}
+      </svg>
+      {tooltip && (
+        <div className="rounded-xl border border-border-default bg-bg-elevated font-mono text-xs text-text-secondary"
+          style={{ position: 'absolute', top: 8, right: 8, padding: '10px 14px', maxWidth: 260, lineHeight: 1.6 }}>
+          <strong>{tooltip.paper_title.slice(0, 60)}</strong><br />
+          Rating: {tooltip.rating} | pos: {tooltip.max_positive_sim.toFixed(3)} | neg: {tooltip.max_negative_sim.toFixed(3)}<br />
+          Gate: {tooltip.passed_gate ? 'passed' : 'rejected'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function suggestThreshold(rows: SignalRow[]): { threshold: number; f1: number } | null {
+  const labeled = rows.filter(r => r.rating !== null && (r.rating! >= 7 || r.rating! <= 3));
+  if (labeled.length < 20) return null;
+  let bestT = 0.5;
+  let bestF1 = 0;
+  for (let t = 0; t <= 1.0; t += 0.01) {
+    let tp = 0, fp = 0, fn = 0;
+    for (const r of labeled) {
+      const predicted = r.effective_score >= t;
+      const actual = r.rating! >= 7;
+      if (predicted && actual) tp++;
+      if (predicted && !actual) fp++;
+      if (!predicted && actual) fn++;
+    }
+    const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
+    const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
+    const f1 = precision + recall > 0 ? 2 * precision * recall / (precision + recall) : 0;
+    if (f1 > bestF1) { bestF1 = f1; bestT = t; }
+  }
+  return { threshold: +bestT.toFixed(2), f1: +bestF1.toFixed(2) };
+}
+
+function TuningPanel() {
+  const { data: csvText, isLoading, isError } = useQuery<string>({
+    queryKey: ['admin', 'tuning', 'signals-csv'],
+    queryFn: async () => (await api.get('/api/v1/admin/tuning/signals.csv?limit=5000')).data,
+  });
+  const { data: thresholds } = useQuery<ThresholdsData>({
+    queryKey: ['admin', 'thresholds'],
+    queryFn: async () => (await api.get('/api/v1/admin/thresholds')).data,
+  });
+
+  if (isLoading) return <LoadingState />;
+  if (isError || !csvText) return <ErrorState message="Tuning data unavailable" />;
+
+  const rows = parseCSV(csvText);
+  const threshold = thresholds?.similarity_threshold ?? 0.5;
+  const lambda = thresholds?.negative_anchor_lambda ?? 0.5;
+  const passCount = rows.filter(r => r.passed_gate).length;
+  const passRate = rows.length > 0 ? ((passCount / rows.length) * 100).toFixed(1) : '0';
+
+  const posBins = buildHistogramBins(rows.map(r => ({ val: r.max_positive_sim, passed: r.passed_gate })));
+  const effBins = buildHistogramBins(rows.map(r => ({ val: r.effective_score, passed: r.passed_gate })));
+
+  const suggestion = suggestThreshold(rows);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Header strip */}
+      <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: '16px 20px' }}>
+        <div className="font-mono text-xs text-text-secondary" style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
+          <span>Showing <strong>{rows.length.toLocaleString()}</strong> scoring signals</span>
+          <span>Threshold: <strong>{threshold}</strong></span>
+          <span>&lambda;: <strong>{lambda}</strong></span>
+          <span>Pass rate: <strong>{passRate}%</strong> ({passCount}/{rows.length})</span>
+        </div>
+      </div>
+
+      {/* Histogram 1: max_positive_sim */}
+      <div>
+        <h3 className="font-mono text-sm text-text-primary" style={{ marginBottom: 8 }}>Distribution of max_positive_sim</h3>
+        <Histogram bins={posBins} threshold={threshold} caption="If you want fewer low-quality papers to reach the LLM, move the threshold right." />
+        <div className="font-mono text-xs text-text-tertiary" style={{ display: 'flex', gap: 16 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 12, height: 12, background: '#22c55e', borderRadius: 2, display: 'inline-block' }} /> Passed</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 12, height: 12, background: '#f59e0b', borderRadius: 2, display: 'inline-block' }} /> Rejected</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 2, height: 12, background: '#ef4444', display: 'inline-block' }} /> Threshold</span>
+        </div>
+      </div>
+
+      {/* Histogram 2: effective_score */}
+      <div>
+        <h3 className="font-mono text-sm text-text-primary" style={{ marginBottom: 8 }}>Distribution of effective_score (pos - &lambda; &times; neg)</h3>
+        <Histogram bins={effBins} threshold={threshold} caption="This is the actual quantity compared against the threshold." />
+      </div>
+
+      {/* Scatter plot */}
+      <div>
+        <h3 className="font-mono text-sm text-text-primary" style={{ marginBottom: 8 }}>Rated papers: positive vs negative similarity</h3>
+        <ScatterPlot rows={rows} />
+      </div>
+
+      {/* Suggestion panel */}
+      {suggestion && (
+        <div className="rounded-2xl border border-border-default bg-bg-surface" style={{ padding: '16px 20px' }}>
+          <p className="font-mono text-xs text-text-secondary" style={{ lineHeight: 1.6 }}>
+            Suggested threshold: <strong>{suggestion.threshold}</strong> (F1={suggestion.f1}
+            {suggestion.threshold !== threshold && `, vs current ${threshold}`}).
+            {suggestion.threshold === threshold
+              ? ' The current threshold is already optimal for the available data.'
+              : ' To apply, go to Admin \u203A Limits and update the Similarity threshold.'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function ErrorState({ message }: { message: string }) {
   return (
