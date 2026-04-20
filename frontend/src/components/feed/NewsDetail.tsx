@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, Bookmark, Loader2, Info, Play, Download, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Bookmark, Loader2, Info, Play, Download, Trash2, Share2, LibraryBig } from 'lucide-react';
+import ShareModal from '@/components/sharing/ShareModal';
+import { useScholarLibStore } from '@/stores/scholarLibStore';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNewsItem } from '@/hooks/useNewsItem';
 import { useUIStore } from '@/stores/uiStore';
@@ -123,6 +125,10 @@ export default function NewsDetail() {
   const setTrack = usePlayerStore((s) => s.setTrack);
   const apiBase = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
 
+  // Share + ScholarLib
+  const [showShareModal, setShowShareModal] = useState(false);
+  const scholarLibConnected = useScholarLibStore((s) => s.status === 'connected');
+
   // Mark as read on open
   useEffect(() => {
     if (selectedNewsId) {
@@ -180,6 +186,24 @@ export default function NewsDetail() {
           <span className="md:hidden">Back</span>
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
+            style={{ padding: 8 }}
+            title="Share"
+          >
+            <Share2 size={16} />
+          </button>
+          {scholarLibConnected && (
+            <button
+              className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
+              style={{ padding: 8 }}
+              title="ScholarLib (coming soon)"
+              disabled
+            >
+              <LibraryBig size={16} />
+            </button>
+          )}
           <a
             href={item.url}
             target="_blank"
@@ -520,6 +544,39 @@ export default function NewsDetail() {
         options={feedback.follow_up_options}
         onSelect={(option) => feedbackMutation.mutate(option)}
         onDismiss={() => setFeedback(null)}
+      />
+    )}
+
+    {/* Share modal */}
+    {showShareModal && item && (
+      <ShareModal
+        paper={{
+          id: item.id,
+          title: item.title,
+          authors: item.author ? [item.author] : [],
+          abstract: item.excerpt,
+          journal: item.source_name,
+          journal_source: 'news',
+          doi: null,
+          full_text: item.full_text,
+          published_date: item.published_at,
+          online_date: null,
+          early_access: false,
+          url: item.url,
+          pdf_path: null,
+          keywords: item.tags,
+          categories: item.categories,
+          summary: item.summary,
+          relevance_score: item.llm_score,
+          score_reasoning: item.llm_score_reasoning,
+          created_at: item.created_at,
+          created_by_name: null,
+          collections: [],
+          is_opened: true,
+          is_favorite: false,
+          user_rating: null,
+        }}
+        onClose={() => setShowShareModal(false)}
       />
     )}
     </>
