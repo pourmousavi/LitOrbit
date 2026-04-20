@@ -27,7 +27,9 @@ interface UnifiedFeedListProps {
 export default function UnifiedFeedList({ filters }: UnifiedFeedListProps) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } = useFeed(filters);
   const selectPaper = useUIStore((s) => s.selectPaper);
+  const selectNews = useUIStore((s) => s.selectNews);
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
+  const selectedNewsId = useUIStore((s) => s.selectedNewsId);
   const queryClient = useQueryClient();
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -100,12 +102,15 @@ export default function UnifiedFeedList({ filters }: UnifiedFeedListProps) {
         <FeedItemCard
           key={`${item.item_type}-${item.item_id}`}
           item={item}
-          isSelected={item.item_type === 'paper' && selectedPaperId === item.item_id}
+          isSelected={
+            (item.item_type === 'paper' && selectedPaperId === item.item_id) ||
+            (item.item_type === 'news' && selectedNewsId === item.item_id)
+          }
           onSelect={() => {
             if (item.item_type === 'paper') {
               selectPaper(item.item_id);
-            } else if (item.news?.url) {
-              window.open(item.news.url, '_blank');
+            } else {
+              selectNews(item.item_id);
             }
           }}
           onToggleFavorite={

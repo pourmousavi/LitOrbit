@@ -7,6 +7,7 @@ import { useFeed } from '@/hooks/useFeed';
 import { useEngagement } from '@/hooks/useEngagement';
 import PaperFeed from '@/components/papers/PaperFeed';
 import PaperDetail from '@/components/papers/PaperDetail';
+import NewsDetail from '@/components/feed/NewsDetail';
 import UnifiedFeedList from '@/components/feed/UnifiedFeedList';
 import ResearchPulse from '@/components/engagement/ResearchPulse';
 import { usePulseSettings } from '@/stores/pulseSettingsStore';
@@ -19,6 +20,7 @@ type FeedType = 'all' | 'papers' | 'news';
 
 export default function Feed() {
   const selectedPaperId = useUIStore((s) => s.selectedPaperId);
+  const selectedNewsId = useUIStore((s) => s.selectedNewsId);
   const [feedType, setFeedType] = useState<FeedType>('papers');
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -293,6 +295,22 @@ export default function Feed() {
             style={{ width: 420, flexShrink: 0, overflowY: 'auto', height: '100vh' }}
           >
             <PaperDetail />
+          </div>
+        </>
+      )}
+      {selectedNewsId && !selectedPaperId && (
+        <>
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-bg-base md:hidden"
+            style={{ paddingBottom: 64 }}
+          >
+            <NewsDetail />
+          </div>
+          <div
+            className="hidden border-l border-border-default bg-bg-surface md:block"
+            style={{ width: 420, flexShrink: 0, overflowY: 'auto', height: '100vh' }}
+          >
+            <NewsDetail />
           </div>
         </>
       )}
