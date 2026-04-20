@@ -62,13 +62,14 @@ async def score_paper_for_user(
         client: Reusable Google GenAI client (created if not provided).
 
     Returns:
-        Dict with 'score' (float) and 'reasoning' (str).
+        Dict with 'score' (float|None), 'reasoning' (str), 'error' (bool).
+        On error: score=None, error=True. On success: score=float, error=False.
     """
     settings = get_settings()
     if client is None:
         if not settings.gemini_api_key:
-            logger.warning("GEMINI_API_KEY not set, returning default score")
-            return {"score": 5.0, "reasoning": "API key not configured"}
+            logger.warning("GEMINI_API_KEY not set, returning error")
+            return {"score": None, "reasoning": "API key not configured", "error": True}
         from app.services.gemini_client import make_genai_client
         client = make_genai_client()
 
@@ -140,7 +141,7 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
                     f"Scorer got empty response (finish_reason={finish_reason}) "
                     f"for paper '{paper.get('title', '')[:60]}'"
                 )
-                return {"score": 5.0, "reasoning": f"Empty AI response ({finish_reason})"}
+                return {"score": None, "reasoning": f"Empty AI response ({finish_reason})", "error": True}
 
             text = raw_text.strip()
             # Strip markdown code blocks if present
@@ -153,12 +154,12 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
             reasoning = result.get("reasoning", "")
 
             logger.info(f"Scored '{paper.get('title', '')[:50]}...' for {user.get('full_name', '')}: {score}")
-            return {"score": score, "reasoning": reasoning}
+            return {"score": score, "reasoning": reasoning, "error": False}
 
         except TimeoutError:
             logger.warning(f"Gemini scoring timed out for '{paper.get('title', '')[:60]}' (attempt {attempt}/{_MAX_RETRIES})")
             if attempt == _MAX_RETRIES:
-                return {"score": 5.0, "reasoning": "Scoring timed out"}
+                return {"score": None, "reasoning": "Scoring timed out", "error": True}
             continue
         except json.JSONDecodeError as e:
             # Most common cause: response truncated by max_output_tokens.
@@ -171,7 +172,7 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
             if attempt < _MAX_RETRIES:
                 await asyncio.sleep(2)
                 continue
-            return {"score": 5.0, "reasoning": "Failed to parse AI response"}
+            return {"score": None, "reasoning": "Failed to parse AI response", "error": True}
         except Exception as e:
             error_str = str(e).lower()
             if "429" in error_str or "rate" in error_str or "quota" in error_str or "resource_exhausted" in error_str:
@@ -180,12 +181,12 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
                 await asyncio.sleep(wait_time)
                 if attempt == _MAX_RETRIES:
                     logger.error(f"Rate limit exceeded after {_MAX_RETRIES} retries")
-                    return {"score": 5.0, "reasoning": "Rate limit exceeded"}
+                    return {"score": None, "reasoning": "Rate limit exceeded", "error": True}
             else:
                 logger.error(f"Gemini API error during scoring: {e}")
-                return {"score": 5.0, "reasoning": "API error during scoring"}
+                return {"score": None, "reasoning": "API error during scoring", "error": True}
 
-    return {"score": 5.0, "reasoning": "Scoring failed after retries"}
+    return {"score": None, "reasoning": "Scoring failed after retries", "error": True}
 
 
 async def score_paper_for_all_users(
@@ -213,5 +214,6 @@ async def score_paper_for_all_users(
             "user_id": user["id"],
             "score": result["score"],
             "reasoning": result["reasoning"],
+            "error": result.get("error", False),
         })
     return scored
