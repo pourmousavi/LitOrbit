@@ -66,8 +66,8 @@ describe('ResearchPulse Banner', () => {
     expect(screen.getByText('Leaderboard')).toBeInTheDocument();
   });
 
-  it('shows week number in sparkline area', () => {
+  it('shows points in sparkline area', () => {
     render(<ResearchPulse />);
-    expect(screen.getByText(/pts/)).toBeInTheDocument();
+    expect(screen.getAllByText(/pts/).length).toBeGreaterThanOrEqual(1);
   });
 });
