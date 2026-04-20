@@ -84,6 +84,9 @@ export default function PaperCard({ paper, isSelected, onClick, onToggleFavorite
       {/* Top row: journal badge + score */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+          <span className="rounded-lg bg-accent/15 font-mono text-xs text-accent" style={{ padding: '4px 10px' }}>
+            Paper
+          </span>
           <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-secondary" style={{ padding: '4px 10px' }}>
             {paper.journal}
           </span>

@@ -60,7 +60,7 @@ export default function NewsCard({ item, isSelected, onClick }: NewsCardProps) {
       className={cn(
         'group cursor-pointer rounded-2xl border border-border-default bg-bg-surface transition-all overflow-hidden',
         'hover:border-border-strong',
-        isSelected && 'border-accent bg-bg-elevated',
+        isSelected && 'border-warning bg-bg-elevated',
         item.user_state.read && !isSelected && 'opacity-60 hover:opacity-100',
       )}
       style={{ padding: 14 }}
