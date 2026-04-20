@@ -18,6 +18,49 @@ from app.services import news_sources_service
 router = APIRouter(prefix="/api/v1", tags=["news"])
 
 
+@router.get("/admin/news-debug")
+async def news_debug(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Debug endpoint: count news items by state."""
+    from sqlalchemy import func as sa_func
+
+    total = (await db.execute(select(sa_func.count(NewsItem.id)))).scalar() or 0
+    primary = (await db.execute(
+        select(sa_func.count(NewsItem.id)).where(NewsItem.is_cluster_primary == True)
+    )).scalar() or 0
+    with_embedding = (await db.execute(
+        select(sa_func.count(NewsItem.id)).where(NewsItem.embedding.isnot(None))
+    )).scalar() or 0
+    sources_count = (await db.execute(
+        select(sa_func.count(NewsSource.id))
+    )).scalar() or 0
+    enabled_sources = (await db.execute(
+        select(sa_func.count(NewsSource.id)).where(NewsSource.enabled == True)
+    )).scalar() or 0
+
+    # Sample a few items
+    sample_result = await db.execute(
+        select(NewsItem.id, NewsItem.title, NewsItem.is_cluster_primary, NewsItem.relevance_score, NewsItem.source_id)
+        .order_by(NewsItem.created_at.desc())
+        .limit(5)
+    )
+    samples = [
+        {"id": str(r[0]), "title": r[1][:60], "is_primary": r[2], "score": float(r[3]) if r[3] else None, "source_id": str(r[4])}
+        for r in sample_result.all()
+    ]
+
+    return {
+        "total_news_items": total,
+        "is_cluster_primary_true": primary,
+        "with_embedding": with_embedding,
+        "news_sources": sources_count,
+        "enabled_sources": enabled_sources,
+        "recent_samples": samples,
+    }
+
+
 # --- News actions ---
 
 @router.post("/news/{item_id}/star")

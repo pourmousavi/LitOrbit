@@ -4,6 +4,7 @@ GET /api/v1/feed returns a merged, paginated list of papers and news,
 filterable by type, source, date, relevance, and sort order.
 """
 
+import logging
 import uuid
 from datetime import date, datetime
 from typing import Any
@@ -11,6 +12,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, desc, asc, literal, case, null
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.auth import get_current_user
 from app.database import get_db
@@ -170,6 +173,7 @@ async def unified_feed(
 
     # --- News query ---
     if type in ("all", "news"):
+        logger.info("Feed: querying news items (type=%s)", type)
         news_query = (
             select(NewsItem, NewsSource.name, NewsSource.authority_weight)
             .join(NewsSource, NewsSource.id == NewsItem.source_id)
@@ -196,6 +200,7 @@ async def unified_feed(
 
         # Fetch all for merging
         news_results = (await db.execute(news_query)).all()
+        logger.info("Feed: found %d news items (total_news=%d)", len(news_results), total_news)
 
         # Bulk-load user interactions for these news items
         news_ids = [row[0].id for row in news_results]
