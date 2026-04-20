@@ -76,6 +76,7 @@ export default function PaperDetail() {
       queryClient.invalidateQueries({ queryKey: ['ratings'] });
       queryClient.invalidateQueries({ queryKey: ['my-rating', selectedPaperId] });
       queryClient.invalidateQueries({ queryKey: ['papers'] });
+      queryClient.invalidateQueries({ queryKey: ['engagement', 'pulse'] });
       if (data.follow_up_question && data.follow_up_options) {
         setFeedback(data);
       }

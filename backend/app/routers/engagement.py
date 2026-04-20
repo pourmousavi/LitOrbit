@@ -3,6 +3,7 @@
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -62,14 +63,15 @@ class PulseResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _week_boundaries(now: datetime | None = None) -> tuple[datetime, datetime, datetime, datetime]:
-    """Return (this_week_start, this_week_end, last_week_start, last_week_end) in UTC."""
-    if now is None:
-        now = datetime.now(timezone.utc)
-    # Monday 00:00 of current week
+def _week_boundaries(tz: ZoneInfo | None = None) -> tuple[datetime, datetime, datetime, datetime]:
+    """Return (this_week_start, this_week_end, last_week_start, last_week_end) as UTC datetimes,
+    with week boundaries aligned to the user's local timezone."""
+    user_tz = tz or ZoneInfo("Australia/Adelaide")
+    now = datetime.now(user_tz)
+    # Monday 00:00 of current week in user's timezone, then convert to UTC
     today = now.date()
     monday = today - timedelta(days=today.weekday())
-    this_start = datetime(monday.year, monday.month, monday.day, tzinfo=timezone.utc)
+    this_start = datetime(monday.year, monday.month, monday.day, tzinfo=user_tz).astimezone(timezone.utc)
     this_end = this_start + timedelta(days=7)
     last_start = this_start - timedelta(days=7)
     last_end = this_start
@@ -168,28 +170,34 @@ def _compute_points(stats: ActivityBreakdown) -> int:
     )
 
 
-async def compute_streak(db: AsyncSession, user_uuid: uuid.UUID) -> tuple[int, int]:
-    """Return (current_streak, best_streak) based on distinct rating dates."""
-    result = await db.execute(
-        select(func.distinct(func.date(Rating.rated_at)))
-        .where(Rating.user_id == user_uuid)
-        .order_by(func.date(Rating.rated_at).desc())
-    )
-    dates: list[date] = [row[0] for row in result.all()]
+async def compute_streak(db: AsyncSession, user_uuid: uuid.UUID, tz: ZoneInfo | None = None) -> tuple[int, int]:
+    """Return (current_streak, best_streak) based on distinct rating dates in user's timezone."""
+    user_tz = tz or ZoneInfo("Australia/Adelaide")
 
-    if not dates:
+    # Fetch all rating timestamps, then convert to user-local dates in Python
+    # (avoids DB-specific timezone functions that differ between PostgreSQL and SQLite)
+    result = await db.execute(
+        select(Rating.rated_at)
+        .where(Rating.user_id == user_uuid)
+        .order_by(Rating.rated_at.desc())
+    )
+    raw_timestamps = [row[0] for row in result.all()]
+
+    if not raw_timestamps:
         return 0, 0
 
-    # Parse dates if they come back as strings (SQLite)
-    parsed: list[date] = []
-    for d in dates:
-        if isinstance(d, str):
-            parsed.append(date.fromisoformat(d))
-        else:
-            parsed.append(d)
-    parsed.sort(reverse=True)
+    # Convert to distinct local dates
+    local_dates: set[date] = set()
+    for ts in raw_timestamps:
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        local_dates.add(ts.astimezone(user_tz).date())
 
-    today = datetime.now(timezone.utc).date()
+    parsed = sorted(local_dates, reverse=True)
+
+    today = datetime.now(user_tz).date()
 
     # Current streak: start from today or yesterday (grace period)
     current = 0
@@ -233,7 +241,17 @@ async def get_pulse(
     db: AsyncSession = Depends(get_db),
 ) -> PulseResponse:
     user_uuid = uuid.UUID(user["id"])
-    this_start, this_end, last_start, last_end = _week_boundaries()
+
+    # Fetch user's timezone for accurate day/week boundaries
+    user_profile = (await db.execute(
+        select(UserProfile).where(UserProfile.id == user_uuid)
+    )).scalar_one_or_none()
+    try:
+        user_tz = ZoneInfo(user_profile.digest_timezone) if user_profile and user_profile.digest_timezone else ZoneInfo("Australia/Adelaide")
+    except (KeyError, Exception):
+        user_tz = ZoneInfo("Australia/Adelaide")
+
+    this_start, this_end, last_start, last_end = _week_boundaries(user_tz)
 
     # Unreviewed: all papers scored for this user that have not been rated
     rated_paper_ids = select(Rating.paper_id).where(Rating.user_id == user_uuid)
@@ -248,8 +266,8 @@ async def get_pulse(
     weekly_stats = await _user_weekly_stats(db, user_uuid, this_start, this_end)
     weekly_points = _compute_points(weekly_stats)
 
-    # Streak
-    streak, best_streak = await compute_streak(db, user_uuid)
+    # Streak (using user's timezone for day boundaries)
+    streak, best_streak = await compute_streak(db, user_uuid, user_tz)
 
     # Lab pulse: papers scored this week (any user) vs papers rated this week (any user)
     lab_total = (await db.execute(
