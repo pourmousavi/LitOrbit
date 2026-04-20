@@ -1641,13 +1641,15 @@ function UsageLimitsTab() {
 function ThresholdsSection() {
   const queryClient = useQueryClient();
 
-  const { data: thresholds, isLoading } = useQuery<ThresholdsData>({
+  const { data: thresholds, isLoading, isError } = useQuery<ThresholdsData>({
     queryKey: ['admin', 'thresholds'],
     queryFn: async () => (await api.get('/api/v1/admin/thresholds')).data,
+    retry: 1,
   });
 
+  const defaults: ThresholdsData = { similarity_threshold: 0.5, negative_anchor_lambda: 0.5 };
   const [form, setForm] = useState<ThresholdsData | null>(null);
-  const active = form || thresholds;
+  const active = form || thresholds || (isError ? defaults : null);
 
   const saveMutation = useMutation({
     mutationFn: async (data: ThresholdsData) => {
