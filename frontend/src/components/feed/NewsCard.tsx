@@ -1,19 +1,57 @@
-import { Bookmark, Headphones, Share2, Star, LibraryBig, Check } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Bookmark, Headphones, Info, Share2, Star, LibraryBig, Check } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useScholarLibStore } from '@/stores/scholarLibStore';
 import type { FeedItem } from '@/types/feed';
-import { cn, formatDate } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import api from '@/lib/api';
 
-function timeAgo(dateStr: string | null): string {
-  if (!dateStr) return '';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 1) return 'just now';
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return formatDate(dateStr);
+function formatDateTime(dateStr: string | null): string {
+  if (!dateStr) return 'Unknown';
+  const d = new Date(dateStr);
+  return d.toLocaleString('en-AU', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function InfoTooltip({ item }: { item: FeedItem }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('pointerdown', handleClick);
+    return () => document.removeEventListener('pointerdown', handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-lg text-text-tertiary transition hover:text-text-secondary"
+        style={{ padding: 2 }}
+        aria-label="News info"
+      >
+        <Info size={14} />
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 top-full z-50 mt-1 rounded-xl border border-border-default bg-bg-surface font-mono text-xs text-text-secondary shadow-lg"
+          style={{ padding: '10px 14px', width: 260, lineHeight: 1.7 }}
+        >
+          <div>Published: <strong className="text-text-primary">{formatDateTime(item.published_at)}</strong></div>
+          <div>Fetched: <strong className="text-text-primary">{formatDateTime(item.created_at)}</strong></div>
+          {item.source_name && (
+            <div>Source: <strong className="text-text-primary">{item.source_name}</strong></div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function relevanceColor(score: number | null): string {
@@ -76,9 +114,7 @@ export default function NewsCard({ item, isSelected, onClick }: NewsCardProps) {
               {item.source_name}
             </span>
           )}
-          <span className="font-mono text-xs text-text-tertiary">
-            {timeAgo(item.published_at)}
-          </span>
+          <InfoTooltip item={item} />
           {item.user_state.read && (
             <span className="flex items-center rounded-lg bg-bg-elevated font-mono text-xs text-text-tertiary" style={{ padding: '4px 10px', gap: 4 }}>
               <Check size={11} /> Read
