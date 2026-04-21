@@ -48,7 +48,7 @@ function NewsSourcesSection() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({ name: '', feed_url: '', website_url: '', authority_weight: '1.0' });
   // Per-source edits: { [sourceId]: { per_source_daily_cap, per_source_min_relevance } }
-  const [edits, setEdits] = useState<Record<string, { per_source_daily_cap: number; per_source_min_relevance: number }>>({});
+  const [edits, setEdits] = useState<Record<string, { per_source_daily_cap: number }>>({});
 
   const { data: sources, isLoading } = useQuery<NewsSource[]>({
     queryKey: ['admin', 'news-sources'],
@@ -205,38 +205,13 @@ function NewsSourcesSection() {
                         if (!isNaN(val)) {
                           setEdits((prev) => ({
                             ...prev,
-                            [source.id]: {
-                              per_source_daily_cap: val,
-                              per_source_min_relevance: prev[source.id]?.per_source_min_relevance ?? source.per_source_min_relevance,
-                            },
+                            [source.id]: { per_source_daily_cap: val },
                           }));
                         }
                       }}
                       className="rounded border border-border-default bg-bg-base text-xs text-text-primary outline-none focus:border-accent"
                       style={{ width: 44, padding: '2px 6px', textAlign: 'center' }}
                     />/day
-                  </span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    Min rel:
-                    <input
-                      type="number"
-                      value={(edits[source.id]?.per_source_min_relevance ?? source.per_source_min_relevance)}
-                      min={0} max={1} step={0.05}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        if (!isNaN(val)) {
-                          setEdits((prev) => ({
-                            ...prev,
-                            [source.id]: {
-                              per_source_daily_cap: prev[source.id]?.per_source_daily_cap ?? source.per_source_daily_cap,
-                              per_source_min_relevance: val,
-                            },
-                          }));
-                        }
-                      }}
-                      className="rounded border border-border-default bg-bg-base text-xs text-text-primary outline-none focus:border-accent"
-                      style={{ width: 50, padding: '2px 6px', textAlign: 'center' }}
-                    />
                   </span>
                   {source.last_fetched_at && (
                     <span>
@@ -256,8 +231,7 @@ function NewsSourcesSection() {
                   </p>
                 )}
                 {edits[source.id] && (
-                  edits[source.id].per_source_daily_cap !== source.per_source_daily_cap ||
-                  edits[source.id].per_source_min_relevance !== source.per_source_min_relevance
+                  edits[source.id].per_source_daily_cap !== source.per_source_daily_cap
                 ) && (
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                     <button

@@ -230,10 +230,10 @@ async def _process_batch(
 
     await db.commit()
 
-    # Score and summarise high-relevance items
+    # Score and summarise all primary items
     scored = 0
     for item in items_to_insert:
-        if item.is_cluster_primary and item.relevance_score and float(item.relevance_score) >= float(source.per_source_min_relevance):
+        if item.is_cluster_primary:
             try:
                 from app.services.news_scorer import score_and_summarise_news_item
                 await score_and_summarise_news_item(db, item, source.name)

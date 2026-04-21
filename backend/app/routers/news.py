@@ -1,9 +1,10 @@
 """News-specific API routes: detail view, actions, admin source management."""
 
+import logging
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from app.models.news_source import NewsSource
 from app.models.news_cluster import NewsCluster
 from app.services import news_sources_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["news"])
 
 
@@ -171,6 +173,15 @@ async def rate_news(
     db.add(interaction)
     await db.commit()
     await db.refresh(interaction)
+
+    # Update category_weights from news item categories (same mechanism as papers)
+    item_result = await db.execute(
+        select(NewsItem).where(NewsItem.id == nid)
+    )
+    news_item = item_result.scalar_one_or_none()
+    if news_item and news_item.categories:
+        from app.routers.ratings import update_category_weights
+        await update_category_weights(db, str(user_id), news_item.categories, body.rating)
 
     question, options = _news_follow_up(body.rating)
     return {
@@ -593,7 +604,6 @@ class NewsSourceCreate(BaseModel):
     website_url: str
     authority_weight: float = Field(1.0, ge=0, le=2)
     per_source_daily_cap: int = Field(5, ge=1)
-    per_source_min_relevance: float = Field(0.30, ge=0, le=1)
 
 
 class NewsSourceUpdate(BaseModel):
@@ -603,7 +613,6 @@ class NewsSourceUpdate(BaseModel):
     authority_weight: float | None = Field(None, ge=0, le=2)
     enabled: bool | None = None
     per_source_daily_cap: int | None = Field(None, ge=1)
-    per_source_min_relevance: float | None = Field(None, ge=0, le=1)
 
 
 @router.get("/admin/news-sources")
@@ -621,7 +630,6 @@ async def list_news_sources(
             "authority_weight": float(s.authority_weight),
             "enabled": s.enabled,
             "per_source_daily_cap": s.per_source_daily_cap,
-            "per_source_min_relevance": float(s.per_source_min_relevance),
             "last_fetched_at": s.last_fetched_at.isoformat() if s.last_fetched_at else None,
             "last_fetch_status": s.last_fetch_status,
             "last_fetch_error": s.last_fetch_error,
@@ -746,16 +754,29 @@ async def list_news_runs(
 
 @router.post("/admin/news/trigger")
 async def trigger_news_ingest(
+    background_tasks: BackgroundTasks,
     _admin: dict[str, Any] = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Trigger a full news ingest across all enabled sources."""
-    from app.services.news_ingest import ingest_all_enabled_sources
-    from app.services.relevance_service import load_anchors
+    """Trigger a full news ingest across all enabled sources (runs in background)."""
+    async def _run():
+        from app.database import init_db, async_session_factory
+        from app.services.news_ingest import ingest_all_enabled_sources
+        from app.services.relevance_service import load_anchors
 
-    await load_anchors(db)
-    results = await ingest_all_enabled_sources(db)
-    return {"status": "completed", "sources": len(results), "results": results}
+        try:
+            if async_session_factory is None:
+                init_db()
+            if async_session_factory is None:
+                return
+            async with async_session_factory() as session:
+                await load_anchors(session)
+                results = await ingest_all_enabled_sources(session)
+                logger.info(f"Manual news ingest: {len(results)} sources processed")
+        except Exception as e:
+            logger.exception(f"Manual news ingest failed: {e}")
+
+    background_tasks.add_task(_run)
+    return {"status": "triggered"}
 
 
 @router.delete("/admin/news/runs/{run_id}/items")

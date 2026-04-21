@@ -7,6 +7,7 @@ Produces a 0-10 score and a structured summary.
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -46,6 +47,21 @@ Format your response as JSON with these exact keys:
   "suggested_action": "read_fully | skim | monitor",
   "categories": ["list", "of", "2-4", "topic", "categories"]
 }}"""
+
+
+def _extract_json(text: str) -> str:
+    """Robustly extract JSON from LLM responses that may include markdown fences."""
+    text = text.strip()
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    # Find first { ... last } as fallback
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end > start:
+        return text[start : end + 1]
+    return text
 
 
 async def score_news_for_user(
@@ -107,8 +123,7 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
             timeout=60,
         )
         text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        text = _extract_json(text)
         result = json.loads(text)
         score = max(0.0, min(10.0, float(result.get("score", 5.0))))
         return {"score": score, "reasoning": result.get("reasoning", ""), "error": False}
@@ -149,11 +164,7 @@ async def summarise_news(item: NewsItem, source_name: str) -> dict[str, Any] | N
             timeout=90,
         )
         text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
+        text = _extract_json(text)
         result = json.loads(text)
         logger.info("Generated news summary for '%s'", item.title[:50])
         return result
