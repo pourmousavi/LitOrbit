@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Play, Loader2, ToggleLeft, ToggleRight, AlertTriangle, ChevronDown, Activity, Newspaper } from 'lucide-react';
+import { Plus, Trash2, Play, Loader2, ToggleLeft, ToggleRight, AlertTriangle, ChevronDown, Activity } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 import type { NewsSource } from '@/types/feed';
@@ -22,15 +22,6 @@ interface NewsIngestRun {
   run_log: Record<string, unknown>[];
 }
 
-interface NewsStats {
-  total_items: number;
-  scored_items: number;
-  total_sources: number;
-  enabled_sources: number;
-  last_fetch: string | null;
-  total_runs: number;
-  successful_runs: number;
-}
 
 function formatElapsed(start: string | null, end: string | null): string {
   if (!start) return '';
@@ -45,7 +36,6 @@ export default function NewsTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
       <NewsSourcesSection />
-      <NewsStatsBar />
       <NewsFetchSection />
     </div>
   );
@@ -290,45 +280,6 @@ function NewsSourcesSection() {
   );
 }
 
-// --- News Stats Bar ---
-
-function NewsStatsBar() {
-  const { data: stats } = useQuery<NewsStats>({
-    queryKey: ['admin', 'news-stats'],
-    queryFn: async () => (await api.get('/api/v1/admin/news/stats')).data,
-    staleTime: 60000,
-  });
-
-  if (!stats) return null;
-
-  return (
-    <div
-      className="rounded-2xl border border-border-default bg-bg-surface font-mono"
-      style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}
-    >
-      <Newspaper size={16} className="text-text-tertiary" style={{ flexShrink: 0 }} />
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, flex: 1 }}>
-        <span className="text-xs text-text-secondary">
-          Items: <strong className="text-text-primary">{stats.total_items}</strong>
-        </span>
-        <span className="text-xs text-text-secondary">
-          Scored: <strong className="text-text-primary">{stats.scored_items}</strong>
-        </span>
-        <span className="text-xs text-text-secondary">
-          Sources: <strong className="text-text-primary">{stats.enabled_sources}</strong>/{stats.total_sources}
-        </span>
-        <span className="text-xs text-text-secondary">
-          Fetches: <strong className="text-text-primary">{stats.successful_runs}</strong>/{stats.total_runs}
-        </span>
-        {stats.last_fetch && (
-          <span className="text-xs text-text-secondary">
-            Last: <strong className="text-text-primary">{formatDate(stats.last_fetch)}</strong>
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // --- News Fetch Section (with trigger button + run history accordion) ---
 

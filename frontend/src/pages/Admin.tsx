@@ -97,6 +97,19 @@ export default function Admin() {
     queryFn: async () => (await api.get('/api/v1/admin/alerts')).data,
     staleTime: 60000,
   });
+  const { data: newsStats } = useQuery<{
+    total_items: number;
+    scored_items: number;
+    total_sources: number;
+    enabled_sources: number;
+    last_fetch: string | null;
+    total_runs: number;
+    successful_runs: number;
+  }>({
+    queryKey: ['admin', 'news-stats'],
+    queryFn: async () => (await api.get('/api/v1/admin/news/stats')).data,
+    staleTime: 60000,
+  });
   const backfillMutation = useMutation({
     mutationFn: async () => (await api.post('/api/v1/admin/backfill-embeddings')).data,
     onSuccess: () => {
@@ -164,6 +177,35 @@ export default function Admin() {
               {kbStats.last_fetch && (
                 <span className="text-xs text-text-secondary">
                   Last: <strong className="text-text-primary">{formatDate(kbStats.last_fetch)}</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* News stats — News tab only */}
+        {tab === 'news' && newsStats && (
+          <div
+            className="rounded-2xl border border-border-default bg-bg-surface font-mono"
+            style={{ padding: '14px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}
+          >
+            <Newspaper size={16} className="text-text-tertiary" style={{ flexShrink: 0 }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, flex: 1 }}>
+              <span className="text-xs text-text-secondary">
+                Items: <strong className="text-text-primary">{newsStats.total_items}</strong>
+              </span>
+              <span className="text-xs text-text-secondary">
+                Scored: <strong className="text-text-primary">{newsStats.scored_items}</strong>
+              </span>
+              <span className="text-xs text-text-secondary">
+                Sources: <strong className="text-text-primary">{newsStats.enabled_sources}</strong>/{newsStats.total_sources}
+              </span>
+              <span className="text-xs text-text-secondary">
+                Fetches: <strong className="text-text-primary">{newsStats.successful_runs}</strong>/{newsStats.total_runs}
+              </span>
+              {newsStats.last_fetch && (
+                <span className="text-xs text-text-secondary">
+                  Last: <strong className="text-text-primary">{formatDate(newsStats.last_fetch)}</strong>
                 </span>
               )}
             </div>
