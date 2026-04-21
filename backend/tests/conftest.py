@@ -29,6 +29,7 @@ from app.models.news_cluster import NewsCluster
 from app.models.relevance_anchor import RelevanceAnchor
 from app.models.user_interaction import UserInteraction
 from app.models.content_cross_link import ContentCrossLink
+from app.models.news_ingest_run import NewsIngestRun
 
 # Use an in-memory SQLite for tests
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
