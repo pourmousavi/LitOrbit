@@ -138,6 +138,7 @@ async def _process_batch(
     db: AsyncSession,
     source: NewsSource,
     entries: list[dict],
+    run_id: "uuid.UUID | None" = None,
 ) -> dict:
     """Process a batch of feed entries for a single source.
 
@@ -182,6 +183,7 @@ async def _process_batch(
             published_at=published_at,
             tags=_get_entry_tags(entry),
             categories=_get_entry_categories(entry),
+            ingest_run_id=run_id,
         )
         items_to_insert.append(item)
 
@@ -263,14 +265,14 @@ async def _score_unscored_items(db: AsyncSession, source: NewsSource) -> int:
     return scored
 
 
-async def ingest_source(db: AsyncSession, source: NewsSource) -> dict:
+async def ingest_source(db: AsyncSession, source: NewsSource, run_id: "uuid.UUID | None" = None) -> dict:
     """Ingest news from a single source. Returns stats dict."""
     feed = await _fetch_feed(source)
     if not feed:
         await news_sources_service.mark_fetched(db, source.id, status="error", error="Feed fetch/parse failed")
         return {"source": source.name, "error": "Feed fetch/parse failed"}
 
-    stats = await _process_batch(db, source, feed.entries)
+    stats = await _process_batch(db, source, feed.entries, run_id=run_id)
 
     # Also score any existing items that haven't been LLM-scored yet
     backfill_scored = await _score_unscored_items(db, source)
@@ -290,8 +292,12 @@ async def ingest_all_enabled_sources(db: AsyncSession) -> list[dict]:
     """Ingest news from all enabled sources.
 
     Loads anchors once, then processes each source.
+    Creates a NewsIngestRun to track the batch.
     Returns list of per-source stats.
     """
+    from app.models.news_ingest_run import NewsIngestRun
+    from datetime import datetime, timezone
+
     await load_anchors(db)
     sources = await news_sources_service.get_enabled_sources(db)
 
@@ -299,16 +305,54 @@ async def ingest_all_enabled_sources(db: AsyncSession) -> list[dict]:
         logger.info("No enabled news sources found")
         return []
 
+    # Create a run record
+    run = NewsIngestRun(
+        started_at=datetime.now(timezone.utc),
+        status="running",
+        sources_total=len(sources),
+    )
+    db.add(run)
+    await db.flush()
+
     results = []
+    succeeded = 0
+    failed = 0
+    totals = {"new": 0, "skipped": 0, "embedded": 0, "scored": 0, "errors": 0}
+
     for source in sources:
         try:
-            stats = await ingest_source(db, source)
+            stats = await ingest_source(db, source, run_id=run.id)
             results.append(stats)
+            if stats.get("error"):
+                failed += 1
+            else:
+                succeeded += 1
+                totals["new"] += stats.get("new", 0)
+                totals["skipped"] += stats.get("skipped_exists", 0) + stats.get("skipped_cap", 0)
+                totals["embedded"] += stats.get("embedded", 0)
+                totals["scored"] += stats.get("scored", 0)
+                totals["errors"] += stats.get("errors", 0)
         except Exception as e:
             logger.exception("News ingest failed for %s: %s", source.name, e)
             await news_sources_service.mark_fetched(
                 db, source.id, status="error", error=str(e)
             )
             results.append({"source": source.name, "error": str(e)})
+            failed += 1
+
+    # Update run record
+    run.completed_at = datetime.now(timezone.utc)
+    run.status = "success" if failed == 0 else ("partial" if succeeded > 0 else "failed")
+    run.sources_succeeded = succeeded
+    run.sources_failed = failed
+    run.items_new = totals["new"]
+    run.items_skipped = totals["skipped"]
+    run.items_embedded = totals["embedded"]
+    run.items_scored = totals["scored"]
+    run.items_errors = totals["errors"]
+    run.run_log = results
+    if failed > 0 and succeeded == 0:
+        run.error_message = f"All {failed} sources failed"
+    await db.commit()
 
     return results

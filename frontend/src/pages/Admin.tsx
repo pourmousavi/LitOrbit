@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings, Users, Activity, Tags, ToggleLeft, ToggleRight, Play, Loader2, Plus, X, Trash2, ChevronDown, HardDrive, Mail, UserPlus, Pencil, Check, Sliders, AlertTriangle, Info, BookOpen, Newspaper } from 'lucide-react';
-import NewsSourcesTab from '@/components/admin/NewsSourcesTab';
+import NewsTab from '@/components/admin/NewsTab';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 
-type Tab = 'journals' | 'users' | 'pipeline' | 'keywords' | 'digest' | 'settings' | 'tuning' | 'news';
+type Tab = 'keywords' | 'papers' | 'news' | 'digest' | 'tuning' | 'users' | 'settings';
 
 interface Journal {
   id: string;
@@ -74,7 +74,7 @@ interface SystemAlert {
 }
 
 export default function Admin() {
-  const [tab, setTab] = useState<Tab>('journals');
+  const [tab, setTab] = useState<Tab>('keywords');
   const queryClient = useQueryClient();
   const { data: kbStats } = useQuery<{
     total_papers: number;
@@ -105,14 +105,13 @@ export default function Admin() {
   });
 
   const tabs: { key: Tab; label: string; icon: typeof Settings }[] = [
-    { key: 'journals', label: 'Journals', icon: Settings },
-    { key: 'users', label: 'Users', icon: Users },
-    { key: 'pipeline', label: 'Fetch Papers', icon: Activity },
     { key: 'keywords', label: 'Platform Scope', icon: Tags },
+    { key: 'papers', label: 'Papers', icon: BookOpen },
+    { key: 'news', label: 'News', icon: Newspaper },
     { key: 'digest', label: 'Digest', icon: Mail },
-    { key: 'settings', label: 'Limits', icon: Sliders },
     { key: 'tuning', label: 'Tuning', icon: Activity },
-    { key: 'news', label: 'News Sources', icon: Newspaper },
+    { key: 'users', label: 'Users', icon: Users },
+    { key: 'settings', label: 'Limits', icon: Sliders },
   ];
 
   return (
@@ -145,8 +144,8 @@ export default function Admin() {
           ))}
         </div>
 
-        {/* Knowledge base stats — Fetch Papers tab only */}
-        {tab === 'pipeline' && kbStats && (
+        {/* Knowledge base stats — Papers tab only */}
+        {tab === 'papers' && kbStats && (
           <div
             className="rounded-2xl border border-border-default bg-bg-surface font-mono"
             style={{ padding: '14px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}
@@ -202,8 +201,8 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Embedding alerts — Fetch Papers tab only */}
-        {tab === 'pipeline' && alerts && alerts.length > 0 && (
+        {/* Embedding alerts — Papers tab only */}
+        {tab === 'papers' && alerts && alerts.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
             {alerts.map((alert, i) => (
               <div
@@ -254,19 +253,23 @@ export default function Admin() {
           </div>
         )}
 
-        {tab === 'journals' && <JournalConfigTab />}
-        {tab === 'users' && <UserManagementTab />}
-        {tab === 'pipeline' && <PipelineStatusTab />}
         {tab === 'keywords' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
             <GlobalKeywordsTab />
             <NegativeTitleKeywordsSection />
           </div>
         )}
+        {tab === 'papers' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+            <JournalConfigTab />
+            <PipelineStatusTab />
+          </div>
+        )}
+        {tab === 'news' && <NewsTab />}
         {tab === 'digest' && <DigestTab />}
-        {tab === 'settings' && <UsageLimitsTab />}
         {tab === 'tuning' && <TuningPanel />}
-        {tab === 'news' && <NewsSourcesTab />}
+        {tab === 'users' && <UserManagementTab />}
+        {tab === 'settings' && <UsageLimitsTab />}
       </div>
     </div>
   );

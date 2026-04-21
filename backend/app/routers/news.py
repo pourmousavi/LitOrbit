@@ -236,6 +236,32 @@ async def mark_read_news(
     return {"status": "marked_read"}
 
 
+@router.post("/news/{item_id}/rescore")
+async def rescore_news_item(
+    item_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Re-score and re-summarise a single news item."""
+    nid = uuid.UUID(item_id)
+    item = await db.get(NewsItem, nid)
+    if not item:
+        raise HTTPException(status_code=404, detail="News item not found")
+
+    source = await db.get(NewsSource, item.source_id)
+    source_name = source.name if source else "Unknown"
+
+    from app.services.news_scorer import score_and_summarise_news_item
+    await score_and_summarise_news_item(db, item, source_name)
+
+    return {
+        "status": "success",
+        "llm_score": float(item.llm_score) if item.llm_score else None,
+        "llm_score_reasoning": item.llm_score_reasoning,
+        "summary_regenerated": item.summary is not None,
+    }
+
+
 @router.get("/news/{item_id}/podcast")
 async def get_news_podcast(
     item_id: str,
@@ -678,3 +704,182 @@ async def run_ingest_now(
     stats["total_visible"] = total
 
     return stats
+
+
+# --- News ingest runs ---
+
+
+@router.get("/admin/news/runs")
+async def list_news_runs(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List recent news ingest runs."""
+    from app.models.news_ingest_run import NewsIngestRun
+
+    result = await db.execute(
+        select(NewsIngestRun)
+        .order_by(NewsIngestRun.started_at.desc())
+        .limit(50)
+    )
+    runs = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "started_at": r.started_at.isoformat() if r.started_at else None,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+            "status": r.status,
+            "items_new": r.items_new,
+            "items_skipped": r.items_skipped,
+            "items_embedded": r.items_embedded,
+            "items_scored": r.items_scored,
+            "items_errors": r.items_errors,
+            "sources_total": r.sources_total,
+            "sources_succeeded": r.sources_succeeded,
+            "sources_failed": r.sources_failed,
+            "error_message": r.error_message,
+            "run_log": r.run_log,
+        }
+        for r in runs
+    ]
+
+
+@router.post("/admin/news/trigger")
+async def trigger_news_ingest(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Trigger a full news ingest across all enabled sources."""
+    from app.services.news_ingest import ingest_all_enabled_sources
+    from app.services.relevance_service import load_anchors
+
+    await load_anchors(db)
+    results = await ingest_all_enabled_sources(db)
+    return {"status": "completed", "sources": len(results), "results": results}
+
+
+@router.delete("/admin/news/runs/{run_id}/items")
+async def delete_news_run_items(
+    run_id: str,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete all news items from a specific ingest run."""
+    from app.models.news_ingest_run import NewsIngestRun
+    from sqlalchemy import func as sa_func, delete
+
+    rid = uuid.UUID(run_id)
+    run = await db.get(NewsIngestRun, rid)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # Count items in this run
+    count = (await db.execute(
+        select(sa_func.count(NewsItem.id)).where(NewsItem.ingest_run_id == rid)
+    )).scalar() or 0
+
+    # Delete them
+    await db.execute(
+        delete(NewsItem).where(NewsItem.ingest_run_id == rid)
+    )
+
+    # Update run status
+    run.status = "deleted"
+    run.error_message = f"{count} items deleted"
+    await db.commit()
+
+    return {"status": "deleted", "items_deleted": count}
+
+
+@router.post("/admin/news/runs/{run_id}/rescore")
+async def rescore_news_run(
+    run_id: str,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Re-score all news items from a specific ingest run."""
+    from app.models.news_ingest_run import NewsIngestRun
+    from app.services.news_scorer import score_and_summarise_news_item
+
+    rid = uuid.UUID(run_id)
+    run = await db.get(NewsIngestRun, rid)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # Get items from this run that are cluster primaries
+    result = await db.execute(
+        select(NewsItem, NewsSource.name)
+        .join(NewsSource, NewsSource.id == NewsItem.source_id)
+        .where(
+            NewsItem.ingest_run_id == rid,
+            NewsItem.is_cluster_primary == True,
+        )
+    )
+    rows = result.all()
+
+    scored = 0
+    errors = 0
+    for item, source_name in rows:
+        try:
+            await score_and_summarise_news_item(db, item, source_name)
+            scored += 1
+        except Exception:
+            errors += 1
+
+    return {"status": "completed", "items_rescored": scored, "errors": errors}
+
+
+@router.get("/admin/news/stats")
+async def news_stats(
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get news stats for the admin stat bar."""
+    from app.models.news_ingest_run import NewsIngestRun
+    from sqlalchemy import func as sa_func
+
+    total_items = (await db.execute(
+        select(sa_func.count(NewsItem.id))
+    )).scalar() or 0
+
+    scored_items = (await db.execute(
+        select(sa_func.count(NewsItem.id)).where(NewsItem.llm_score.isnot(None))
+    )).scalar() or 0
+
+    total_sources = (await db.execute(
+        select(sa_func.count(NewsSource.id))
+    )).scalar() or 0
+
+    enabled_sources = (await db.execute(
+        select(sa_func.count(NewsSource.id)).where(NewsSource.enabled == True)
+    )).scalar() or 0
+
+    # Last successful run
+    last_run_result = await db.execute(
+        select(NewsIngestRun.completed_at)
+        .where(NewsIngestRun.status.in_(["success", "partial"]))
+        .order_by(NewsIngestRun.completed_at.desc())
+        .limit(1)
+    )
+    last_run_row = last_run_result.first()
+    last_fetch = last_run_row[0].isoformat() if last_run_row and last_run_row[0] else None
+
+    total_runs = (await db.execute(
+        select(sa_func.count(NewsIngestRun.id))
+    )).scalar() or 0
+
+    successful_runs = (await db.execute(
+        select(sa_func.count(NewsIngestRun.id)).where(
+            NewsIngestRun.status.in_(["success", "partial"])
+        )
+    )).scalar() or 0
+
+    return {
+        "total_items": total_items,
+        "scored_items": scored_items,
+        "total_sources": total_sources,
+        "enabled_sources": enabled_sources,
+        "last_fetch": last_fetch,
+        "total_runs": total_runs,
+        "successful_runs": successful_runs,
+    }

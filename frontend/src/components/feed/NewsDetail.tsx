@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ExternalLink, Loader2, Info, Play, Download, Trash2, Share2, LibraryBig, Check } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Info, Play, Download, Trash2, Share2, LibraryBig, Check, RefreshCw } from 'lucide-react';
 import ShareModal from '@/components/sharing/ShareModal';
 import ScholarLibModal from '@/components/integrations/ScholarLibModal';
 import { useScholarLibStore } from '@/stores/scholarLibStore';
@@ -35,6 +35,17 @@ export default function NewsDetail() {
   const selectNews = useUIStore((s) => s.selectNews);
   const { data: item, isLoading } = useNewsItem(selectedNewsId);
   const queryClient = useQueryClient();
+
+  const rescoreMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/api/v1/news/${selectedNewsId}/rescore`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['news-item', selectedNewsId] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+    },
+  });
 
   const scrapeMutation = useMutation({
     mutationFn: async () => {
@@ -169,6 +180,15 @@ export default function NewsDetail() {
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button
+            onClick={() => rescoreMutation.mutate()}
+            disabled={rescoreMutation.isPending}
+            className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
+            style={{ padding: 8 }}
+            title="Re-score this article"
+          >
+            {rescoreMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+          </button>
+          <button
             onClick={() => setShowShareModal(true)}
             className="rounded-lg text-text-secondary transition hover:bg-bg-elevated hover:text-accent"
             style={{ padding: 8 }}
@@ -292,10 +312,40 @@ export default function NewsDetail() {
                 </span>
               </div>
               <p className="font-mono text-xs text-text-tertiary">
-                Not yet scored by AI. Score will be generated on next ingest run.
+                Not yet scored by AI.
               </p>
+              <button
+                onClick={() => rescoreMutation.mutate()}
+                disabled={rescoreMutation.isPending}
+                className="flex items-center rounded-xl bg-accent font-mono text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                style={{ gap: 8, padding: '10px 20px', marginTop: 8 }}
+              >
+                {rescoreMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                Score this article
+              </button>
             </div>
           ) : null}
+
+          {/* Re-score result */}
+          {rescoreMutation.isSuccess && rescoreMutation.data && (
+            <div className="rounded-2xl border border-success/30 bg-success/5" style={{ padding: 16 }}>
+              <p className="font-mono font-medium text-success" style={{ fontSize: 13, marginBottom: 8 }}>Re-score complete</p>
+              <div className="font-mono text-text-secondary" style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span>New score: <strong className="text-text-primary">{(rescoreMutation.data as any).llm_score?.toFixed(1) ?? 'N/A'}/10</strong></span>
+                <span>Summary {(rescoreMutation.data as any).summary_regenerated ? 'regenerated' : 'unchanged'}</span>
+                {(rescoreMutation.data as any).llm_score_reasoning && (
+                  <span className="text-text-tertiary">{(rescoreMutation.data as any).llm_score_reasoning}</span>
+                )}
+              </div>
+            </div>
+          )}
+          {rescoreMutation.isError && (
+            <div className="rounded-2xl border border-danger/30 bg-danger/5" style={{ padding: 16 }}>
+              <p className="font-mono text-sm text-danger">
+                {(rescoreMutation.error as any)?.response?.data?.detail || 'Re-scoring failed. Try again.'}
+              </p>
+            </div>
+          )}
 
           {/* AI Summary */}
           {parsedSummary && (

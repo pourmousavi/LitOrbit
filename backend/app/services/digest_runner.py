@@ -9,7 +9,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -169,7 +169,11 @@ async def _get_digest_news(
     frequency: str,
     max_items: int = 10,
 ) -> list[dict]:
-    """Fetch top news items for the digest window."""
+    """Fetch top news items for the digest window.
+
+    Includes items that either have a good anchor similarity score (>= 0.30)
+    or a good LLM score (>= 5.0 out of 10).
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=_lookback_days(frequency))
 
     result = await db.execute(
@@ -178,10 +182,12 @@ async def _get_digest_news(
         .where(
             NewsItem.created_at >= cutoff,
             NewsItem.is_cluster_primary == True,
-            NewsItem.relevance_score.isnot(None),
-            NewsItem.relevance_score >= 0.30,
+            or_(
+                and_(NewsItem.relevance_score.isnot(None), NewsItem.relevance_score >= 0.30),
+                and_(NewsItem.llm_score.isnot(None), NewsItem.llm_score >= 5.0),
+            ),
         )
-        .order_by(NewsItem.relevance_score.desc())
+        .order_by(NewsItem.llm_score.desc().nulls_last(), NewsItem.relevance_score.desc())
         .limit(max_items)
     )
     rows = result.all()
@@ -211,6 +217,7 @@ async def _get_digest_news(
             "source_name": source_name,
             "excerpt": (item.excerpt or "")[:250],
             "relevance_score": float(item.relevance_score) if item.relevance_score else None,
+            "llm_score": float(item.llm_score) if item.llm_score else None,
             "cross_link_title": cross_link_title,
         })
 

@@ -34,4 +34,5 @@ class NewsItem(Base):
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     scholarlib_ref_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    ingest_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("news_ingest_runs.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

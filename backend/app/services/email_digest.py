@@ -90,7 +90,10 @@ DIGEST_TEMPLATE = Template("""<!DOCTYPE html>
     <div class="paper-meta">
       <span class="score score-mid" style="font-size: 10px;">NEWS</span>
       &nbsp;&middot;&nbsp;{{ item.source_name }}
-      {% if item.relevance_score is not none %}
+      {% if item.llm_score is not none %}
+      &nbsp;&middot;&nbsp;
+      <span class="score {% if item.llm_score >= 8 %}score-high{% elif item.llm_score >= 5 %}score-mid{% else %}score-low{% endif %}">{{ "%.1f"|format(item.llm_score) }}</span>
+      {% elif item.relevance_score is not none %}
       &nbsp;&middot;&nbsp;
       <span class="score {% if item.relevance_score >= 0.7 %}score-high{% elif item.relevance_score >= 0.4 %}score-mid{% else %}score-low{% endif %}">{{ "%.2f"|format(item.relevance_score) }}</span>
       {% endif %}
