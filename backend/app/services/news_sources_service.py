@@ -83,7 +83,10 @@ async def validate_feed(url: str) -> dict:
     """Fetch and parse a feed URL, return validation info."""
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "LitOrbit News Validator/1.0"})
+            resp = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; LitOrbit/1.0; +https://litorbit.app)",
+                "Accept": "application/rss+xml, application/xml, text/xml, */*",
+            })
             resp.raise_for_status()
 
         feed = feedparser.parse(resp.text)

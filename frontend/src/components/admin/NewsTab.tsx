@@ -67,6 +67,13 @@ function NewsSourcesSection() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; [key: string]: any }) => {
+      return (await api.patch(`/api/v1/admin/news-sources/${id}`, data)).data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'news-sources'] }),
+  });
+
   const toggleMutation = useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
       return (await api.patch(`/api/v1/admin/news-sources/${id}`, { enabled })).data;
@@ -181,9 +188,39 @@ function NewsSourcesSection() {
                 <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 4, wordBreak: 'break-all' }}>
                   {source.feed_url}
                 </p>
-                <div className="font-mono text-xs text-text-tertiary" style={{ display: 'flex', gap: 12 }}>
-                  <span>Cap: {source.per_source_daily_cap}/day</span>
-                  <span>Min relevance: {source.per_source_min_relevance}</span>
+                <div className="font-mono text-xs text-text-tertiary" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    Cap:
+                    <input
+                      type="number"
+                      defaultValue={source.per_source_daily_cap}
+                      min={1} max={100} step={1}
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val !== source.per_source_daily_cap) {
+                          updateMutation.mutate({ id: source.id, per_source_daily_cap: val });
+                        }
+                      }}
+                      className="rounded border border-border-default bg-bg-base text-xs text-text-primary outline-none focus:border-accent"
+                      style={{ width: 44, padding: '2px 6px', textAlign: 'center' }}
+                    />/day
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    Min rel:
+                    <input
+                      type="number"
+                      defaultValue={source.per_source_min_relevance}
+                      min={0} max={1} step={0.05}
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val) && val !== source.per_source_min_relevance) {
+                          updateMutation.mutate({ id: source.id, per_source_min_relevance: val });
+                        }
+                      }}
+                      className="rounded border border-border-default bg-bg-base text-xs text-text-primary outline-none focus:border-accent"
+                      style={{ width: 50, padding: '2px 6px', textAlign: 'center' }}
+                    />
+                  </span>
                   {source.last_fetched_at && (
                     <span>
                       Last fetch: {formatDate(source.last_fetched_at)}
