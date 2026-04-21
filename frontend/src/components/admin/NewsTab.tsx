@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Play, Loader2, ToggleLeft, ToggleRight, AlertTriangle, ChevronDown, Activity } from 'lucide-react';
+import { Plus, Trash2, Play, Loader2, ToggleLeft, ToggleRight, AlertTriangle, ChevronDown, Activity, Check } from 'lucide-react';
 import api from '@/lib/api';
 import { cn, formatDate } from '@/lib/utils';
 import type { NewsSource } from '@/types/feed';
@@ -47,6 +47,8 @@ function NewsSourcesSection() {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
   const [form, setForm] = useState({ name: '', feed_url: '', website_url: '', authority_weight: '1.0' });
+  // Per-source edits: { [sourceId]: { per_source_daily_cap, per_source_min_relevance } }
+  const [edits, setEdits] = useState<Record<string, { per_source_daily_cap: number; per_source_min_relevance: number }>>({});
 
   const { data: sources, isLoading } = useQuery<NewsSource[]>({
     queryKey: ['admin', 'news-sources'],
@@ -71,7 +73,10 @@ function NewsSourcesSection() {
     mutationFn: async ({ id, ...data }: { id: string; [key: string]: any }) => {
       return (await api.patch(`/api/v1/admin/news-sources/${id}`, data)).data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'news-sources'] }),
+    onSuccess: (_data, variables) => {
+      setEdits((prev) => { const next = { ...prev }; delete next[variables.id]; return next; });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'news-sources'] });
+    },
   });
 
   const toggleMutation = useMutation({
@@ -193,12 +198,18 @@ function NewsSourcesSection() {
                     Cap:
                     <input
                       type="number"
-                      defaultValue={source.per_source_daily_cap}
+                      value={(edits[source.id]?.per_source_daily_cap ?? source.per_source_daily_cap)}
                       min={1} max={100} step={1}
-                      onBlur={(e) => {
+                      onChange={(e) => {
                         const val = parseInt(e.target.value);
-                        if (!isNaN(val) && val !== source.per_source_daily_cap) {
-                          updateMutation.mutate({ id: source.id, per_source_daily_cap: val });
+                        if (!isNaN(val)) {
+                          setEdits((prev) => ({
+                            ...prev,
+                            [source.id]: {
+                              per_source_daily_cap: val,
+                              per_source_min_relevance: prev[source.id]?.per_source_min_relevance ?? source.per_source_min_relevance,
+                            },
+                          }));
                         }
                       }}
                       className="rounded border border-border-default bg-bg-base text-xs text-text-primary outline-none focus:border-accent"
@@ -209,12 +220,18 @@ function NewsSourcesSection() {
                     Min rel:
                     <input
                       type="number"
-                      defaultValue={source.per_source_min_relevance}
+                      value={(edits[source.id]?.per_source_min_relevance ?? source.per_source_min_relevance)}
                       min={0} max={1} step={0.05}
-                      onBlur={(e) => {
+                      onChange={(e) => {
                         const val = parseFloat(e.target.value);
-                        if (!isNaN(val) && val !== source.per_source_min_relevance) {
-                          updateMutation.mutate({ id: source.id, per_source_min_relevance: val });
+                        if (!isNaN(val)) {
+                          setEdits((prev) => ({
+                            ...prev,
+                            [source.id]: {
+                              per_source_daily_cap: prev[source.id]?.per_source_daily_cap ?? source.per_source_daily_cap,
+                              per_source_min_relevance: val,
+                            },
+                          }));
                         }
                       }}
                       className="rounded border border-border-default bg-bg-base text-xs text-text-primary outline-none focus:border-accent"
@@ -237,6 +254,29 @@ function NewsSourcesSection() {
                     <AlertTriangle size={11} className="inline mr-1" />
                     {source.last_fetch_error}
                   </p>
+                )}
+                {edits[source.id] && (
+                  edits[source.id].per_source_daily_cap !== source.per_source_daily_cap ||
+                  edits[source.id].per_source_min_relevance !== source.per_source_min_relevance
+                ) && (
+                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                    <button
+                      onClick={() => updateMutation.mutate({ id: source.id, ...edits[source.id] })}
+                      disabled={updateMutation.isPending}
+                      className="flex items-center rounded-xl bg-accent font-mono text-xs font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                      style={{ gap: 6, padding: '8px 16px' }}
+                    >
+                      {updateMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                      Save Changes
+                    </button>
+                    <button
+                      onClick={() => setEdits((prev) => { const next = { ...prev }; delete next[source.id]; return next; })}
+                      className="rounded-xl font-mono text-xs text-text-secondary hover:text-text-primary"
+                      style={{ padding: '8px 16px' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 )}
               </div>
 
