@@ -1313,6 +1313,7 @@ function ReferencePapersTab() {
 
 function DisplayTab() {
   const settings = usePulseSettings();
+  const updateProfile = useUpdateProfile();
   const [draft, setDraft] = useState({
     showPulseCard: settings.showPulseCard,
     showNavBadge: settings.showNavBadge,
@@ -1327,6 +1328,12 @@ function DisplayTab() {
 
   const handleSave = () => {
     settings.saveAll(draft);
+    updateProfile.mutate({
+      show_pulse_card: draft.showPulseCard,
+      show_nav_badge: draft.showNavBadge,
+      show_sidebar_stat: draft.showSidebarStat,
+      show_weekly_toast: draft.showWeeklyToast,
+    });
   };
 
   const handleCancel = () => {

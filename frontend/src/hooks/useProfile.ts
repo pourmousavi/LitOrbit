@@ -1,15 +1,27 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type { UserProfile } from '@/types';
+import { usePulseSettings } from '@/stores/pulseSettingsStore';
 
 export function useProfile() {
-  return useQuery<UserProfile>({
+  const query = useQuery<UserProfile>({
     queryKey: ['profile'],
     queryFn: async () => {
       const { data } = await api.get('/api/v1/users/me');
       return data;
     },
   });
+
+  // Hydrate display settings from backend whenever profile loads
+  const hydrate = usePulseSettings((s) => s.hydrate);
+  useEffect(() => {
+    if (query.data) {
+      hydrate(query.data);
+    }
+  }, [query.data, hydrate]);
+
+  return query;
 }
 
 export function useUpdateProfile() {

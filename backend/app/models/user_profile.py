@@ -57,6 +57,11 @@ class UserProfile(Base):
     podcast_feed_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     podcast_feed_author: Mapped[str | None] = mapped_column(String, nullable=True)
     podcast_feed_cover_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Display preferences (synced across devices)
+    show_pulse_card: Mapped[bool] = mapped_column(Boolean, default=True)
+    show_nav_badge: Mapped[bool] = mapped_column(Boolean, default=True)
+    show_sidebar_stat: Mapped[bool] = mapped_column(Boolean, default=True)
+    show_weekly_toast: Mapped[bool] = mapped_column(Boolean, default=True)
     # Activity tracking
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

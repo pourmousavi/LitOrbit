@@ -76,6 +76,10 @@ export interface UserProfile {
   podcast_feed_description: string | null;
   podcast_feed_author: string | null;
   podcast_feed_cover_url: string | null;
+  show_pulse_card: boolean;
+  show_nav_badge: boolean;
+  show_sidebar_stat: boolean;
+  show_weekly_toast: boolean;
 }
 
 export interface ReferencePaper {

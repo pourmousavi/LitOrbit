@@ -52,6 +52,11 @@ class ProfileUpdate(BaseModel):
     podcast_feed_description: str | None = None
     podcast_feed_author: str | None = None
     podcast_feed_cover_url: str | None = None
+    # Display preferences
+    show_pulse_card: bool | None = None
+    show_nav_badge: bool | None = None
+    show_sidebar_stat: bool | None = None
+    show_weekly_toast: bool | None = None
 
 
 @router.get("/limits")
@@ -116,6 +121,10 @@ async def get_my_profile(
         "podcast_feed_description": profile.podcast_feed_description,
         "podcast_feed_author": profile.podcast_feed_author,
         "podcast_feed_cover_url": profile.podcast_feed_cover_url,
+        "show_pulse_card": profile.show_pulse_card,
+        "show_nav_badge": profile.show_nav_badge,
+        "show_sidebar_stat": profile.show_sidebar_stat,
+        "show_weekly_toast": profile.show_weekly_toast,
     }
 
 
@@ -203,6 +212,16 @@ async def update_my_profile(
         profile.podcast_feed_author = req.podcast_feed_author.strip() or None
     if req.podcast_feed_cover_url is not None:
         profile.podcast_feed_cover_url = req.podcast_feed_cover_url.strip() or None
+
+    # Display preferences
+    if req.show_pulse_card is not None:
+        profile.show_pulse_card = req.show_pulse_card
+    if req.show_nav_badge is not None:
+        profile.show_nav_badge = req.show_nav_badge
+    if req.show_sidebar_stat is not None:
+        profile.show_sidebar_stat = req.show_sidebar_stat
+    if req.show_weekly_toast is not None:
+        profile.show_weekly_toast = req.show_weekly_toast
 
     await db.commit()
     return {"status": "updated"}

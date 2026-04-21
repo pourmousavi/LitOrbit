@@ -5,29 +5,31 @@ export interface PulseSettingsState {
   showNavBadge: boolean;
   showSidebarStat: boolean;
   showWeeklyToast: boolean;
+  /** Hydrate from backend profile data */
+  hydrate: (profile: {
+    show_pulse_card: boolean;
+    show_nav_badge: boolean;
+    show_sidebar_stat: boolean;
+    show_weekly_toast: boolean;
+  }) => void;
+  /** Update local state immediately (backend save handled by caller) */
   saveAll: (settings: Pick<PulseSettingsState, 'showPulseCard' | 'showNavBadge' | 'showSidebarStat' | 'showWeeklyToast'>) => void;
 }
 
-const STORAGE_KEY = 'litorbit-pulse-settings';
-
-function loadSettings() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : {};
-  } catch {
-    return {};
-  }
-}
-
-const defaults = loadSettings();
-
 export const usePulseSettings = create<PulseSettingsState>((set) => ({
-  showPulseCard: defaults.showPulseCard ?? true,
-  showNavBadge: defaults.showNavBadge ?? true,
-  showSidebarStat: defaults.showSidebarStat ?? true,
-  showWeeklyToast: defaults.showWeeklyToast ?? true,
+  showPulseCard: true,
+  showNavBadge: true,
+  showSidebarStat: true,
+  showWeeklyToast: true,
+  hydrate: (profile) => {
+    set({
+      showPulseCard: profile.show_pulse_card,
+      showNavBadge: profile.show_nav_badge,
+      showSidebarStat: profile.show_sidebar_stat,
+      showWeeklyToast: profile.show_weekly_toast,
+    });
+  },
   saveAll: (settings) => {
     set(settings);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   },
 }));
