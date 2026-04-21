@@ -77,7 +77,7 @@ describe('mapPaperToScholarLib', () => {
 
     expect(result.import_source.litorbit_score).toBe(8.5)
     expect(result.import_source.litorbit_summary).toBeDefined()
-    expect(result.import_source.litorbit_summary.research_gap).toContain('calendar aging')
+    expect((result.import_source as any).litorbit_summary.research_gap).toContain('calendar aging')
   })
 
   it('excludes summary and score when includeSummary is false', () => {
