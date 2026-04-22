@@ -68,7 +68,7 @@ async def fetch_scopus_papers(
         keywords = []
         authkw = entry.get("authkeywords")
         if authkw and isinstance(authkw, str):
-            keywords = [k.strip() for k in authkw.split("|") if k.strip()]
+            keywords = [k.strip() for k in authkw.split("|") if k.strip()][:6]
 
         # Extract all authors
         authors = []

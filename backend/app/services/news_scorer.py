@@ -45,7 +45,7 @@ Format your response as JSON with these exact keys:
   "industry_impact": "What does this mean for the energy industry? (1-2 sentences)",
   "relevance": "Why is this relevant to energy systems researchers? (1 sentence)",
   "suggested_action": "read_fully | skim | monitor",
-  "categories": ["list", "of", "2-4", "topic", "categories"]
+  "categories": ["list", "of", "2-6", "topic", "categories"]
 }}"""
 
 
@@ -209,6 +209,6 @@ async def score_and_summarise_news_item(
             item.summary = json.dumps(summary)
             item.summary_generated_at = datetime.now(timezone.utc)
             if summary.get("categories"):
-                item.categories = summary["categories"]
+                item.categories = summary["categories"][:6]
 
     await db.commit()

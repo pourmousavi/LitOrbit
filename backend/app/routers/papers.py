@@ -390,7 +390,7 @@ async def rescore_paper(
         summary = await generate_summary(paper_dict)
         if summary:
             paper.summary = json.dumps(summary)
-            paper.categories = summary.get("categories", [])
+            paper.categories = summary.get("categories", [])[:6]
             paper.summary_generated_at = datetime.now(timezone.utc)
             summary_regenerated = True
 
@@ -469,7 +469,7 @@ async def upload_pdf(
                 bg_paper = bg_result.scalar_one_or_none()
                 if bg_paper:
                     bg_paper.summary = json.dumps(summary)
-                    bg_paper.categories = summary.get("categories", [])
+                    bg_paper.categories = summary.get("categories", [])[:6]
                     bg_paper.summary_generated_at = datetime.now(timezone.utc)
                     await bg_db.commit()
                     logger.info(f"Regenerated summary for paper {paper_id} with full text")

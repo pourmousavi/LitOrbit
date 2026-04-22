@@ -233,6 +233,46 @@ async def unified_feed(
     total = len(items)
     page_items = items[offset:offset + size]
 
+    # --- Facet counts (always computed regardless of type filter) ---
+    if type != "all":
+        if type == "news":
+            # Papers weren't queried — run a lightweight count
+            facet_papers_q = (
+                select(func.count())
+                .select_from(Paper)
+                .join(PaperScore, (PaperScore.paper_id == Paper.id) & (PaperScore.user_id == user_id))
+            )
+            if date_from:
+                facet_papers_q = facet_papers_q.where(Paper.published_date >= date_from)
+            if date_to:
+                facet_papers_q = facet_papers_q.where(Paper.published_date <= date_to)
+            if min_relevance is not None:
+                facet_papers_q = facet_papers_q.where(PaperScore.relevance_score >= min_relevance)
+            if search:
+                facet_papers_q = facet_papers_q.where(
+                    Paper.title.ilike(f"%{search}%") | Paper.abstract.ilike(f"%{search}%")
+                )
+            total_papers = (await db.execute(facet_papers_q)).scalar() or 0
+        else:
+            # News wasn't queried — run a lightweight count
+            facet_news_q = (
+                select(func.count())
+                .select_from(NewsItem)
+                .join(NewsSource, NewsSource.id == NewsItem.source_id)
+                .where(NewsItem.is_cluster_primary == True)
+            )
+            if date_from:
+                facet_news_q = facet_news_q.where(func.date(NewsItem.published_at) >= date_from)
+            if date_to:
+                facet_news_q = facet_news_q.where(func.date(NewsItem.published_at) <= date_to)
+            if min_relevance is not None:
+                facet_news_q = facet_news_q.where(NewsItem.relevance_score >= min_relevance)
+            if search:
+                facet_news_q = facet_news_q.where(
+                    NewsItem.title.ilike(f"%{search}%") | NewsItem.excerpt.ilike(f"%{search}%")
+                )
+            total_news = (await db.execute(facet_news_q)).scalar() or 0
+
     return {
         "items": page_items,
         "facets": {

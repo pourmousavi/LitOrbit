@@ -27,7 +27,7 @@ Format your response as JSON with these exact keys:
   "key_findings": "What are the 3-5 most important results or conclusions?",
   "relevance_to_energy_group": "Why is this relevant to energy systems research? (1-2 sentences)",
   "suggested_action": "read_fully | skim | monitor",
-  "categories": ["list", "of", "2-4", "topic", "categories"]
+  "categories": ["list", "of", "2-6", "topic", "categories"]
 }}"""
 
 REQUIRED_KEYS = {

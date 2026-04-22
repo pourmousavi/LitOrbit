@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Search, X, Plus, Link, Loader2, ArrowUpDown, Bookmark } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/stores/uiStore';
-import { usePapers } from '@/hooks/usePapers';
 import { useFeed } from '@/hooks/useFeed';
 import { useEngagement } from '@/hooks/useEngagement';
 import PaperFeed from '@/components/papers/PaperFeed';
@@ -31,10 +30,6 @@ export default function Feed() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const queryClient = useQueryClient();
 
-  // Paper count (for "Papers" tab badge)
-  const { data: papersData } = usePapers({ search: debouncedSearch || undefined, sort, favorites: favoritesOnly });
-  const totalPapers = papersData?.pages?.[0]?.total ?? null;
-
   // Unified feed filters
   const unifiedSort = sort === 'score' ? 'relevance' : sort === 'newest' ? 'date_desc' : sort === 'oldest' ? 'date_asc' : 'relevance';
   const feedFilters: Partial<FeedFilters> = {
@@ -42,7 +37,7 @@ export default function Feed() {
     sort: unifiedSort as FeedFilters['sort'],
     search: debouncedSearch || null,
   };
-  const feedQuery = useFeed(feedFilters, feedType !== 'papers');
+  const feedQuery = useFeed(feedFilters);
   const facets = feedQuery.data?.pages?.[0]?.facets?.by_type;
 
   const { data: pulse } = useEngagement();
@@ -92,9 +87,9 @@ export default function Feed() {
           <div className="mb-6" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <h1 style={{ fontWeight: 600, display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }} className="font-mono text-text-primary text-xl">
               {feedTitle}
-              {feedType === 'papers' && totalPapers !== null && (
+              {feedType === 'papers' && facets && (
                 <span className="font-mono text-text-tertiary" style={{ fontSize: 12, fontWeight: 400 }}>
-                  {totalPapers.toLocaleString()}
+                  {facets.papers.toLocaleString()}
                 </span>
               )}
             </h1>
@@ -217,9 +212,9 @@ export default function Feed() {
                 style={{ padding: '6px 12px', flexShrink: 0 }}
               >
                 {label}
-                {value === 'papers' && totalPapers !== null && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{totalPapers}</span>}
+                {value === 'papers' && facets && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{facets.papers}</span>}
                 {value === 'news' && facets && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{facets.news}</span>}
-                {value === 'all' && totalPapers !== null && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{totalPapers + (facets?.news ?? 0)}</span>}
+                {value === 'all' && facets && <span className={cn('ml-1', feedType === value ? 'text-white/70' : 'text-text-tertiary')}>{facets.papers + facets.news}</span>}
               </button>
             ))}
 

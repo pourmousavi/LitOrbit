@@ -94,12 +94,11 @@ async def fetch_ieee_papers(
                 raw = [raw]
             authors_list = [a.get("full_name", "") for a in raw if a.get("full_name")]
 
-        # Extract keywords from index_terms
+        # Extract only author-provided keywords (ignore INSPEC/IEEE controlled vocab)
         keywords = []
-        index_terms = article.get("index_terms", {})
-        for term_group in index_terms.values():
-            if isinstance(term_group, dict) and "terms" in term_group:
-                keywords.extend(term_group["terms"])
+        author_terms = article.get("index_terms", {}).get("author_terms", {})
+        if isinstance(author_terms, dict) and "terms" in author_terms:
+            keywords = author_terms["terms"][:6]
 
         papers.append({
             "doi": article.get("doi"),

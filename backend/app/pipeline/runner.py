@@ -536,7 +536,7 @@ async def score_and_summarise_papers(
             paper_obj = await db.get(Paper, paper_id)
             if paper_obj:
                 paper_obj.summary = json_module.dumps(summary)
-                paper_obj.categories = summary.get("categories", [])
+                paper_obj.categories = summary.get("categories", [])[:6]
                 paper_obj.summary_generated_at = datetime.now(timezone.utc)
                 batch_written += 1
         await db.commit()
