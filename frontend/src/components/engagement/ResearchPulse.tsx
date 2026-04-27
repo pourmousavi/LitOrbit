@@ -21,7 +21,7 @@ export default function ResearchPulse() {
   const totalMembers = pulse.leaderboard.length;
   const top3 = pulse.leaderboard.slice(0, 3);
   const medalEmoji = ['', '', ''];
-  const changeVsLastWeek = pulse.weekly_points - pulse.last_week_points;
+  const changeVsLastWeek = pulse.weekly_points - pulse.prior_7d_points;
 
   return (
     <div
@@ -153,6 +153,12 @@ function PulseDetail({ pulse }: { pulse: PulseData }) {
           <span style={{ color: 'var(--color-text-primary, #f0f0f0)', fontVariantNumeric: 'tabular-nums' }}>
             {pulse.weekly_stats.opened + (pulse.weekly_stats.news_viewed || 0)}
           </span> opened
+        </span>
+        <span className="font-mono" style={{ fontSize: 12, color: '#888' }}>
+          <span style={{ color: 'var(--color-text-primary, #f0f0f0)', fontVariantNumeric: 'tabular-nums' }}>
+            {pulse.lifetime_points.toLocaleString()}
+          </span>
+          <span style={{ color: '#555' }}> pts lifetime</span>
         </span>
       </div>
 

@@ -1001,6 +1001,9 @@ function RunAccordion({ run, rescoreMutation, deleteBatchMutation }: {
           {/* Step-by-step log */}
           {run.run_log && run.run_log.length > 0 && <RunLogSteps log={run.run_log} />}
 
+          {/* Rejected papers — papers that didn't make it onto the feed */}
+          {run.status === 'success' && <RejectedPapersSection runId={run.id} />}
+
           {/* Error / info message */}
           {run.error_message && (
             <p
@@ -1047,6 +1050,109 @@ function RunAccordion({ run, rescoreMutation, deleteBatchMutation }: {
               )}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface RejectedPaper {
+  paper_id: string;
+  title: string;
+  journal: string | null;
+  rejected_by: string | null;
+  max_positive_sim: number;
+  max_negative_sim: number;
+  effective_score: number;
+  threshold_used: number;
+  lambda_used: number;
+}
+
+const REJECTION_LABELS: Record<string, string> = {
+  knn_gate: 'Below relevance threshold',
+  negative_title: 'Negative title keyword',
+  'abstract_quality:missing': 'Missing abstract',
+  'abstract_quality:too_short': 'Abstract too short',
+  'abstract_quality:author_bios': 'Abstract is author bios',
+  no_embedding: 'No embedding available',
+};
+
+function rejectionLabel(reason: string | null): string {
+  if (!reason) return 'Unknown';
+  return REJECTION_LABELS[reason] || reason;
+}
+
+function RejectedPapersSection({ runId }: { runId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data, isLoading } = useQuery<RejectedPaper[]>({
+    queryKey: ['admin', 'pipeline-runs', runId, 'rejected-papers'],
+    queryFn: async () => {
+      const { data } = await api.get(`/api/v1/admin/pipeline/runs/${runId}/rejected-papers`);
+      return data;
+    },
+    enabled: expanded,
+    staleTime: 60_000,
+  });
+
+  // Group by rejected_by
+  const grouped: Record<string, RejectedPaper[]> = {};
+  (data || []).forEach((p) => {
+    const key = p.rejected_by || 'unknown';
+    (grouped[key] ||= []).push(p);
+  });
+  const groupKeys = Object.keys(grouped).sort();
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center font-mono text-text-secondary transition hover:text-text-primary"
+        style={{ gap: 6, fontSize: 12 }}
+      >
+        <ChevronDown size={12} className={cn('transition-transform', expanded && 'rotate-180')} />
+        Papers excluded from your feed
+        {data && <span className="text-text-tertiary"> — {data.length}</span>}
+      </button>
+
+      {expanded && (
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {isLoading && (
+            <div className="flex items-center font-mono text-text-tertiary" style={{ gap: 8, fontSize: 12 }}>
+              <Loader2 size={12} className="animate-spin" />
+              Loading…
+            </div>
+          )}
+          {!isLoading && data && data.length === 0 && (
+            <div className="font-mono text-text-tertiary" style={{ fontSize: 12 }}>
+              Every evaluated paper passed your relevance gate.
+            </div>
+          )}
+          {!isLoading && groupKeys.map((key) => (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="font-mono text-text-tertiary" style={{ fontSize: 11, letterSpacing: '0.04em' }}>
+                {rejectionLabel(key)} <span style={{ color: '#555' }}>({grouped[key].length})</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 10 }}>
+                {grouped[key].map((p) => (
+                  <div key={p.paper_id} className="font-mono" style={{
+                    fontSize: 12, display: 'flex', alignItems: 'baseline', gap: 8,
+                    color: 'var(--color-text-primary, #f0f0f0)',
+                  }}>
+                    <span style={{ flex: 1 }}>
+                      {p.title}
+                      {p.journal && <span className="text-text-tertiary"> — {p.journal}</span>}
+                    </span>
+                    {key === 'knn_gate' && (
+                      <span className="text-text-tertiary" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        eff {p.effective_score.toFixed(3)} / thr {p.threshold_used.toFixed(2)}
+                        <span style={{ color: '#555' }}> · pos {p.max_positive_sim.toFixed(3)} · neg {p.max_negative_sim.toFixed(3)}</span>
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

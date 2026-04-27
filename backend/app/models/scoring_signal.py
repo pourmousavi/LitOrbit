@@ -15,11 +15,13 @@ class ScoringSignal(Base):
     __table_args__ = (
         UniqueConstraint("paper_id", "user_id", name="uq_scoring_signal_paper_user"),
         Index("ix_scoring_signal_user_created", "user_id", "created_at"),
+        Index("ix_scoring_signal_run_user", "pipeline_run_id", "user_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(), primary_key=True, default=uuid.uuid4)
     paper_id: Mapped[uuid.UUID] = mapped_column(UUID(), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(), ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False)
+    pipeline_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("pipeline_runs.id", ondelete="SET NULL"), nullable=True)
     max_positive_sim: Mapped[float] = mapped_column(Float, nullable=False)
     max_negative_sim: Mapped[float] = mapped_column(Float, nullable=False)
     effective_score: Mapped[float] = mapped_column(Float, nullable=False)

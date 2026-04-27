@@ -361,6 +361,7 @@ async def score_and_summarise_papers(
                         id=uuid.uuid4(),
                         paper_id=uuid.UUID(pd["id"]),
                         user_id=uid,
+                        pipeline_run_id=run.id,
                         max_positive_sim=round(max_pos, 6),
                         max_negative_sim=round(max_neg, 6),
                         effective_score=round(effective, 6),

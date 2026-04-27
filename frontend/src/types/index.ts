@@ -163,6 +163,7 @@ export interface PulseData {
   unreviewed_count: number;
   weekly_stats: ActivityBreakdown;
   weekly_points: number;
+  lifetime_points: number;
   streak: number;
   best_streak: number;
   lab_total_papers: number;
@@ -170,6 +171,6 @@ export interface PulseData {
   lab_review_pct: number;
   leaderboard: LeaderboardEntry[];
   week_start: string;
-  last_week_points: number;
-  last_week_rated: number;
+  prior_7d_points: number;
+  prior_7d_rated: number;
 }

@@ -14,7 +14,7 @@ from app.models.podcast import Podcast
 from app.models.share import Share
 from app.models.collection import Collection, CollectionPaper
 from app.models.user_profile import UserProfile
-from app.routers.engagement import compute_streak, _user_weekly_stats, _compute_points, _week_boundaries
+from app.routers.engagement import compute_streak, _user_weekly_stats, _compute_points, _rolling_windows
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +178,7 @@ async def test_points_rating(db_session):
     pid = await _seed_paper(db_session)
     await _seed_rating(db_session, uid, pid, rated_at=_now())
     await db_session.commit()
-    this_start, this_end, _, _ = _week_boundaries()
+    this_start, this_end, _, _ = _rolling_windows()
     stats = await _user_weekly_stats(db_session, uid, this_start, this_end)
     assert stats.rated == 1
     assert _compute_points(stats) >= 10
@@ -194,7 +194,7 @@ async def test_points_podcast(db_session):
         generated_at=_now(),
     ))
     await db_session.commit()
-    this_start, this_end, _, _ = _week_boundaries()
+    this_start, this_end, _, _ = _rolling_windows()
     stats = await _user_weekly_stats(db_session, uid, this_start, this_end)
     assert stats.podcasts == 1
     pts = _compute_points(stats)
@@ -212,7 +212,7 @@ async def test_points_collection(db_session):
         id=uuid.uuid4(), collection_id=col.id, paper_id=pid, added_at=_now(),
     ))
     await db_session.commit()
-    this_start, this_end, _, _ = _week_boundaries()
+    this_start, this_end, _, _ = _rolling_windows()
     stats = await _user_weekly_stats(db_session, uid, this_start, this_end)
     assert stats.collected == 1
     assert _compute_points(stats) >= 3
@@ -228,7 +228,7 @@ async def test_points_share(db_session):
         shared_at=_now(),
     ))
     await db_session.commit()
-    this_start, this_end, _, _ = _week_boundaries()
+    this_start, this_end, _, _ = _rolling_windows()
     stats = await _user_weekly_stats(db_session, uid, this_start, this_end)
     assert stats.shared == 1
     assert _compute_points(stats) >= 5
@@ -240,7 +240,7 @@ async def test_points_opened(db_session):
     pid = await _seed_paper(db_session)
     db_session.add(PaperView(user_id=uid, paper_id=pid, viewed_at=_now()))
     await db_session.commit()
-    this_start, this_end, _, _ = _week_boundaries()
+    this_start, this_end, _, _ = _rolling_windows()
     stats = await _user_weekly_stats(db_session, uid, this_start, this_end)
     assert stats.opened == 1
     assert _compute_points(stats) >= 1
@@ -266,7 +266,7 @@ async def test_points_combined(db_session):
         id=uuid.uuid4(), collection_id=col.id, paper_id=p1, added_at=_now(),
     ))
     await db_session.commit()
-    this_start, this_end, _, _ = _week_boundaries()
+    this_start, this_end, _, _ = _rolling_windows()
     stats = await _user_weekly_stats(db_session, uid, this_start, this_end)
     base_points = stats.rated * 10 + stats.podcasts * 5 + stats.collected * 3
     assert base_points == 28
@@ -283,7 +283,7 @@ async def test_points_only_current_week(db_session):
     await _seed_rating(db_session, uid, p1, rated_at=_now())
     await _seed_rating(db_session, uid, p2, rated_at=_days_ago(10))
     await db_session.commit()
-    this_start, this_end, _, _ = _week_boundaries()
+    this_start, this_end, _, _ = _rolling_windows()
     stats = await _user_weekly_stats(db_session, uid, this_start, this_end)
     assert stats.rated == 1
 
@@ -295,7 +295,7 @@ async def test_points_previous_week_excluded(db_session):
     pid = await _seed_paper(db_session)
     await _seed_rating(db_session, uid, pid, rated_at=_days_ago(10))
     await db_session.commit()
-    this_start, this_end, _, _ = _week_boundaries()
+    this_start, this_end, _, _ = _rolling_windows()
     stats = await _user_weekly_stats(db_session, uid, this_start, this_end)
     assert stats.rated == 0
     assert _compute_points(stats) == 0
@@ -524,9 +524,9 @@ async def test_pulse_returns_200(test_client, db_session):
     assert resp.status_code == 200
     data = resp.json()
     expected_keys = {
-        "unreviewed_count", "weekly_stats", "weekly_points", "streak",
+        "unreviewed_count", "weekly_stats", "weekly_points", "lifetime_points", "streak",
         "best_streak", "lab_total_papers", "lab_reviewed", "lab_review_pct",
-        "leaderboard", "week_start", "last_week_points", "last_week_rated",
+        "leaderboard", "week_start", "prior_7d_points", "prior_7d_rated",
     }
     assert expected_keys.issubset(set(data.keys()))
 
@@ -559,19 +559,19 @@ async def test_pulse_empty_state(test_client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_pulse_weekly_boundary(test_client, db_session):
-    """Rating on Monday 00:01 counts; previous Sunday 23:59 does not."""
+async def test_pulse_rolling_window_boundary(test_client, db_session):
+    """Ratings inside the rolling 7-day window count; the one just before doesn't."""
     uid = uuid.uuid4()
     await _seed_user(db_session, user_id=uid)
 
-    this_start, this_end, _, _ = _week_boundaries()
-    # Paper rated at start of current week (Monday 00:01)
+    this_start, this_end, _, _ = _rolling_windows()
+    # Just inside the window's leading edge (1 min after now-7d)
     p1 = await _seed_paper(db_session)
     await _seed_rating(db_session, uid, p1, rated_at=this_start + timedelta(minutes=1))
-    # Paper rated at end of current week (Sunday 23:58)
+    # Just inside the window's trailing edge (2 min before now)
     p2 = await _seed_paper(db_session)
     await _seed_rating(db_session, uid, p2, rated_at=this_end - timedelta(minutes=2))
-    # Paper rated previous Sunday 23:59 (just before this week)
+    # Just outside the window (1 min before now-7d)
     p3 = await _seed_paper(db_session)
     await _seed_rating(db_session, uid, p3, rated_at=this_start - timedelta(minutes=1))
     await db_session.commit()
@@ -582,4 +582,4 @@ async def test_pulse_weekly_boundary(test_client, db_session):
     resp = await test_client.get("/api/v1/engagement/pulse")
     del app.dependency_overrides[get_current_user]
     data = resp.json()
-    assert data["weekly_stats"]["rated"] == 2  # Monday + Sunday of this week
+    assert data["weekly_stats"]["rated"] == 2  # both inside-window papers

@@ -17,6 +17,7 @@ const mockPulse = {
   unreviewed_count: 5,
   weekly_stats: { rated: 3, podcasts: 1, collected: 0, shared: 0, opened: 2, login_days: 2 },
   weekly_points: 37,
+  lifetime_points: 412,
   streak: 2,
   best_streak: 4,
   lab_total_papers: 10,
@@ -24,8 +25,8 @@ const mockPulse = {
   lab_review_pct: 50.0,
   leaderboard: [],
   week_start: '2026-04-13',
-  last_week_points: 20,
-  last_week_rated: 2,
+  prior_7d_points: 20,
+  prior_7d_rated: 2,
 };
 
 function createWrapper() {

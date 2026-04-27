@@ -53,6 +53,7 @@ class PulseResponse(BaseModel):
     unreviewed_count: int
     weekly_stats: ActivityBreakdown
     weekly_points: int
+    lifetime_points: int
     streak: int
     best_streak: int
     lab_total_papers: int
@@ -60,27 +61,27 @@ class PulseResponse(BaseModel):
     lab_review_pct: float
     leaderboard: list[LeaderboardEntry]
     week_start: str
-    last_week_points: int
-    last_week_rated: int
+    prior_7d_points: int
+    prior_7d_rated: int
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _week_boundaries(tz: ZoneInfo | None = None) -> tuple[datetime, datetime, datetime, datetime]:
-    """Return (this_week_start, this_week_end, last_week_start, last_week_end) as UTC datetimes,
-    with week boundaries aligned to the user's local timezone."""
-    user_tz = tz or ZoneInfo("Australia/Adelaide")
-    now = datetime.now(user_tz)
-    # Monday 00:00 of current week in user's timezone, then convert to UTC
-    today = now.date()
-    monday = today - timedelta(days=today.weekday())
-    this_start = datetime(monday.year, monday.month, monday.day, tzinfo=user_tz).astimezone(timezone.utc)
-    this_end = this_start + timedelta(days=7)
-    last_start = this_start - timedelta(days=7)
-    last_end = this_start
-    return this_start, this_end, last_start, last_end
+def _rolling_windows() -> tuple[datetime, datetime, datetime, datetime]:
+    """Return (this_start, this_end, prior_start, prior_end) as UTC datetimes
+    for two contiguous rolling 7-day windows ending now.
+
+    No timezone alignment is needed because the windows slide continuously
+    instead of resetting at a calendar boundary.
+    """
+    now = datetime.now(timezone.utc)
+    this_end = now
+    this_start = now - timedelta(days=7)
+    prior_end = this_start
+    prior_start = this_start - timedelta(days=7)
+    return this_start, this_end, prior_start, prior_end
 
 
 async def _count_in_range(db: AsyncSession, stmt, start: datetime, end: datetime) -> int:
@@ -292,7 +293,7 @@ async def get_pulse(
     except (KeyError, Exception):
         user_tz = ZoneInfo("Australia/Adelaide")
 
-    this_start, this_end, last_start, last_end = _week_boundaries(user_tz)
+    this_start, this_end, prior_start, prior_end = _rolling_windows()
 
     # Unreviewed: all papers scored for this user that have not been rated
     rated_paper_ids = select(Rating.paper_id).where(Rating.user_id == user_uuid)
@@ -303,14 +304,20 @@ async def get_pulse(
         )
     )).scalar() or 0
 
-    # Personal weekly stats
+    # Rolling 7-day stats
     weekly_stats = await _user_weekly_stats(db, user_uuid, this_start, this_end)
     weekly_points = _compute_points(weekly_stats)
+
+    # Lifetime stats — pass an effectively-unbounded window
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    far_future = datetime(9999, 1, 1, tzinfo=timezone.utc)
+    lifetime_stats = await _user_weekly_stats(db, user_uuid, epoch, far_future)
+    lifetime_points = _compute_points(lifetime_stats)
 
     # Streak (using user's timezone for day boundaries)
     streak, best_streak = await compute_streak(db, user_uuid, user_tz)
 
-    # Lab pulse: papers scored this week (any user) vs papers rated this week (any user)
+    # Lab pulse: papers scored / rated within the rolling 7-day window
     lab_total = (await db.execute(
         select(func.count(func.distinct(PaperScore.paper_id))).where(
             PaperScore.scored_at >= this_start,
@@ -327,7 +334,7 @@ async def get_pulse(
 
     lab_pct = round(lab_reviewed / lab_total * 100, 1) if lab_total > 0 else 0.0
 
-    # Leaderboard: weekly stats for all users
+    # Leaderboard: rolling-7-day stats for all users
     users_result = await db.execute(select(UserProfile.id, UserProfile.full_name))
     all_users = users_result.all()
 
@@ -344,14 +351,15 @@ async def get_pulse(
         ))
     leaderboard.sort(key=lambda e: e.points, reverse=True)
 
-    # Last week stats for Monday toast
-    last_week_stats = await _user_weekly_stats(db, user_uuid, last_start, last_end)
-    last_week_points = _compute_points(last_week_stats)
+    # Prior 7-day window (now-14d → now-7d) for week-over-week deltas + Monday toast
+    prior_stats = await _user_weekly_stats(db, user_uuid, prior_start, prior_end)
+    prior_7d_points = _compute_points(prior_stats)
 
     return PulseResponse(
         unreviewed_count=unreviewed,
         weekly_stats=weekly_stats,
         weekly_points=weekly_points,
+        lifetime_points=lifetime_points,
         streak=streak,
         best_streak=best_streak,
         lab_total_papers=lab_total,
@@ -359,6 +367,6 @@ async def get_pulse(
         lab_review_pct=lab_pct,
         leaderboard=leaderboard,
         week_start=this_start.date().isoformat(),
-        last_week_points=last_week_points,
-        last_week_rated=last_week_stats.rated,
+        prior_7d_points=prior_7d_points,
+        prior_7d_rated=prior_stats.rated,
     )

@@ -531,6 +531,66 @@ async def list_pipeline_runs(
     ]
 
 
+@router.get("/pipeline/runs/{run_id}/rejected-papers")
+async def list_run_rejected_papers(
+    run_id: str,
+    _admin: dict[str, Any] = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Return papers that were rejected by the relevance gates for the
+    requesting user during this pipeline run.
+
+    Rows include the rejection reason and the gate numbers (max positive /
+    negative similarity, effective score, threshold) so admins can tune
+    anchors based on near-misses.
+    """
+    from app.models.paper import Paper
+    from app.models.scoring_signal import ScoringSignal
+
+    try:
+        run_uuid = uuid.UUID(run_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid run id")
+
+    user_uuid = uuid.UUID(_admin["id"])
+
+    q = (
+        select(
+            Paper.id,
+            Paper.title,
+            Paper.journal,
+            ScoringSignal.rejected_by,
+            ScoringSignal.max_positive_sim,
+            ScoringSignal.max_negative_sim,
+            ScoringSignal.effective_score,
+            ScoringSignal.threshold_used,
+            ScoringSignal.lambda_used,
+        )
+        .join(Paper, Paper.id == ScoringSignal.paper_id)
+        .where(
+            ScoringSignal.pipeline_run_id == run_uuid,
+            ScoringSignal.user_id == user_uuid,
+            ScoringSignal.passed_gate.is_(False),
+        )
+        .order_by(ScoringSignal.effective_score.desc())
+    )
+    rows = (await db.execute(q)).all()
+    return [
+        {
+            "paper_id": str(r.id),
+            "title": r.title,
+            "journal": r.journal,
+            "rejected_by": r.rejected_by,
+            "max_positive_sim": r.max_positive_sim,
+            "max_negative_sim": r.max_negative_sim,
+            "effective_score": r.effective_score,
+            "threshold_used": r.threshold_used,
+            "lambda_used": r.lambda_used,
+        }
+        for r in rows
+    ]
+
+
 @router.post("/pipeline/trigger")
 async def trigger_pipeline(
     background_tasks: BackgroundTasks,

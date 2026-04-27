@@ -9,6 +9,7 @@ const mockPulse: PulseData = {
   unreviewed_count: 6,
   weekly_stats: mockActivity,
   weekly_points: 105,
+  lifetime_points: 1280,
   streak: 5,
   best_streak: 5,
   lab_total_papers: 20,
@@ -20,8 +21,8 @@ const mockPulse: PulseData = {
     { user_id: 'u3', full_name: 'Bob', points: 30, activity: { ...mockActivity, rated: 3 }, is_current_user: false },
   ],
   week_start: '2026-04-13',
-  last_week_points: 80,
-  last_week_rated: 6,
+  prior_7d_points: 80,
+  prior_7d_rated: 6,
 };
 
 let mockReturn = { data: mockPulse as PulseData | undefined, isLoading: false, isError: false };

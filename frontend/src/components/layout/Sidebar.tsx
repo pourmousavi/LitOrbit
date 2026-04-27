@@ -82,8 +82,11 @@ export default function Sidebar() {
             </span>
             <span style={{ width: 1, height: 9, background: 'var(--color-border-default, #2a2a2a)', margin: '0 6px' }} />
             <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-primary, #f0f0f0)',
-              fontVariantNumeric: 'tabular-nums' }}>
+              fontVariantNumeric: 'tabular-nums' }}
+              title={`${pulse.weekly_points} pts in last 7 days · ${pulse.lifetime_points} pts lifetime`}>
               {pulse.weekly_points}<span style={{ color: '#555' }}>pts</span>
+              <span style={{ color: '#555' }}> · </span>
+              {pulse.lifetime_points.toLocaleString()}<span style={{ color: '#555' }}>life</span>
             </span>
             <span style={{ width: 1, height: 9, background: 'var(--color-border-default, #2a2a2a)', margin: '0 6px' }} />
             <span className="font-mono" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums',

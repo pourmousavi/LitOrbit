@@ -51,8 +51,8 @@ export default function Feed() {
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
     const weekKey = monday.toISOString().slice(0, 10);
     const shown = localStorage.getItem('litorbit-weekly-summary-shown');
-    if (shown !== weekKey && pulse.last_week_rated > 0) {
-      toast('info', `Last week: ${pulse.last_week_rated} papers rated, ${pulse.last_week_points} pts`);
+    if (shown !== weekKey && pulse.prior_7d_rated > 0) {
+      toast('info', `Prior 7 days: ${pulse.prior_7d_rated} papers rated, ${pulse.prior_7d_points} pts`);
       localStorage.setItem('litorbit-weekly-summary-shown', weekKey);
     }
   }, [pulse, showWeeklyToast]);
