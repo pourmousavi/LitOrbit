@@ -177,15 +177,19 @@ async def score_and_summarise_news_item(
     db: AsyncSession,
     item: NewsItem,
     source_name: str,
-) -> None:
-    """Score and summarise a single news item, updating the DB row."""
+) -> bool:
+    """Score and summarise a single news item, updating the DB row.
+
+    Returns True if scoring set ``llm_score`` (success), False if the LLM
+    call failed and the row stayed unscored.
+    """
     from sqlalchemy import select
 
     # Get first user for scoring (single-user system)
     user_result = await db.execute(select(UserProfile).limit(1))
     user_profile = user_result.scalar_one_or_none()
     if not user_profile:
-        return
+        return False
 
     user_dict = {
         "id": str(user_profile.id),
@@ -197,9 +201,14 @@ async def score_and_summarise_news_item(
 
     # Score
     score_result = await score_news_for_user(item, user_dict, source_name)
-    if not score_result.get("error"):
+    score_succeeded = not score_result.get("error")
+    if score_succeeded:
         item.llm_score = score_result["score"]
         item.llm_score_reasoning = score_result["reasoning"]
+    else:
+        # Persist the failure reason so admins can diagnose stuck items via SQL
+        # without needing access to backend logs. llm_score stays NULL.
+        item.llm_score_reasoning = f"[scoring failed] {score_result.get('reasoning', '')}"[:500]
 
     # Summarise (only if we have enough content)
     content = item.full_text or item.excerpt or ""
@@ -212,3 +221,4 @@ async def score_and_summarise_news_item(
                 item.categories = summary["categories"][:6]
 
     await db.commit()
+    return score_succeeded

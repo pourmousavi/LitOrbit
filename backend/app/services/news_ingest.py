@@ -153,7 +153,7 @@ async def _process_batch(
 
     Returns summary stats.
     """
-    stats = {"new": 0, "skipped_exists": 0, "skipped_cap": 0, "embedded": 0, "errors": 0}
+    stats = {"new": 0, "skipped_exists": 0, "skipped_cap": 0, "embedded": 0, "scored": 0, "score_failed": 0, "errors": 0}
 
     today_count = await _count_today_items(db, source.id)
     cap = int(source.per_source_daily_cap)
@@ -238,21 +238,31 @@ async def _process_batch(
 
     # Score and summarise all primary items
     scored = 0
+    score_failed = 0
     for item in items_to_insert:
         if item.is_cluster_primary:
             try:
                 from app.services.news_scorer import score_and_summarise_news_item
-                await score_and_summarise_news_item(db, item, source.name)
-                scored += 1
+                ok = await score_and_summarise_news_item(db, item, source.name)
+                if ok:
+                    scored += 1
+                else:
+                    score_failed += 1
             except Exception as e:
-                logger.warning("Score/summarise failed for '%s': %s", item.title[:50], e)
+                logger.warning("Score/summarise crashed for '%s': %s", item.title[:50], e)
+                score_failed += 1
     stats["scored"] = scored
+    stats["score_failed"] = score_failed
 
     return stats
 
 
-async def _score_unscored_items(db: AsyncSession, source: NewsSource) -> int:
-    """Score and summarise existing news items that haven't been LLM-scored yet."""
+async def _score_unscored_items(db: AsyncSession, source: NewsSource) -> tuple[int, int]:
+    """Score and summarise existing news items that haven't been LLM-scored yet.
+
+    Returns ``(scored, failed)`` so callers can distinguish silent LLM failures
+    (where ``score_news_for_user`` returned ``error=True``) from successes.
+    """
     from app.services.news_scorer import score_and_summarise_news_item
 
     result = await db.execute(
@@ -265,13 +275,18 @@ async def _score_unscored_items(db: AsyncSession, source: NewsSource) -> int:
     )
     unscored = result.scalars().all()
     scored = 0
+    failed = 0
     for item in unscored:
         try:
-            await score_and_summarise_news_item(db, item, source.name)
-            scored += 1
+            ok = await score_and_summarise_news_item(db, item, source.name)
+            if ok:
+                scored += 1
+            else:
+                failed += 1
         except Exception as e:
-            logger.warning("Score/summarise failed for '%s': %s", item.title[:50], e)
-    return scored
+            logger.warning("Score/summarise crashed for '%s': %s", item.title[:50], e)
+            failed += 1
+    return scored, failed
 
 
 async def ingest_source(db: AsyncSession, source: NewsSource, run_id: "uuid.UUID | None" = None) -> dict:
@@ -284,15 +299,17 @@ async def ingest_source(db: AsyncSession, source: NewsSource, run_id: "uuid.UUID
     stats = await _process_batch(db, source, feed.entries, run_id=run_id)
 
     # Also score any existing items that haven't been LLM-scored yet
-    backfill_scored = await _score_unscored_items(db, source)
+    backfill_scored, backfill_failed = await _score_unscored_items(db, source)
     stats["scored"] = stats.get("scored", 0) + backfill_scored
+    stats["score_failed"] = stats.get("score_failed", 0) + backfill_failed
 
     await news_sources_service.mark_fetched(db, source.id, status="ok")
 
     logger.info(
-        "Ingested %s: %d new, %d skipped (exists), %d skipped (cap), %d embedded, %d scored, %d errors",
+        "Ingested %s: %d new, %d skipped (exists), %d skipped (cap), %d embedded, %d scored, %d score_failed, %d errors",
         source.name, stats["new"], stats["skipped_exists"],
-        stats["skipped_cap"], stats["embedded"], stats.get("scored", 0), stats["errors"],
+        stats["skipped_cap"], stats["embedded"], stats.get("scored", 0),
+        stats.get("score_failed", 0), stats["errors"],
     )
     return {"source": source.name, **stats}
 

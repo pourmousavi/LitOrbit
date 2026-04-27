@@ -223,12 +223,7 @@ export default function Feed() {
 
             {/* Sort options */}
             <ArrowUpDown size={13} className="text-text-tertiary" style={{ flexShrink: 0 }} />
-            {(feedType === 'papers' ? [
-              ['score', 'Top'],
-              ['newest', 'New'],
-              ['published', 'Published'],
-              ['oldest', 'Old'],
-            ] as const : [
+            {([
               ['score', 'Top'],
               ['newest', 'New'],
               ['oldest', 'Old'],

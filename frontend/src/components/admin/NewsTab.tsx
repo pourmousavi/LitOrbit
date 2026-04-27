@@ -395,7 +395,7 @@ function NewsSourcesSection() {
               <div className={`rounded-lg font-mono text-xs mt-3 ${(ingestMutation.data as any)?.error ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`} style={{ padding: '8px 12px' }}>
                 {(ingestMutation.data as any)?.error
                   ? `Error: ${(ingestMutation.data as any)?.error}`
-                  : `${(ingestMutation.data as any)?.new ?? 0} new, ${(ingestMutation.data as any)?.embedded ?? 0} embedded, ${(ingestMutation.data as any)?.scored ?? 0} scored, ${(ingestMutation.data as any)?.skipped_exists ?? 0} skipped — ${(ingestMutation.data as any)?.total_visible ?? '?'} visible`
+                  : `${(ingestMutation.data as any)?.new ?? 0} new, ${(ingestMutation.data as any)?.embedded ?? 0} embedded, ${(ingestMutation.data as any)?.scored ?? 0} scored${((ingestMutation.data as any)?.score_failed ?? 0) > 0 ? `, ${(ingestMutation.data as any)?.score_failed} failed` : ''}, ${(ingestMutation.data as any)?.skipped_exists ?? 0} skipped — ${(ingestMutation.data as any)?.total_visible ?? '?'} visible`
                 }
               </div>
             )}
