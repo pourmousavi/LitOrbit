@@ -21,6 +21,7 @@ class NewsSource(Base):
     authority_weight: Mapped[float] = mapped_column(Numeric, nullable=False, default=1.0)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     per_source_daily_cap: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    use_proxy: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_fetch_status: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_fetch_error: Mapped[str | None] = mapped_column(Text, nullable=True)

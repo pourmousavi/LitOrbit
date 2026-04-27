@@ -78,17 +78,22 @@ def _get_entry_categories(entry: dict) -> list[str]:
 async def _fetch_feed(source: NewsSource) -> feedparser.FeedParserDict | None:
     """Fetch and parse an RSS feed."""
     try:
-        async with httpx.AsyncClient(
-            timeout=30,
-            follow_redirects=True,
-            headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
-                "Accept": "application/rss+xml, application/xml, text/xml, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-            },
-        ) as client:
-            resp = await client.get(source.feed_url)
+        if source.use_proxy:
+            from app.services.news_fetch_proxy import proxy_get
+            resp = await proxy_get(source.feed_url)
             resp.raise_for_status()
+        else:
+            async with httpx.AsyncClient(
+                timeout=30,
+                follow_redirects=True,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
+                    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            ) as client:
+                resp = await client.get(source.feed_url)
+                resp.raise_for_status()
 
         feed = feedparser.parse(resp.text)
         if feed.bozo and not feed.entries:

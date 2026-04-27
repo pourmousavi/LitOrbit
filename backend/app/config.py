@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     # this URL, e.g. https://litorbit-gemini-proxy.foo.workers.dev/<secret>
     gemini_api_base: str = ""
 
+    # Optional base URL for the news-fetch Cloudflare Worker
+    # (scripts/news-fetch-proxy-worker.js). Used when a news_source has
+    # use_proxy=true to route the fetch through CF's edge so the publisher's
+    # WAF doesn't see Render's datacenter IP. Embeds the path-prefix secret,
+    # e.g. https://litorbit-news-fetch.foo.workers.dev/<secret>
+    news_fetch_proxy_base: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

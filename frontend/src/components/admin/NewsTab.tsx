@@ -46,9 +46,9 @@ export default function NewsTab() {
 function NewsSourcesSection() {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [form, setForm] = useState({ name: '', feed_url: '', website_url: '', authority_weight: '1.0' });
-  // Per-source edits: { [sourceId]: { per_source_daily_cap, per_source_min_relevance } }
-  const [edits, setEdits] = useState<Record<string, { per_source_daily_cap: number }>>({});
+  const [form, setForm] = useState({ name: '', feed_url: '', website_url: '', authority_weight: '1.0', use_proxy: false });
+  // Per-source edits — staged changes the user is about to save.
+  const [edits, setEdits] = useState<Record<string, { per_source_daily_cap?: number; use_proxy?: boolean }>>({});
 
   const { data: sources, isLoading } = useQuery<NewsSource[]>({
     queryKey: ['admin', 'news-sources'],
@@ -65,7 +65,7 @@ function NewsSourcesSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'news-sources'] });
       setShowAddForm(false);
-      setForm({ name: '', feed_url: '', website_url: '', authority_weight: '1.0' });
+      setForm({ name: '', feed_url: '', website_url: '', authority_weight: '1.0', use_proxy: false });
     },
   });
 
@@ -151,6 +151,14 @@ function NewsSourcesSection() {
                 style={{ padding: '8px 12px', width: 80 }}
               />
             </div>
+            <label className="flex items-center font-mono text-xs text-text-secondary" style={{ gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={form.use_proxy}
+                onChange={(e) => setForm({ ...form, use_proxy: e.target.checked })}
+              />
+              Route fetches through Cloudflare Worker proxy (use when the publisher's WAF blocks direct fetches)
+            </label>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => addMutation.mutate(form)}
@@ -189,11 +197,16 @@ function NewsSourcesSection() {
                   <span className="rounded-lg bg-bg-elevated font-mono text-xs text-text-tertiary" style={{ padding: '2px 8px' }}>
                     w={source.authority_weight.toFixed(2)}
                   </span>
+                  {source.use_proxy && (
+                    <span className="rounded-lg bg-accent/15 font-mono text-xs text-accent" style={{ padding: '2px 8px' }} title="Fetches route through the Cloudflare Worker proxy">
+                      proxy
+                    </span>
+                  )}
                 </div>
                 <p className="font-mono text-xs text-text-tertiary" style={{ marginBottom: 4, wordBreak: 'break-all' }}>
                   {source.feed_url}
                 </p>
-                <div className="font-mono text-xs text-text-tertiary" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="font-mono text-xs text-text-tertiary" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     Cap:
                     <input
@@ -205,7 +218,7 @@ function NewsSourcesSection() {
                         if (!isNaN(val)) {
                           setEdits((prev) => ({
                             ...prev,
-                            [source.id]: { per_source_daily_cap: val },
+                            [source.id]: { ...prev[source.id], per_source_daily_cap: val },
                           }));
                         }
                       }}
@@ -213,6 +226,19 @@ function NewsSourcesSection() {
                       style={{ width: 44, padding: '2px 6px', textAlign: 'center' }}
                     />/day
                   </span>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={edits[source.id]?.use_proxy ?? source.use_proxy}
+                      onChange={(e) => {
+                        setEdits((prev) => ({
+                          ...prev,
+                          [source.id]: { ...prev[source.id], use_proxy: e.target.checked },
+                        }));
+                      }}
+                    />
+                    Use proxy
+                  </label>
                   {source.last_fetched_at && (
                     <span>
                       Last fetch: {formatDate(source.last_fetched_at)}
@@ -231,7 +257,8 @@ function NewsSourcesSection() {
                   </p>
                 )}
                 {edits[source.id] && (
-                  edits[source.id].per_source_daily_cap !== source.per_source_daily_cap
+                  (edits[source.id].per_source_daily_cap !== undefined && edits[source.id].per_source_daily_cap !== source.per_source_daily_cap) ||
+                  (edits[source.id].use_proxy !== undefined && edits[source.id].use_proxy !== source.use_proxy)
                 ) && (
                   <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                     <button

@@ -72,6 +72,7 @@ export type NewsSource = {
   authority_weight: number;
   enabled: boolean;
   per_source_daily_cap: number;
+  use_proxy: boolean;
   last_fetched_at: string | null;
   last_fetch_status: string | null;
   last_fetch_error: string | null;

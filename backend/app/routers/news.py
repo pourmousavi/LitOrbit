@@ -604,6 +604,7 @@ class NewsSourceCreate(BaseModel):
     website_url: str
     authority_weight: float = Field(1.0, ge=0, le=2)
     per_source_daily_cap: int = Field(5, ge=1)
+    use_proxy: bool = False
 
 
 class NewsSourceUpdate(BaseModel):
@@ -613,6 +614,7 @@ class NewsSourceUpdate(BaseModel):
     authority_weight: float | None = Field(None, ge=0, le=2)
     enabled: bool | None = None
     per_source_daily_cap: int | None = Field(None, ge=1)
+    use_proxy: bool | None = None
 
 
 @router.get("/admin/news-sources")
@@ -630,6 +632,7 @@ async def list_news_sources(
             "authority_weight": float(s.authority_weight),
             "enabled": s.enabled,
             "per_source_daily_cap": s.per_source_daily_cap,
+            "use_proxy": s.use_proxy,
             "last_fetched_at": s.last_fetched_at.isoformat() if s.last_fetched_at else None,
             "last_fetch_status": s.last_fetch_status,
             "last_fetch_error": s.last_fetch_error,
@@ -683,7 +686,7 @@ async def test_feed(
     source = await news_sources_service.get_source(db, uuid.UUID(source_id))
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    return await news_sources_service.validate_feed(source.feed_url)
+    return await news_sources_service.validate_feed(source.feed_url, use_proxy=source.use_proxy)
 
 
 @router.post("/admin/news-sources/{source_id}/run-now")

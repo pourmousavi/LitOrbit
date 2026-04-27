@@ -59,17 +59,30 @@ async def scrape_full_text(db: AsyncSession, item_id) -> bool:
     domain = _get_domain(item.url)
     await _wait_for_politeness(domain)
 
+    # Honor the source's use_proxy flag for the article fetch.
+    from app.models.news_source import NewsSource
+    source = await db.get(NewsSource, item.source_id)
+    use_proxy = bool(source and source.use_proxy)
+
     try:
-        async with httpx.AsyncClient(
-            timeout=30,
-            follow_redirects=True,
-            headers={"User-Agent": USER_AGENT, "Accept-Language": ACCEPT_LANGUAGE},
-        ) as client:
-            resp = await client.get(item.url)
+        if use_proxy:
+            from app.services.news_fetch_proxy import proxy_get
+            resp = await proxy_get(item.url)
             if resp.status_code in (403, 429):
-                logger.warning("Scrape blocked (%d) for %s", resp.status_code, item.url)
+                logger.warning("Scrape blocked via proxy (%d) for %s", resp.status_code, item.url)
                 return False
             resp.raise_for_status()
+        else:
+            async with httpx.AsyncClient(
+                timeout=30,
+                follow_redirects=True,
+                headers={"User-Agent": USER_AGENT, "Accept-Language": ACCEPT_LANGUAGE},
+            ) as client:
+                resp = await client.get(item.url)
+                if resp.status_code in (403, 429):
+                    logger.warning("Scrape blocked (%d) for %s", resp.status_code, item.url)
+                    return False
+                resp.raise_for_status()
 
         try:
             import trafilatura

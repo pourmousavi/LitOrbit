@@ -79,26 +79,47 @@ async def mark_fetched(
     await db.commit()
 
 
-async def validate_feed(url: str) -> dict:
+async def validate_feed(url: str, *, use_proxy: bool = False) -> dict:
     """Fetch and parse a feed URL, return validation info.
 
     On parse failure also returns the HTTP status, final URL after
     redirects, content-type, and a snippet of the response body so the
     UI can surface why the host returned non-RSS (bot challenge,
     geoblock, redirect to homepage, etc.).
+
+    When ``use_proxy`` is True, the fetch routes through the news-fetch
+    Cloudflare Worker so the upstream sees a CF edge IP instead of
+    Render's egress.
     """
     try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            resp = await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
-                "Accept": "application/rss+xml, application/xml, text/xml, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-            })
+        if use_proxy:
+            from app.services.news_fetch_proxy import proxy_get, ProxyNotConfiguredError
+            try:
+                resp = await proxy_get(url)
+            except ProxyNotConfiguredError as e:
+                return {
+                    "valid": False,
+                    "item_count": 0,
+                    "latest_pub_at": None,
+                    "parse_errors": [str(e)],
+                    "http_status": None,
+                    "final_url": url,
+                    "content_type": None,
+                    "body_snippet": None,
+                }
             resp.raise_for_status()
+        else:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                resp = await client.get(url, headers={
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
+                    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                    "Accept-Language": "en-US,en;q=0.9",
+                })
+                resp.raise_for_status()
 
         diagnostics = {
             "http_status": resp.status_code,
-            "final_url": str(resp.url),
+            "final_url": resp.headers.get("x-upstream-final-url") or str(resp.url),
             "content_type": resp.headers.get("content-type"),
             "body_snippet": resp.text[:300],
         }
