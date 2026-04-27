@@ -32,10 +32,23 @@ pip install -r requirements-dev.txt   # includes requirements.txt + pytest + pyt
 pip install aiosqlite                 # needed for in-memory SQLite test DB
 ```
 
-### Database migrations (from `backend/`)
+### Database migrations
+This repo does **not** use Alembic CLI. Migrations are plain SQL files in
+`backend/alembic/versions/` (the directory name is a historical artefact),
+auto-applied on every Render deploy by `backend/run_migrations.py`. A
+`_migrations` tracking table records which files have run, so re-applying
+is safe.
+
+To add a migration: drop a new `*.sql` file into `backend/alembic/versions/`.
+Files run in alphabetical filename order — name new ones with a sortable
+prefix (existing prefixes: `phase1_*`, `phase2_*`, `phase3_*`, `news_phase*`,
+or descriptive like `add_*.sql`). Make every statement idempotent
+(`ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`) since the runner
+marks files as applied even if they timed out.
+
+To apply locally against the configured `DATABASE_URL`:
 ```bash
-alembic upgrade head                          # Apply all migrations
-alembic revision --autogenerate -m "message"  # Create new migration
+cd backend && python run_migrations.py
 ```
 
 ### Docker (from root)
@@ -80,8 +93,9 @@ All API routers in `backend/app/routers/`. Key ones: `papers.py`, `feed.py`, `un
 
 ### Database
 - PostgreSQL on Supabase (auth + storage + DB)
-- 36 Alembic migrations in `backend/alembic/versions/`
-- Models in `backend/app/models/` — `Paper`, `UserProfile`, `PaperScore`, `Rating`, `Podcast`, `NewsItem`, `NewsSource`, `NewsCluster`, `Collection`, `ReferencePaper`, `RelevanceAnchor`, `Share`, `DigestLog`, `DigestRun`, `PipelineRun`, etc.
+- Raw SQL migration files in `backend/alembic/versions/`, applied by
+  `backend/run_migrations.py` on Render deploy (see "Database migrations" above)
+- Models in `backend/app/models/` — `Paper`, `UserProfile`, `PaperScore`, `Rating`, `Podcast`, `NewsItem`, `NewsSource`, `NewsCluster`, `Collection`, `ReferencePaper`, `RelevanceAnchor`, `Share`, `DigestLog`, `DigestRun`, `PipelineRun`, `ScoringSignal`, etc.
 - Tests use in-memory SQLite via aiosqlite (see `backend/tests/conftest.py`)
 
 ### AI model usage
@@ -104,6 +118,66 @@ All API routers in `backend/app/routers/`. Key ones: `papers.py`, `feed.py`, `un
 - **Backend** → Render (Python, Oregon region for Gemini compatibility)
 - **Frontend** → Vercel
 - **CI/CD** → GitHub Actions: `deploy.yml` runs tests on push to main, `pipeline.yml` runs daily discovery
+
+### Cloudflare Workers (egress proxies)
+
+The backend runs from Render's Oregon datacenter, whose IPs are blocked
+or geo-restricted by some upstream services. We route around this with
+small per-purpose Cloudflare Workers that fetch from CF's edge IPs
+instead. Both follow the same path-prefix-secret auth pattern: the
+backend stores `<worker-url>/<secret>` as one env var; the worker
+validates the first path segment matches its `PROXY_SHARED_SECRET`.
+
+**Existing workers (single-file, deployed via dashboard):**
+- `scripts/gemini-proxy-worker.js` — bypasses Google's geo-restriction
+  on Render IPs. Backend env var: `GEMINI_API_BASE`.
+- `scripts/news-fetch-proxy-worker.js` — bypasses publisher WAFs that
+  challenge datacenter IPs (e.g. SiteGround `sgcaptcha`) for news RSS
+  fetches and article scraping. Backend env var: `NEWS_FETCH_PROXY_BASE`.
+  Used opt-in per news source via `NewsSource.use_proxy`. Hostname
+  allowlist in the worker prevents open-relay abuse.
+
+**Adding a new news source whose WAF blocks Render:**
+1. Edit `scripts/news-fetch-proxy-worker.js` → add the publisher's
+   hostname (and `www.<host>` if applicable) to `ALLOWED_HOSTS`.
+2. CF Dashboard → the existing `litorbit-news-fetch` worker → paste the
+   updated file contents over the editor → Deploy.
+3. LitOrbit admin → News Sources → tick **Use proxy** on the source →
+   Save → click **Test** to confirm.
+
+**Deploying a new worker from scratch** is documented in the header
+comment of each `*-worker.js` file (CF dashboard → Create → Worker →
+"Start with Hello World!" → paste contents → add the
+`PROXY_SHARED_SECRET` secret → set the corresponding `*_BASE` env var on
+Render with `<worker-url>/<secret>`).
+
+## Known gotchas
+
+- **News ingest runs can wedge in `status="running"`** if the FastAPI
+  process dies mid-fetch (Render dyno restart, unhandled exception
+  before the lifecycle commit at `news_ingest.py` line ~359). The UI
+  then shows them as "Fetching News..." with ever-growing elapsed time.
+  Quick cleanup via Supabase SQL editor:
+  ```sql
+  UPDATE news_ingest_runs
+  SET status = 'failed',
+      completed_at = now(),
+      error_message = 'abandoned'
+  WHERE status = 'running'
+    AND started_at < now() - interval '30 minutes';
+  ```
+  The structural fix (try/finally + startup orphan sweep mirroring
+  `runner.py:579` for `PipelineRun`) is still pending.
+- **Dedup tests must use relative dates.** `assign_cluster` only
+  considers candidate items within `DEDUP_WINDOW_DAYS=7` of now.
+  Hardcoded `published_at=datetime(YYYY, M, D, ...)` fixtures silently
+  expire once the wall clock crosses the boundary. Use
+  `datetime.now(tz) - timedelta(hours=N)` instead. See
+  `tests/test_news_dedup.py`.
+- **Migration files must be idempotent.** `run_migrations.py` marks a
+  file as applied even on timeout, so a non-idempotent `ALTER TABLE`
+  that half-runs will leave the schema broken with no retry. Always use
+  `IF NOT EXISTS` / `IF EXISTS` guards.
 
 ## Git Workflow
 
