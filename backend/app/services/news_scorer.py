@@ -100,43 +100,61 @@ Name: {user.get('full_name', '')}
 Keywords of interest: {', '.join(user.get('interest_keywords', []))}
 Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_line}"""
 
-    await _rate_limiter.acquire()
-    try:
-        response = await asyncio.wait_for(
-            client.aio.models.generate_content(
-                model=settings.gemini_model_fast,
-                contents=user_message,
-                config=genai.types.GenerateContentConfig(
-                    system_instruction=NEWS_SCORING_PROMPT,
-                    max_output_tokens=512,
-                    response_mime_type="application/json",
-                    response_schema={
-                        "type": "object",
-                        "properties": {
-                            "score": {"type": "number"},
-                            "reasoning": {"type": "string"},
-                        },
-                        "required": ["score", "reasoning"],
-                    },
-                ),
-            ),
-            timeout=60,
-        )
-        raw_text = response.text or ""
-        text = _extract_json(raw_text.strip())
+    # gemini-2.5-flash is a thinking model — internal reasoning consumes
+    # max_output_tokens. With the previous 512 cap most responses were
+    # truncated mid-JSON. We disable thinking (this task doesn't need it)
+    # and bump the budget, plus retry once on JSON parse errors.
+    config = genai.types.GenerateContentConfig(
+        system_instruction=NEWS_SCORING_PROMPT,
+        max_output_tokens=2048,
+        response_mime_type="application/json",
+        response_schema={
+            "type": "object",
+            "properties": {
+                "score": {"type": "number"},
+                "reasoning": {"type": "string"},
+            },
+            "required": ["score", "reasoning"],
+        },
+        thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
+    )
+
+    last_raw = ""
+    last_je: json.JSONDecodeError | None = None
+    for attempt in range(2):
+        await _rate_limiter.acquire()
         try:
-            result = json.loads(text)
-        except json.JSONDecodeError as je:
-            # Include the raw response so admins can see exactly what Gemini
-            # returned (truncated, schema-violating, etc.) without server logs.
-            raw_preview = raw_text[:200].replace("\n", " ")
-            logger.warning("News scoring JSON parse failed for '%s': %s | raw=%r", item.title[:50], je, raw_preview)
-            return {"score": None, "reasoning": f"JSON parse: {je} | raw: {raw_preview}", "error": True}
-        score = max(0.0, min(10.0, float(result.get("score", 5.0))))
-        return {"score": score, "reasoning": result.get("reasoning", ""), "error": False}
-    except Exception as e:
-        logger.warning("News scoring failed for '%s': %s", item.title[:50], e)
-        return {"score": None, "reasoning": str(e), "error": True}
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=settings.gemini_model_fast,
+                    contents=user_message,
+                    config=config,
+                ),
+                timeout=60,
+            )
+            last_raw = response.text or ""
+            text = _extract_json(last_raw.strip())
+            try:
+                result = json.loads(text)
+            except json.JSONDecodeError as je:
+                last_je = je
+                logger.warning(
+                    "News scoring JSON parse failed for '%s' (attempt %d): %s | raw=%r",
+                    item.title[:50], attempt + 1, je, last_raw[:200],
+                )
+                continue
+            score = max(0.0, min(10.0, float(result.get("score", 5.0))))
+            return {"score": score, "reasoning": result.get("reasoning", ""), "error": False}
+        except Exception as e:
+            logger.warning("News scoring failed for '%s': %s", item.title[:50], e)
+            return {"score": None, "reasoning": str(e), "error": True}
+
+    raw_preview = last_raw[:200].replace("\n", " ")
+    return {
+        "score": None,
+        "reasoning": f"JSON parse (after retry): {last_je} | raw: {raw_preview}",
+        "error": True,
+    }
 
 
 async def summarise_news(item: NewsItem, source_name: str) -> dict[str, Any] | None:
