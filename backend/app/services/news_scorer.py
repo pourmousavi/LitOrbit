@@ -122,9 +122,16 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
             ),
             timeout=60,
         )
-        text = response.text.strip()
-        text = _extract_json(text)
-        result = json.loads(text)
+        raw_text = response.text or ""
+        text = _extract_json(raw_text.strip())
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError as je:
+            # Include the raw response so admins can see exactly what Gemini
+            # returned (truncated, schema-violating, etc.) without server logs.
+            raw_preview = raw_text[:200].replace("\n", " ")
+            logger.warning("News scoring JSON parse failed for '%s': %s | raw=%r", item.title[:50], je, raw_preview)
+            return {"score": None, "reasoning": f"JSON parse: {je} | raw: {raw_preview}", "error": True}
         score = max(0.0, min(10.0, float(result.get("score", 5.0))))
         return {"score": score, "reasoning": result.get("reasoning", ""), "error": False}
     except Exception as e:
