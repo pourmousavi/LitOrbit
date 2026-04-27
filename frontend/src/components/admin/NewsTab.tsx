@@ -79,6 +79,30 @@ function NewsSourcesSection() {
     },
   });
 
+  // Auto-clear staged edits once the refetched source matches them.
+  // Defensive: handles any race between mutation onSuccess and React Query
+  // refetch so the Save/Cancel buttons reliably disappear after a save.
+  useEffect(() => {
+    if (!sources) return;
+    setEdits((prev) => {
+      let changed = false;
+      const next: typeof prev = { ...prev };
+      for (const id of Object.keys(prev)) {
+        const source = sources.find((s) => s.id === id);
+        if (!source) continue;
+        const e = prev[id];
+        const stillDifferent =
+          (e.per_source_daily_cap !== undefined && e.per_source_daily_cap !== source.per_source_daily_cap) ||
+          (e.use_proxy !== undefined && e.use_proxy !== source.use_proxy);
+        if (!stillDifferent) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [sources]);
+
   const toggleMutation = useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
       return (await api.patch(`/api/v1/admin/news-sources/${id}`, { enabled })).data;
@@ -260,23 +284,30 @@ function NewsSourcesSection() {
                   (edits[source.id].per_source_daily_cap !== undefined && edits[source.id].per_source_daily_cap !== source.per_source_daily_cap) ||
                   (edits[source.id].use_proxy !== undefined && edits[source.id].use_proxy !== source.use_proxy)
                 ) && (
-                  <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                    <button
-                      onClick={() => updateMutation.mutate({ id: source.id, ...edits[source.id] })}
-                      disabled={updateMutation.isPending}
-                      className="flex items-center rounded-xl bg-accent font-mono text-xs font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
-                      style={{ gap: 6, padding: '8px 16px' }}
-                    >
-                      {updateMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                      Save Changes
-                    </button>
-                    <button
-                      onClick={() => setEdits((prev) => { const next = { ...prev }; delete next[source.id]; return next; })}
-                      className="rounded-xl font-mono text-xs text-text-secondary hover:text-text-primary"
-                      style={{ padding: '8px 16px' }}
-                    >
-                      Cancel
-                    </button>
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button
+                        onClick={() => updateMutation.mutate({ id: source.id, ...edits[source.id] })}
+                        disabled={updateMutation.isPending}
+                        className="flex items-center rounded-xl bg-accent font-mono text-xs font-medium text-white transition hover:bg-accent-hover disabled:opacity-50"
+                        style={{ gap: 6, padding: '8px 16px' }}
+                      >
+                        {updateMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                        Save Changes
+                      </button>
+                      <button
+                        onClick={() => setEdits((prev) => { const next = { ...prev }; delete next[source.id]; return next; })}
+                        className="rounded-xl font-mono text-xs text-text-secondary hover:text-text-primary"
+                        style={{ padding: '8px 16px' }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {updateMutation.isError && updateMutation.variables?.id === source.id && (
+                      <p className="rounded-lg bg-danger/10 font-mono text-xs text-danger mt-2" style={{ padding: '6px 10px' }}>
+                        Save failed: {(updateMutation.error as any)?.response?.data?.detail || (updateMutation.error as any)?.message || 'unknown error'}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
