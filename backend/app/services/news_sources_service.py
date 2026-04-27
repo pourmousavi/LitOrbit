@@ -80,7 +80,13 @@ async def mark_fetched(
 
 
 async def validate_feed(url: str) -> dict:
-    """Fetch and parse a feed URL, return validation info."""
+    """Fetch and parse a feed URL, return validation info.
+
+    On parse failure also returns the HTTP status, final URL after
+    redirects, content-type, and a snippet of the response body so the
+    UI can surface why the host returned non-RSS (bot challenge,
+    geoblock, redirect to homepage, etc.).
+    """
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             resp = await client.get(url, headers={
@@ -89,6 +95,13 @@ async def validate_feed(url: str) -> dict:
             })
             resp.raise_for_status()
 
+        diagnostics = {
+            "http_status": resp.status_code,
+            "final_url": str(resp.url),
+            "content_type": resp.headers.get("content-type"),
+            "body_snippet": resp.text[:300],
+        }
+
         feed = feedparser.parse(resp.text)
         if feed.bozo and not feed.entries:
             return {
@@ -96,6 +109,7 @@ async def validate_feed(url: str) -> dict:
                 "item_count": 0,
                 "latest_pub_at": None,
                 "parse_errors": [str(feed.bozo_exception)],
+                **diagnostics,
             }
 
         latest_pub = None
@@ -112,6 +126,7 @@ async def validate_feed(url: str) -> dict:
             "item_count": len(feed.entries),
             "latest_pub_at": latest_pub.isoformat() if latest_pub else None,
             "parse_errors": [str(feed.bozo_exception)] if feed.bozo else [],
+            **diagnostics,
         }
 
     except httpx.HTTPError as e:
@@ -120,4 +135,8 @@ async def validate_feed(url: str) -> dict:
             "item_count": 0,
             "latest_pub_at": None,
             "parse_errors": [str(e)],
+            "http_status": getattr(getattr(e, "response", None), "status_code", None),
+            "final_url": str(getattr(getattr(e, "request", None), "url", url)),
+            "content_type": None,
+            "body_snippet": None,
         }

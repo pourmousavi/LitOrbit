@@ -293,16 +293,44 @@ function NewsSourcesSection() {
             </div>
 
             {/* Test result */}
-            {testMutation.isSuccess && testMutation.variables === source.id && (
-              <div className={cn(
-                'rounded-lg font-mono text-xs mt-3',
-                (testMutation.data as any)?.valid ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
-              )} style={{ padding: '8px 12px' }}>
-                {(testMutation.data as any)?.valid
-                  ? `Valid feed: ${(testMutation.data as any)?.item_count} items, latest: ${(testMutation.data as any)?.latest_pub_at || 'unknown'}`
-                  : `Invalid: ${(testMutation.data as any)?.parse_errors?.join(', ') || 'Unknown error'}`}
-              </div>
-            )}
+            {testMutation.isSuccess && testMutation.variables === source.id && (() => {
+              const d = testMutation.data as {
+                valid?: boolean;
+                item_count?: number;
+                latest_pub_at?: string | null;
+                parse_errors?: string[];
+                http_status?: number | null;
+                final_url?: string;
+                content_type?: string | null;
+                body_snippet?: string | null;
+              };
+              return (
+                <div className={cn(
+                  'rounded-lg font-mono text-xs mt-3',
+                  d?.valid ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
+                )} style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div>
+                    {d?.valid
+                      ? `Valid feed: ${d.item_count} items, latest: ${d.latest_pub_at || 'unknown'}`
+                      : `Invalid: ${d?.parse_errors?.join(', ') || 'Unknown error'}`}
+                  </div>
+                  {!d?.valid && (d?.http_status != null || d?.content_type) && (
+                    <div className="text-text-tertiary">
+                      HTTP {d?.http_status ?? '?'} · {d?.content_type ?? 'no content-type'}
+                      {d?.final_url && d.final_url !== source.feed_url && (
+                        <> · redirected to <span className="break-all">{d.final_url}</span></>
+                      )}
+                    </div>
+                  )}
+                  {!d?.valid && d?.body_snippet && (
+                    <details>
+                      <summary className="cursor-pointer text-text-tertiary">Response preview</summary>
+                      <pre className="mt-1 whitespace-pre-wrap break-all text-text-tertiary" style={{ fontSize: 10 }}>{d.body_snippet}</pre>
+                    </details>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Ingest result */}
             {ingestMutation.isSuccess && ingestMutation.variables === source.id && (
