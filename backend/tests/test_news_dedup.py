@@ -9,7 +9,7 @@ Covers:
 
 import uuid
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -92,7 +92,7 @@ async def test_duplicate_items_merge_cluster(db_session):
         source_id=source.id,
         url="https://b.com/story-version-1",
         title="BESS project approved",
-        published_at=datetime(2026, 4, 20, 10, 0, tzinfo=timezone.utc),
+        published_at=datetime.now(timezone.utc) - timedelta(hours=26),
         embedding=vec_a,
         is_cluster_primary=True,
     )
@@ -104,7 +104,7 @@ async def test_duplicate_items_merge_cluster(db_session):
         source_id=source.id,
         url="https://b.com/story-version-2",
         title="BESS project gets green light",
-        published_at=datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc),
+        published_at=datetime.now(timezone.utc) - timedelta(hours=24),
         embedding=vec_b,
     )
     db_session.add(item_b)
@@ -148,7 +148,7 @@ async def test_high_authority_becomes_primary(db_session):
         source_id=source_low.id,
         url="https://low.com/same-story",
         title="Same story low auth",
-        published_at=datetime(2026, 4, 20, 10, 0, tzinfo=timezone.utc),
+        published_at=datetime.now(timezone.utc) - timedelta(hours=26),
         embedding=vec_a,
     )
     db_session.add(item_low)
@@ -160,7 +160,7 @@ async def test_high_authority_becomes_primary(db_session):
         source_id=source_high.id,
         url="https://high.com/same-story",
         title="Same story high auth",
-        published_at=datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc),
+        published_at=datetime.now(timezone.utc) - timedelta(hours=24),
         embedding=vec_b,
     )
     db_session.add(item_high)
@@ -194,14 +194,14 @@ async def test_dissimilar_items_separate_clusters(db_session):
         source_id=source.id,
         url="https://c.com/totally-different-1",
         title="Battery technology",
-        published_at=datetime(2026, 4, 20, 10, 0, tzinfo=timezone.utc),
+        published_at=datetime.now(timezone.utc) - timedelta(hours=26),
         embedding=vec_a,
     )
     item_b = NewsItem(
         source_id=source.id,
         url="https://c.com/totally-different-2",
         title="Solar regulations",
-        published_at=datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc),
+        published_at=datetime.now(timezone.utc) - timedelta(hours=24),
         embedding=vec_b,
     )
 
