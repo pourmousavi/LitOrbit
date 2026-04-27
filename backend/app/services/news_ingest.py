@@ -82,8 +82,9 @@ async def _fetch_feed(source: NewsSource) -> feedparser.FeedParserDict | None:
             timeout=30,
             follow_redirects=True,
             headers={
-                "User-Agent": "Mozilla/5.0 (compatible; LitOrbit/1.0; +https://litorbit.app)",
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
                 "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                "Accept-Language": "en-US,en;q=0.9",
             },
         ) as client:
             resp = await client.get(source.feed_url)

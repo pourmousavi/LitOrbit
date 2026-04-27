@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 _domain_last_request: dict[str, float] = {}
 _POLITENESS_DELAY = 3.0
 
-USER_AGENT = "LitOrbit News Archiver/1.0"
+USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0"
+ACCEPT_LANGUAGE = "en-US,en;q=0.9"
 
 
 def _get_domain(url: str) -> str:
@@ -62,7 +63,7 @@ async def scrape_full_text(db: AsyncSession, item_id) -> bool:
         async with httpx.AsyncClient(
             timeout=30,
             follow_redirects=True,
-            headers={"User-Agent": USER_AGENT},
+            headers={"User-Agent": USER_AGENT, "Accept-Language": ACCEPT_LANGUAGE},
         ) as client:
             resp = await client.get(item.url)
             if resp.status_code in (403, 429):

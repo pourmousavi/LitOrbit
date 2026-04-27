@@ -90,8 +90,9 @@ async def validate_feed(url: str) -> dict:
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             resp = await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (compatible; LitOrbit/1.0; +https://litorbit.app)",
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:122.0) Gecko/20100101 Firefox/122.0",
                 "Accept": "application/rss+xml, application/xml, text/xml, */*",
+                "Accept-Language": "en-US,en;q=0.9",
             })
             resp.raise_for_status()
 
