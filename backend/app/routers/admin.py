@@ -1,9 +1,13 @@
+import asyncio
+import json
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -621,13 +625,24 @@ async def trigger_pipeline(
 @router.post("/pipeline/run-scheduled")
 async def run_scheduled_pipeline(
     x_pipeline_secret: str | None = Header(default=None),
-) -> dict:
-    """Header-secret-auth endpoint for external schedulers (e.g. GitHub Actions
-    cron) to trigger the full daily run: discovery pipeline + digest emails.
+):
+    """Header-secret-auth endpoint for external schedulers (e.g. GitHub
+    Actions cron) to trigger the full daily run: discovery + news +
+    cross-links + digest.
 
     Authenticates via the ``X-Pipeline-Secret`` header against the
-    ``PIPELINE_TRIGGER_SECRET`` env var. Runs synchronously so the process
-    stays alive until all work completes (prevents Render free-tier shutdown).
+    ``PIPELINE_TRIGGER_SECRET`` env var.
+
+    Idempotent: if a ``PipelineRun`` is already in-flight (status ``running``
+    and started < 30 min ago), returns a 200 ``already_running`` body without
+    starting a duplicate. This makes curl ``--retry`` safe under transient
+    edge proxy errors.
+
+    Streams a newline-delimited JSON heartbeat every ~25 s while running so
+    the (often >30 min) request doesn't trip Cloudflare/Render edge proxy
+    idle timeouts (the previous synchronous shape produced 502s after ~13 min
+    of no body bytes). The process stays alive in-band, preserving the
+    "keep the Render free dyno awake" property of the old design.
     """
     settings = get_settings()
     expected = settings.pipeline_trigger_secret
@@ -639,28 +654,91 @@ async def run_scheduled_pipeline(
     if not x_pipeline_secret or x_pipeline_secret != expected:
         raise HTTPException(status_code=401, detail="Invalid pipeline secret")
 
-    import asyncio
-
     from app import database as db_module
-    from app.pipeline.runner import run_discovery_pipeline
-    from app.services.digest_runner import run_digests
 
     if db_module.async_session_factory is None:
         db_module.init_db()
     if db_module.async_session_factory is None:
         raise HTTPException(status_code=503, detail="No DB session factory")
 
+    # Idempotency guard. 30 min cutoff aligns with runner.py's orphan sweep
+    # so a genuinely-stuck prior run gets cleaned up by the next pipeline
+    # call rather than blocking it forever.
+    in_flight_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+    async with db_module.async_session_factory() as session:
+        result = await session.execute(
+            select(PipelineRun)
+            .where(
+                PipelineRun.status == "running",
+                PipelineRun.started_at >= in_flight_cutoff,
+            )
+            .order_by(PipelineRun.started_at.desc())
+            .limit(1)
+        )
+        in_flight = result.scalar_one_or_none()
+        if in_flight:
+            logger.info(
+                "Refusing duplicate /run-scheduled: pipeline run %s already "
+                "running since %s",
+                in_flight.id,
+                in_flight.started_at,
+            )
+            return {
+                "status": "already_running",
+                "run_id": str(in_flight.id),
+                "started_at": in_flight.started_at.isoformat(),
+            }
+
+    return StreamingResponse(
+        _stream_scheduled_run(),
+        media_type="application/x-ndjson",
+    )
+
+
+async def _stream_scheduled_run():
+    """Drive the daily job from a background task while emitting heartbeat
+    lines so edge proxies don't 502 on idle. Yields newline-delimited JSON.
+    """
+    job_task = asyncio.create_task(_run_full_scheduled_job())
+    yield json.dumps({
+        "event": "started",
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }) + "\n"
+    try:
+        while not job_task.done():
+            try:
+                # asyncio.shield prevents the wait_for timeout from cancelling
+                # the underlying job — we only want to learn that 25 s passed
+                # so we can emit a heartbeat byte.
+                await asyncio.wait_for(asyncio.shield(job_task), timeout=25)
+            except asyncio.TimeoutError:
+                yield json.dumps({
+                    "event": "heartbeat",
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                }) + "\n"
+        result = await job_task
+        yield json.dumps({"event": "complete", **result}) + "\n"
+    except Exception as e:  # pragma: no cover — defensive
+        logger.exception("Scheduled pipeline run errored at the streaming layer")
+        yield json.dumps({"event": "failed", "error": str(e)}) + "\n"
+
+
+async def _run_full_scheduled_job() -> dict:
+    """Run discovery + news + cross-links + digest sequentially against
+    fresh sessions. Per-stage timeouts protect against any one stage
+    getting stuck. Returns a summary dict.
+    """
+    from app import database as db_module
+    from app.pipeline.runner import run_discovery_pipeline
+    from app.services.digest_runner import run_digests
+
     # The pipeline includes discovery (~2 min), embedding (~2 min), and
-    # scoring + summarisation.  Scoring is rate-limited to 9 RPM by Gemini's
+    # scoring + summarisation. Scoring is rate-limited to 9 RPM by Gemini's
     # free tier, so 170 papers × N users can legitimately take 30-40 min.
-    # A tight timeout here just cancels the scoring mid-flight, leaving
-    # papers unscored and PipelineRun stuck.  Give it a generous budget;
-    # curl --max-time in the GitHub Actions workflow is the outer guard.
     PIPELINE_TIMEOUT = 2700  # 45 minutes for discovery + scoring
     DIGEST_TIMEOUT = 900     # 15 minutes for digests (TTS generation can be slow)
 
-    # --- 1. Run discovery pipeline ---
-    pipeline_result = {}
+    pipeline_result: dict = {}
     try:
         async with db_module.async_session_factory() as session:
             pipeline_result = await asyncio.wait_for(
@@ -675,8 +753,7 @@ async def run_scheduled_pipeline(
         logger.exception(f"Scheduled pipeline failed: {e}")
         pipeline_result = {"status": "failed", "error": str(e)}
 
-    # --- 1.5. Run news ingest ---
-    news_result = {}
+    news_result: dict = {}
     try:
         async with db_module.async_session_factory() as session:
             from app.services.news_ingest import ingest_all_enabled_sources
@@ -694,8 +771,7 @@ async def run_scheduled_pipeline(
         logger.exception(f"News ingest failed: {e}")
         news_result = {"error": str(e)}
 
-    # --- 1.6. Compute cross-links (paper <-> news) ---
-    cross_links_result = {}
+    cross_links_result: dict = {}
     try:
         async with db_module.async_session_factory() as session:
             from app.services.cross_link_compute import build_cross_links
@@ -711,8 +787,7 @@ async def run_scheduled_pipeline(
         logger.exception(f"Cross-links computation failed: {e}")
         cross_links_result = {"error": str(e)}
 
-    # --- 2. Always run digests (independent of pipeline outcome) ---
-    digest_summary = {}
+    digest_summary: dict = {}
     try:
         async with db_module.async_session_factory() as session:
             digest_results = await asyncio.wait_for(

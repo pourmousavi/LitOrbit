@@ -75,6 +75,18 @@ The core daily pipeline runs as a multi-stage process:
 
 Triggered daily via GitHub Actions cron (`.github/workflows/pipeline.yml`) or manually via admin endpoint.
 
+The cron hits `POST /api/v1/admin/pipeline/run-scheduled` (header-secret
+auth). The endpoint is **idempotent** — if a `PipelineRun` is already
+in-flight (`status='running'`, started < 30 min ago) it returns
+`{"status": "already_running", ...}` immediately, so curl `--retry`
+on transient edge errors won't spawn duplicates. Successful triggers
+return a **streaming `application/x-ndjson` body** that emits a
+heartbeat line every ~25 s while the (often >30 min) job runs and a
+final `{"event": "complete", ...}` line on finish. The streaming
+shape exists to keep Cloudflare/Render edge proxies from idle-timing
+out the long synchronous request — the previous shape produced 502s
+after ~13 min of silence and triggered duplicate retries.
+
 ### News Pipeline
 Separate ingestion pipeline for industry news:
 - **Sources** — Configurable per-user news sources (`services/news_sources_service.py`)
@@ -153,11 +165,14 @@ Render with `<worker-url>/<secret>`).
 
 ## Known gotchas
 
-- **News ingest runs can wedge in `status="running"`** if the FastAPI
-  process dies mid-fetch (Render dyno restart, unhandled exception
-  before the lifecycle commit at `news_ingest.py` line ~359). The UI
-  then shows them as "Fetching News..." with ever-growing elapsed time.
-  Quick cleanup via Supabase SQL editor:
+- **News ingest runs can still wedge in `status="running"`** if the
+  FastAPI process is killed hard enough that the `try/finally`
+  lifecycle write in `ingest_all_enabled_sources` doesn't get to
+  execute (e.g. SIGKILL, OOM-killed worker, Render dyno cycle mid
+  await). The next `ingest_all_enabled_sources` call sweeps anything
+  `status='running'` older than 30 min and marks it `failed` (mirrors
+  `runner.py:574` for `PipelineRun`). For an immediate cleanup without
+  waiting for the next ingest, run via Supabase SQL editor:
   ```sql
   UPDATE news_ingest_runs
   SET status = 'failed',
@@ -166,8 +181,6 @@ Render with `<worker-url>/<secret>`).
   WHERE status = 'running'
     AND started_at < now() - interval '30 minutes';
   ```
-  The structural fix (try/finally + startup orphan sweep mirroring
-  `runner.py:579` for `PipelineRun`) is still pending.
 - **Dedup tests must use relative dates.** `assign_cluster` only
   considers candidate items within `DEDUP_WINDOW_DAYS=7` of now.
   Hardcoded `published_at=datetime(YYYY, M, D, ...)` fixtures silently

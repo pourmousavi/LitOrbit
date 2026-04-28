@@ -321,8 +321,37 @@ async def ingest_all_enabled_sources(db: AsyncSession) -> list[dict]:
     Creates a NewsIngestRun to track the batch.
     Returns list of per-source stats.
     """
+    import sys
+    from datetime import datetime, timedelta, timezone
+
     from app.models.news_ingest_run import NewsIngestRun
-    from datetime import datetime, timezone
+
+    # Sweep orphaned runs left in 'running' by previous processes that died
+    # before reaching the lifecycle commit (asyncio.wait_for cancellation,
+    # Render dyno restart, unhandled exception). Mirrors runner.py's pattern
+    # for PipelineRun. 30 min cutoff matches the in-flight guard in
+    # /run-scheduled.
+    orphan_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+    orphan_result = await db.execute(
+        select(NewsIngestRun).where(
+            NewsIngestRun.status == "running",
+            NewsIngestRun.started_at < orphan_cutoff,
+        )
+    )
+    orphans = orphan_result.scalars().all()
+    for orphan in orphans:
+        orphan.status = "failed"
+        orphan.completed_at = datetime.now(timezone.utc)
+        orphan.error_message = (
+            "Orphaned run — process died before cleanup "
+            "(auto-marked failed on next ingest start)"
+        )
+    if orphans:
+        logger.warning(
+            "Auto-marked %d orphaned news ingest run(s) as failed",
+            len(orphans),
+        )
+        await db.commit()
 
     await load_anchors(db)
     sources = await news_sources_service.get_enabled_sources(db)
@@ -340,45 +369,58 @@ async def ingest_all_enabled_sources(db: AsyncSession) -> list[dict]:
     db.add(run)
     await db.flush()
 
-    results = []
+    results: list[dict] = []
     succeeded = 0
     failed = 0
     totals = {"new": 0, "skipped": 0, "embedded": 0, "scored": 0, "errors": 0}
 
-    for source in sources:
-        try:
-            stats = await ingest_source(db, source, run_id=run.id)
-            results.append(stats)
-            if stats.get("error"):
+    try:
+        for source in sources:
+            try:
+                stats = await ingest_source(db, source, run_id=run.id)
+                results.append(stats)
+                if stats.get("error"):
+                    failed += 1
+                else:
+                    succeeded += 1
+                    totals["new"] += stats.get("new", 0)
+                    totals["skipped"] += stats.get("skipped_exists", 0) + stats.get("skipped_cap", 0)
+                    totals["embedded"] += stats.get("embedded", 0)
+                    totals["scored"] += stats.get("scored", 0)
+                    totals["errors"] += stats.get("errors", 0)
+            except Exception as e:
+                logger.exception("News ingest failed for %s: %s", source.name, e)
+                await news_sources_service.mark_fetched(
+                    db, source.id, status="error", error=str(e)
+                )
+                results.append({"source": source.name, "error": str(e)})
                 failed += 1
-            else:
-                succeeded += 1
-                totals["new"] += stats.get("new", 0)
-                totals["skipped"] += stats.get("skipped_exists", 0) + stats.get("skipped_cap", 0)
-                totals["embedded"] += stats.get("embedded", 0)
-                totals["scored"] += stats.get("scored", 0)
-                totals["errors"] += stats.get("errors", 0)
-        except Exception as e:
-            logger.exception("News ingest failed for %s: %s", source.name, e)
-            await news_sources_service.mark_fetched(
-                db, source.id, status="error", error=str(e)
-            )
-            results.append({"source": source.name, "error": str(e)})
-            failed += 1
+    finally:
+        # Always write a terminal status, even if cancelled or crashed mid-loop.
+        # asyncio.CancelledError is a BaseException — sys.exc_info() catches it
+        # without us having to.
+        exc_type, exc_val, _ = sys.exc_info()
+        aborted = exc_type is not None
 
-    # Update run record
-    run.completed_at = datetime.now(timezone.utc)
-    run.status = "success" if failed == 0 else ("partial" if succeeded > 0 else "failed")
-    run.sources_succeeded = succeeded
-    run.sources_failed = failed
-    run.items_new = totals["new"]
-    run.items_skipped = totals["skipped"]
-    run.items_embedded = totals["embedded"]
-    run.items_scored = totals["scored"]
-    run.items_errors = totals["errors"]
-    run.run_log = results
-    if failed > 0 and succeeded == 0:
-        run.error_message = f"All {failed} sources failed"
-    await db.commit()
+        run.completed_at = datetime.now(timezone.utc)
+        run.sources_succeeded = succeeded
+        run.sources_failed = failed
+        run.items_new = totals["new"]
+        run.items_skipped = totals["skipped"]
+        run.items_embedded = totals["embedded"]
+        run.items_scored = totals["scored"]
+        run.items_errors = totals["errors"]
+        run.run_log = results
+        if aborted:
+            run.status = "partial" if succeeded > 0 else "failed"
+            run.error_message = f"Aborted: {exc_type.__name__}: {exc_val}"[:500]
+        else:
+            run.status = "success" if failed == 0 else ("partial" if succeeded > 0 else "failed")
+            if failed > 0 and succeeded == 0:
+                run.error_message = f"All {failed} sources failed"
+        try:
+            await db.commit()
+        except Exception:
+            logger.exception("Failed to commit news ingest run lifecycle")
 
     return results
