@@ -24,12 +24,15 @@ jobs:
             exit 1
           fi
           # Render free dynos cold-start (~30-60s). Use a generous connect
-          # timeout and retry the wake-up. The endpoint runs synchronously
-          # and returns the result when done (pipeline + digest).
+          # timeout and retry the wake-up. The endpoint streams ndjson
+          # heartbeats while pipeline + digest run synchronously.
           # Scoring is rate-limited by Gemini (9 RPM free tier), so
           # 170+ papers can take 30-40 min. Give a 1-hour budget.
+          # --retry-all-errors covers HTTP/2 stream resets (curl exit 92)
+          # that Cloudflare's edge issues against long-lived streams; the
+          # /run-scheduled endpoint's in-flight guard makes retries idempotent.
           curl --fail-with-body \
-               --retry 3 --retry-delay 15 --retry-connrefused \
+               --retry 5 --retry-delay 15 --retry-all-errors \
                --connect-timeout 90 \
                --max-time 3600 \
                -X POST \
