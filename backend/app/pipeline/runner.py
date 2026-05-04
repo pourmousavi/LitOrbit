@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from app.models.paper import Paper
 from app.models.paper_score import PaperScore
@@ -189,8 +190,9 @@ async def embed_unembedded_papers(db: AsyncSession) -> dict[str, Any]:
         await db.commit()
         logger.warning(f"[EMBED] Fixed {fixed} papers with JSONB null → SQL NULL")
 
+    # Need the embedding column for the write below; undefer it explicitly.
     result = await db.execute(
-        select(Paper).where(Paper.embedding.is_(None))
+        select(Paper).where(Paper.embedding.is_(None)).options(undefer(Paper.embedding))
     )
     papers = result.scalars().all()
 
@@ -258,7 +260,11 @@ async def score_and_summarise_papers(
         (row[0], row[1]) for row in existing_scores_result.all()
     }
 
-    all_papers_result = await db.execute(select(Paper))
+    # Embeddings are deferred by default; undefer here because the scoring
+    # path below reads p.embedding into paper_dicts.
+    all_papers_result = await db.execute(
+        select(Paper).options(undefer(Paper.embedding))
+    )
     all_papers = all_papers_result.scalars().all()
 
     # Find papers that need scoring for at least one user
@@ -310,6 +316,60 @@ async def score_and_summarise_papers(
     keyword_filtered = prefilter_papers(paper_dicts, keywords=platform_keywords)
     keyword_filtered_ids = {p["id"] for p in keyword_filtered}
 
+    # Anchor entries no longer carry inline embeddings (egress saving). Build
+    # a single paper_id -> embedding lookup for every anchor across all users
+    # by joining back to the papers / reference_papers tables. Orphaned anchors
+    # (referencing a purged paper) silently drop out — knn_max_similarity skips
+    # any anchor whose embedding can't be resolved.
+    from app.models.reference_paper import ReferencePaper as _ReferencePaper
+    anchor_paper_ids: set[str] = set()
+    for _u in users:
+        for _a in (_u.get("positive_anchors") or []):
+            pid = _a.get("paper_id")
+            if pid:
+                anchor_paper_ids.add(pid)
+        for _a in (_u.get("negative_anchors") or []):
+            pid = _a.get("paper_id")
+            if pid:
+                anchor_paper_ids.add(pid)
+
+    anchor_emb_by_id: dict[str, list[float]] = {}
+    if anchor_paper_ids:
+        anchor_uuids: list[uuid.UUID] = []
+        for pid in anchor_paper_ids:
+            try:
+                anchor_uuids.append(uuid.UUID(pid))
+            except (ValueError, TypeError):
+                continue
+        if anchor_uuids:
+            paper_emb_rows = (await db.execute(
+                select(Paper.id, Paper.embedding).where(
+                    Paper.id.in_(anchor_uuids),
+                    Paper.embedding.isnot(None),
+                )
+            )).all()
+            for pid_uuid, emb in paper_emb_rows:
+                if emb:
+                    anchor_emb_by_id[str(pid_uuid)] = emb
+
+            ref_emb_rows = (await db.execute(
+                select(_ReferencePaper.id, _ReferencePaper.embedding).where(
+                    _ReferencePaper.id.in_(anchor_uuids),
+                    _ReferencePaper.embedding.isnot(None),
+                )
+            )).all()
+            for pid_uuid, emb in ref_emb_rows:
+                key = str(pid_uuid)
+                if emb and key not in anchor_emb_by_id:
+                    anchor_emb_by_id[key] = emb
+
+        unresolved = len(anchor_paper_ids) - len(anchor_emb_by_id)
+        if unresolved:
+            logger.info(
+                "Anchor embedding lookup: %d/%d resolved (%d orphaned)",
+                len(anchor_emb_by_id), len(anchor_paper_ids), unresolved,
+            )
+
     # Collect scoring signals for all (paper, user) pairs evaluated
     from app.models.scoring_signal import ScoringSignal
     pending_signals: list[ScoringSignal] = []
@@ -343,8 +403,8 @@ async def score_and_summarise_papers(
             for pd in user_unscored:
                 paper_emb = pd.get("embedding")
                 if isinstance(paper_emb, list) and len(paper_emb) > 0:
-                    max_pos, best_pos_id, _ = knn_max_similarity(paper_emb, positive_anchors)
-                    max_neg, best_neg_id, _ = knn_max_similarity(paper_emb, negative_anchors)
+                    max_pos, best_pos_id, _ = knn_max_similarity(paper_emb, positive_anchors, anchor_emb_by_id)
+                    max_neg, best_neg_id, _ = knn_max_similarity(paper_emb, negative_anchors, anchor_emb_by_id)
                     effective = max_pos - lam * max_neg
                     passed_semantic = effective >= threshold
                     prefilter_matched = pd["id"] in keyword_filtered_ids

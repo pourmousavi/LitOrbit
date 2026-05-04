@@ -30,7 +30,10 @@ class Paper(Base):
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("user_profiles.id"), nullable=True)
-    embedding: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
+    # Deferred: ~37 kB jsonb per row. Loaded explicitly via undefer() only by
+    # the scoring path, news dedup, and cross-link compute. Frontend list /
+    # feed / detail endpoints never need it. See EGRESS_REDUCTION_PLAN.md.
+    embedding: Mapped[dict | None] = mapped_column(JSONB(), nullable=True, deferred=True)
     embedding_task_type: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     abstract_quality_flag: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

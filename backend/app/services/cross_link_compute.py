@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from app.models.paper import Paper
 from app.models.news_item import NewsItem
@@ -35,11 +36,12 @@ async def build_cross_links(db: AsyncSession) -> dict:
     stats = {"papers_checked": 0, "news_checked": 0, "links_created": 0}
 
     # Get recent papers with embeddings
+    # (embeddings are deferred; undefer because cosine_similarity needs them)
     recent_papers = (await db.execute(
         select(Paper).where(
             Paper.created_at >= since_24h,
             Paper.embedding.isnot(None),
-        )
+        ).options(undefer(Paper.embedding))
     )).scalars().all()
 
     # Get recent news with embeddings (lookback window for matching)
@@ -48,7 +50,7 @@ async def build_cross_links(db: AsyncSession) -> dict:
             NewsItem.created_at >= since_lookback,
             NewsItem.embedding.isnot(None),
             NewsItem.is_cluster_primary == True,
-        )
+        ).options(undefer(NewsItem.embedding))
     )).scalars().all()
 
     # Get recent news items (last 24h) for reverse matching
@@ -57,7 +59,7 @@ async def build_cross_links(db: AsyncSession) -> dict:
             NewsItem.created_at >= since_24h,
             NewsItem.embedding.isnot(None),
             NewsItem.is_cluster_primary == True,
-        )
+        ).options(undefer(NewsItem.embedding))
     )).scalars().all()
 
     # Get papers in lookback window for reverse matching
@@ -65,7 +67,7 @@ async def build_cross_links(db: AsyncSession) -> dict:
         select(Paper).where(
             Paper.created_at >= since_lookback,
             Paper.embedding.isnot(None),
-        )
+        ).options(undefer(Paper.embedding))
     )).scalars().all()
 
     # Paper -> News links

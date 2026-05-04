@@ -93,13 +93,15 @@ async def backfill_user(
             skipped_no_spec += 1
             continue
 
-        # Build anchor entry
+        # Build anchor entry. Embedding is intentionally NOT stored inline —
+        # the scorer joins back to papers.embedding by paper_id at scoring time.
+        # We still required paper_embedding to be present above, because we
+        # don't want to create anchors that point at papers with no embedding.
         rated_at = rating_obj.rated_at
         if rated_at is None:
             rated_at = datetime.now(timezone.utc)
         entry = {
             "paper_id": paper_id_str,
-            "embedding": paper_embedding,
             "source": "rating",
             "weight": spec["weight"],
             "added_at": rated_at.isoformat(),

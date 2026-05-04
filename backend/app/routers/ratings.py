@@ -160,8 +160,13 @@ async def apply_anchor_update(
         await db.commit()
         return
 
-    # Fetch paper embedding
-    paper_result = await db.execute(select(Paper).where(Paper.id == paper_id))
+    # Validate paper exists and has an embedding. We need the embedding row for
+    # the promote_to_reference branch (it's copied into reference_papers), so
+    # undefer it for that fetch. Otherwise we just need cheap metadata.
+    from sqlalchemy.orm import undefer
+    paper_result = await db.execute(
+        select(Paper).where(Paper.id == paper_id).options(undefer(Paper.embedding))
+    )
     paper = paper_result.scalar_one_or_none()
     if not paper or not paper.embedding:
         logger.warning(f"Paper {paper_id} has no embedding, skipping anchor update")
@@ -214,9 +219,11 @@ async def apply_anchor_update(
             existing_idx = i
             break
 
+    # The anchor's embedding is *not* stored inline — the scorer JOINs back to
+    # the papers table at scoring time using paper_id. Storing the 37 kB jsonb
+    # vector inside every anchor entry was the dominant Supabase egress source.
     entry = {
         "paper_id": paper_id_str,
-        "embedding": paper.embedding,
         "source": "rating",
         "weight": spec["weight"],
         "added_at": target[existing_idx].get("added_at", now_iso) if existing_idx is not None else now_iso,

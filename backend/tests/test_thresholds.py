@@ -157,7 +157,10 @@ async def test_reference_paper_add_mirrors_to_positive_anchors(test_client, db_s
     anchors = profile.positive_anchors
     assert len(anchors) == 1
     assert anchors[0]["source"] == "reference"
-    assert anchors[0]["embedding"] == FAKE_EMBEDDING
+    # Anchor entries no longer carry the embedding inline (egress optimisation);
+    # the scorer joins back to reference_papers.embedding by paper_id.
+    assert "paper_id" in anchors[0]
+    assert "embedding" not in anchors[0]
     assert anchors[0]["weight"] == 1.0
 
     del app.dependency_overrides[get_current_user]

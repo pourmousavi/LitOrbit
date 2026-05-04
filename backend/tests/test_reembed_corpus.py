@@ -87,20 +87,26 @@ async def test_phase_a_reembeds_pending_papers(db_session):
 
     assert result is True  # complete
 
-    # Verify pending papers are re-embedded
+    # Verify pending papers are re-embedded.
+    # Paper.embedding is deferred=True (egress optimisation), so we refresh
+    # the column explicitly before reading rather than relying on implicit
+    # lazy-load (which doesn't work in async without a greenlet bridge).
     for pid in pending_ids:
         paper = await db_session.get(Paper, pid)
+        await db_session.refresh(paper, ["embedding"])
         assert paper.embedding == FAKE_NEW_EMBEDDING
         assert paper.embedding_task_type == EMBEDDING_TASK_TYPE
 
     # Verify already-done papers are untouched
     for pid in done_ids:
         paper = await db_session.get(Paper, pid)
+        await db_session.refresh(paper, ["embedding"])
         assert paper.embedding == done_embedding
         assert paper.embedding_task_type == EMBEDDING_TASK_TYPE
 
     # Verify no-embedding paper is untouched
     paper = await db_session.get(Paper, no_emb_id)
+    await db_session.refresh(paper, ["embedding"])
     assert paper.embedding is None
     assert paper.embedding_task_type is None
 
@@ -282,5 +288,6 @@ async def test_phase_a_reembeds_reference_papers(db_session):
         await phase_a(db_session)
 
     ref = await db_session.get(ReferencePaper, rid)
+    await db_session.refresh(ref, ["embedding"])
     assert ref.embedding == FAKE_NEW_EMBEDDING
     assert ref.embedding_task_type == EMBEDDING_TASK_TYPE

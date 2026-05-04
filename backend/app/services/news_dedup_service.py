@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from app.models.news_item import NewsItem
 from app.models.news_cluster import NewsCluster
@@ -43,6 +44,7 @@ async def assign_cluster(
     since = datetime.now(timezone.utc) - timedelta(days=DEDUP_WINDOW_DAYS)
 
     # Find recent primary items with embeddings
+    # (embedding column is deferred; undefer for the cosine_similarity loop below)
     result = await db.execute(
         select(NewsItem)
         .where(
@@ -51,6 +53,7 @@ async def assign_cluster(
             NewsItem.embedding.isnot(None),
             NewsItem.id != new_item.id,
         )
+        .options(undefer(NewsItem.embedding))
     )
     candidates = result.scalars().all()
 
@@ -90,8 +93,15 @@ async def assign_cluster(
         cluster_id = cluster.id
 
     # Determine primary: highest authority_weight, tiebreak by earliest published_at
-    # We need to compare new_item vs current primary
-    current_primary = await db.get(NewsItem, cluster.primary_item_id) if cluster.primary_item_id else None
+    # We need to compare new_item vs current primary. Undefer embedding because
+    # we read it below for centroid recompute.
+    current_primary = None
+    if cluster.primary_item_id:
+        current_primary = (await db.execute(
+            select(NewsItem)
+            .where(NewsItem.id == cluster.primary_item_id)
+            .options(undefer(NewsItem.embedding))
+        )).scalar_one_or_none()
 
     new_item.primary_cluster_id = cluster.id
 

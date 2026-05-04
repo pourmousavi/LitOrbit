@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from app.auth import get_current_user
 from app.database import get_db
@@ -32,11 +33,12 @@ async def _recompute_profile_embedding(db: AsyncSession, user_id: uuid.UUID):
     """Recompute user's profile embedding and positive_anchors from reference papers."""
     from datetime import datetime, timezone
 
+    # Undefer embedding because we read it for the centroid computation below.
     result = await db.execute(
         select(ReferencePaper).where(
             ReferencePaper.user_id == user_id,
             ReferencePaper.embedding.isnot(None),
-        )
+        ).options(undefer(ReferencePaper.embedding))
     )
     papers = result.scalars().all()
 
@@ -54,14 +56,15 @@ async def _recompute_profile_embedding(db: AsyncSession, user_id: uuid.UUID):
         vectors = [p.embedding for p in papers]
         profile.interest_vector = compute_centroid(vectors)
 
-    # Rebuild reference-sourced positive_anchors while preserving rating-sourced ones
+    # Rebuild reference-sourced positive_anchors while preserving rating-sourced ones.
+    # Anchor entries no longer carry the embedding inline — the scorer joins
+    # back to reference_papers.embedding via paper_id at scoring time.
     existing_anchors = list(profile.positive_anchors or [])
     non_reference = [a for a in existing_anchors if a.get("source") != "reference"]
 
     reference_anchors = [
         {
             "paper_id": str(p.id),
-            "embedding": p.embedding,
             "source": "reference",
             "weight": 1.0,
             "added_at": datetime.now(timezone.utc).isoformat(),
@@ -111,23 +114,33 @@ async def list_reference_papers(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """List the current user's reference papers."""
+    # Project only the columns we need; check has_embedding at the SQL level
+    # so we never transfer the (large) embedding jsonb just to test for null.
     result = await db.execute(
-        select(ReferencePaper)
+        select(
+            ReferencePaper.id,
+            ReferencePaper.title,
+            ReferencePaper.abstract,
+            ReferencePaper.doi,
+            ReferencePaper.source,
+            ReferencePaper.created_at,
+            ReferencePaper.embedding.isnot(None).label("has_embedding"),
+        )
         .where(ReferencePaper.user_id == uuid.UUID(user["id"]))
         .order_by(ReferencePaper.created_at.desc())
     )
-    papers = result.scalars().all()
+    rows = result.all()
     return [
         {
-            "id": str(p.id),
-            "title": p.title,
-            "abstract_preview": p.abstract[:200] if p.abstract else None,
-            "doi": p.doi,
-            "source": p.source,
-            "has_embedding": p.embedding is not None,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "id": str(r.id),
+            "title": r.title,
+            "abstract_preview": r.abstract[:200] if r.abstract else None,
+            "doi": r.doi,
+            "source": r.source,
+            "has_embedding": bool(r.has_embedding),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
         }
-        for p in papers
+        for r in rows
     ]
 
 

@@ -122,12 +122,22 @@ def compute_centroid(vectors: list[list[float]]) -> list[float]:
 def knn_max_similarity(
     paper_embedding: list[float],
     anchors: list[dict],
+    embedding_lookup: dict[str, list[float]] | None = None,
 ) -> tuple[float, str | None, float]:
     """Return (max_weighted_similarity, best_anchor_paper_id, best_anchor_raw_weight).
 
-    For each anchor, compute cosine_similarity(paper_embedding, anchor["embedding"])
+    For each anchor, compute cosine_similarity(paper_embedding, <anchor_embedding>)
     and multiply by anchor["weight"]. Return the maximum weighted similarity,
     the paper_id of that best anchor, and its raw weight.
+
+    The anchor's embedding is resolved as follows:
+      - If ``embedding_lookup`` is provided, use ``embedding_lookup[anchor["paper_id"]]``
+        (anchors store only the paper_id; the caller fetches embeddings via JOIN).
+      - Otherwise, fall back to ``anchor["embedding"]`` (legacy inline form, used
+        by tests and any anchor entries that haven't been slimmed yet).
+
+    Anchors whose embedding can't be resolved (missing paper or stale anchor
+    referencing a purged paper) are silently skipped.
 
     If anchors is empty or paper_embedding is None, return (0.0, None, 0.0).
     """
@@ -139,7 +149,11 @@ def knn_max_similarity(
     best_weight = 0.0
 
     for anchor in anchors:
-        anchor_emb = anchor.get("embedding")
+        anchor_paper_id = anchor.get("paper_id")
+        if embedding_lookup is not None and anchor_paper_id is not None:
+            anchor_emb = embedding_lookup.get(anchor_paper_id)
+        else:
+            anchor_emb = anchor.get("embedding")
         if not anchor_emb:
             continue
         weight = float(anchor.get("weight", 1.0))
@@ -147,7 +161,7 @@ def knn_max_similarity(
         weighted = sim * weight
         if weighted > best_sim or best_id is None:
             best_sim = weighted
-            best_id = anchor.get("paper_id")
+            best_id = anchor_paper_id
             best_weight = weight
 
     return (best_sim, best_id, best_weight)

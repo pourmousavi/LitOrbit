@@ -24,7 +24,8 @@ class NewsItem(Base):
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     tags: Mapped[list[str]] = mapped_column(StringArray(), default=list)
     categories: Mapped[list[str]] = mapped_column(StringArray(), default=list)
-    embedding: Mapped[dict | None] = mapped_column(JSONB(), nullable=True)
+    # Deferred: ~37 kB jsonb per row. See note on Paper.embedding.
+    embedding: Mapped[dict | None] = mapped_column(JSONB(), nullable=True, deferred=True)
     relevance_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     primary_cluster_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("news_clusters.id", ondelete="SET NULL"), nullable=True)
     is_cluster_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
