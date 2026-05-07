@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import require_admin
 from app.config import get_settings
 from app.database import get_db
+from app.models.digest_run import DigestRun
 from app.models.journal_config import JournalConfig
 from app.models.pipeline_run import PipelineRun
 from app.models.user_profile import UserProfile
@@ -664,9 +665,16 @@ async def run_scheduled_pipeline(
     # Idempotency guard. 30 min cutoff aligns with runner.py's orphan sweep
     # so a genuinely-stuck prior run gets cleaned up by the next pipeline
     # call rather than blocking it forever.
+    #
+    # We check both PipelineRun *and* DigestRun because _run_full_scheduled_job
+    # runs four stages sequentially (pipeline → news → cross_links → digest)
+    # and the PipelineRun row flips to 'success' as soon as stage 1 ends.
+    # Without the DigestRun check, a curl --retry that fires during stages
+    # 2-4 finds no in-flight PipelineRun and re-enters the whole job,
+    # producing duplicate digest emails (observed 2026-05-07).
     in_flight_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
     async with db_module.async_session_factory() as session:
-        result = await session.execute(
+        pipeline_result = await session.execute(
             select(PipelineRun)
             .where(
                 PipelineRun.status == "running",
@@ -675,18 +683,43 @@ async def run_scheduled_pipeline(
             .order_by(PipelineRun.started_at.desc())
             .limit(1)
         )
-        in_flight = result.scalar_one_or_none()
-        if in_flight:
+        in_flight_pipeline = pipeline_result.scalar_one_or_none()
+        if in_flight_pipeline:
             logger.info(
                 "Refusing duplicate /run-scheduled: pipeline run %s already "
                 "running since %s",
-                in_flight.id,
-                in_flight.started_at,
+                in_flight_pipeline.id,
+                in_flight_pipeline.started_at,
             )
             return {
                 "status": "already_running",
-                "run_id": str(in_flight.id),
-                "started_at": in_flight.started_at.isoformat(),
+                "stage": "pipeline",
+                "run_id": str(in_flight_pipeline.id),
+                "started_at": in_flight_pipeline.started_at.isoformat(),
+            }
+
+        digest_result = await session.execute(
+            select(DigestRun)
+            .where(
+                DigestRun.status == "running",
+                DigestRun.started_at >= in_flight_cutoff,
+            )
+            .order_by(DigestRun.started_at.desc())
+            .limit(1)
+        )
+        in_flight_digest = digest_result.scalar_one_or_none()
+        if in_flight_digest:
+            logger.info(
+                "Refusing duplicate /run-scheduled: digest run %s already "
+                "running since %s",
+                in_flight_digest.id,
+                in_flight_digest.started_at,
+            )
+            return {
+                "status": "already_running",
+                "stage": "digest",
+                "run_id": str(in_flight_digest.id),
+                "started_at": in_flight_digest.started_at.isoformat(),
             }
 
     return StreamingResponse(

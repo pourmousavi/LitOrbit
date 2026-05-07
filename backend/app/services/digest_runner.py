@@ -460,12 +460,25 @@ async def send_email_digest_for_user(
     if not sent:
         logger.warning(f"Email failed for {user.full_name}, but podcast/logs will still be saved")
 
-    # 5. Log papers for dedup
-    for paper, _score in paper_score_pairs:
+    # 5. Log papers for dedup. If there were no eligible papers we still
+    # write one paper_id=NULL "send marker" row so _already_ran_today()
+    # finds today's send and a curl --retry on /run-scheduled doesn't
+    # send the same shared-papers/news-only digest a second time.
+    if paper_score_pairs:
+        for paper, _score in paper_score_pairs:
+            db.add(DigestLog(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                paper_id=paper.id,
+                digest_type=frequency,
+                source="email",
+                podcast_id=podcast_record.id if podcast_record else None,
+            ))
+    else:
         db.add(DigestLog(
             id=uuid.uuid4(),
             user_id=user.id,
-            paper_id=paper.id,
+            paper_id=None,
             digest_type=frequency,
             source="email",
             podcast_id=podcast_record.id if podcast_record else None,
@@ -602,6 +615,25 @@ async def _run_for_product(
 
     Returns list of per-user result dicts.
     """
+    # Orphan sweep: if a previous DigestRun crashed before its terminal
+    # status write (SIGKILL, OOM, dyno cycle), it's stuck at 'running'
+    # forever — the May 5 row visible in admin was a real instance of
+    # this. Mirrors runner.py:638 for PipelineRun and the news_ingest
+    # pattern noted in CLAUDE.md.
+    orphan_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+    orphan_result = await db.execute(
+        select(DigestRun).where(
+            DigestRun.status == "running",
+            DigestRun.started_at < orphan_cutoff,
+        )
+    )
+    for orphan in orphan_result.scalars().all():
+        orphan.status = "failed"
+        orphan.completed_at = datetime.now(timezone.utc)
+        orphan.error_message = "Orphaned run — process died before cleanup (auto-marked failed on next digest start)"
+        logger.warning(f"Auto-marked orphaned DigestRun {orphan.id} as failed")
+    await db.commit()
+
     run = DigestRun(
         id=uuid.uuid4(),
         frequency=frequency or "all",

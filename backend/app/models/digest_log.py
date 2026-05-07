@@ -17,7 +17,10 @@ class DigestLog(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(), ForeignKey("user_profiles.id", ondelete="CASCADE"), nullable=False)
-    paper_id: Mapped[uuid.UUID] = mapped_column(UUID(), ForeignKey("papers.id", ondelete="CASCADE"), nullable=False)
+    # Nullable so we can record a "send marker" row when an email digest goes
+    # out with zero papers — _already_ran_today() relies on the row's existence,
+    # not on a paper FK.
+    paper_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("papers.id", ondelete="CASCADE"), nullable=True)
     digest_type: Mapped[str] = mapped_column(String, nullable=False)  # "daily" | "weekly"
     source: Mapped[str] = mapped_column(String, nullable=False, default="email")  # "email" | "podcast"
     podcast_id: Mapped[uuid.UUID | None] = mapped_column(UUID(), ForeignKey("podcasts.id", ondelete="SET NULL"), nullable=True)
