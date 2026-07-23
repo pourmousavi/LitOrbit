@@ -73,9 +73,15 @@ The core daily pipeline runs as a multi-stage process:
 7. **Podcast** — Script generation + Edge TTS multi-voice audio (`services/podcast.py`)
 8. **Digest** — HTML email via Resend/SMTP (`services/email_digest.py`)
 
-Triggered daily via GitHub Actions cron (`.github/workflows/pipeline.yml`) or manually via admin endpoint.
+Triggered daily by a **Render Cron Job** running
+`python -m scripts.run_scheduled_pipeline` (a separate service, so the heavy
+work stays out of the single-worker web dyno), or manually via admin endpoint.
+There is deliberately **no** GitHub Actions scheduler — one existed until
+2026-07-23 and fired a *second* full pipeline into the web service every day,
+OOM-killing it (daily Render "health check failed" alerts) and leaving an
+orphaned `PipelineRun`. Do not re-add a second scheduler.
 
-The cron hits `POST /api/v1/admin/pipeline/run-scheduled` (header-secret
+The manual admin trigger hits `POST /api/v1/admin/pipeline/run-scheduled` (header-secret
 auth). The endpoint is **idempotent** — if a `PipelineRun` is already
 in-flight (`status='running'`, started < 30 min ago) it returns
 `{"status": "already_running", ...}` immediately, so curl `--retry`
@@ -129,7 +135,8 @@ All API routers in `backend/app/routers/`. Key ones: `papers.py`, `feed.py`, `un
 ### Deployment
 - **Backend** → Render (Python, Oregon region for Gemini compatibility)
 - **Frontend** → Vercel
-- **CI/CD** → GitHub Actions: `deploy.yml` runs tests on push to main, `pipeline.yml` runs daily discovery
+- **CI/CD** → GitHub Actions: `deploy.yml` runs tests on push to main
+- **Daily pipeline** → Render Cron Job (`python -m scripts.run_scheduled_pipeline`), not GitHub Actions
 
 ### Cloudflare Workers (egress proxies)
 
