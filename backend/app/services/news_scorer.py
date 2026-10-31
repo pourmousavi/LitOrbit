@@ -1,6 +1,6 @@
 """LLM scoring and summarisation for news items.
 
-Uses the same Gemini model as paper scoring but with news-appropriate prompts.
+Uses the same Claude model as paper scoring but with news-appropriate prompts.
 Produces a 0-10 score and a structured summary.
 """
 
@@ -69,14 +69,13 @@ async def score_news_for_user(
     user: dict[str, Any],
     source_name: str,
 ) -> dict[str, Any]:
-    """Score a news item's relevance to a user using Gemini."""
-    from app.services.gemini_client import make_genai_client
+    """Score a news item's relevance to a user using Claude."""
+    import anthropic
     from app.services.ranking.scorer import _rate_limiter
-    from google import genai
     from app.config import get_settings
 
     settings = get_settings()
-    client = make_genai_client()
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     content = item.full_text or item.excerpt or ""
     if len(content) > 4000:
@@ -100,39 +99,21 @@ Name: {user.get('full_name', '')}
 Keywords of interest: {', '.join(user.get('interest_keywords', []))}
 Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_line}"""
 
-    # gemini-2.5-flash is a thinking model — internal reasoning consumes
-    # max_output_tokens. With the previous 512 cap most responses were
-    # truncated mid-JSON. We disable thinking (this task doesn't need it)
-    # and bump the budget, plus retry once on JSON parse errors.
-    config = genai.types.GenerateContentConfig(
-        system_instruction=NEWS_SCORING_PROMPT,
-        max_output_tokens=2048,
-        response_mime_type="application/json",
-        response_schema={
-            "type": "object",
-            "properties": {
-                "score": {"type": "number"},
-                "reasoning": {"type": "string"},
-            },
-            "required": ["score", "reasoning"],
-        },
-        thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
-    )
-
     last_raw = ""
     last_je: json.JSONDecodeError | None = None
     for attempt in range(2):
         await _rate_limiter.acquire()
         try:
             response = await asyncio.wait_for(
-                client.aio.models.generate_content(
-                    model=settings.gemini_model_fast,
-                    contents=user_message,
-                    config=config,
+                client.messages.create(
+                    model=settings.claude_model_fast,
+                    max_tokens=1024,
+                    system=NEWS_SCORING_PROMPT,
+                    messages=[{"role": "user", "content": user_message}],
                 ),
                 timeout=60,
             )
-            last_raw = response.text or ""
+            last_raw = response.content[0].text if response.content else ""
             text = _extract_json(last_raw.strip())
             try:
                 result = json.loads(text)

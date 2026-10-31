@@ -492,8 +492,9 @@ async def score_and_summarise_papers(
     # Track which papers need scoring for which users
     all_scores: dict[str, list[dict]] = {}  # paper_id -> list of score dicts
 
-    from app.services.gemini_client import make_genai_client
-    _client = make_genai_client()
+    import anthropic
+    from app.config import get_settings
+    _client = anthropic.AsyncAnthropic(api_key=get_settings().anthropic_api_key)
 
     # Finalize any implicit transaction left open by earlier SELECTs and return
     # the connection to the pool BEFORE the long LLM scoring phase. Doing this

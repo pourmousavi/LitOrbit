@@ -71,24 +71,21 @@ class TestPrefilter:
         assert result[0]["title"] == "EV Charging Infrastructure Planning"
 
 
-def _make_mock_gemini_client(response_text: str):
-    """Create a mock Google GenAI client that returns the given text."""
+def _make_mock_claude_client(response_text: str):
+    """Create a mock Anthropic client that returns the given text."""
     mock_response = MagicMock()
-    mock_response.text = response_text
-
-    mock_aio = MagicMock()
-    mock_aio.models.generate_content = AsyncMock(return_value=mock_response)
+    mock_response.content = [MagicMock(text=response_text)]
 
     mock_client = MagicMock()
-    mock_client.aio = mock_aio
+    mock_client.messages.create = AsyncMock(return_value=mock_response)
     return mock_client
 
 
 class TestScorer:
     @pytest.mark.asyncio
     async def test_scorer_returns_valid_score(self):
-        """Mock Gemini response, assert score is float 0-10."""
-        mock_client = _make_mock_gemini_client(
+        """Mock Claude response, assert score is float 0-10."""
+        mock_client = _make_mock_claude_client(
             '{"score": 7.5, "reasoning": "Highly relevant to battery research."}'
         )
 
@@ -104,7 +101,7 @@ class TestScorer:
     @pytest.mark.asyncio
     async def test_scorer_stores_reasoning(self):
         """Assert reasoning string is stored."""
-        mock_client = _make_mock_gemini_client(
+        mock_client = _make_mock_claude_client(
             '{"score": 8.0, "reasoning": "Directly addresses battery SOH estimation."}'
         )
 
@@ -118,7 +115,7 @@ class TestScorer:
     @pytest.mark.asyncio
     async def test_scorer_clamps_out_of_range(self):
         """Scores outside 0-10 should be clamped."""
-        mock_client = _make_mock_gemini_client(
+        mock_client = _make_mock_claude_client(
             '{"score": 15.0, "reasoning": "Off the charts"}'
         )
 
@@ -131,7 +128,7 @@ class TestScorer:
     @pytest.mark.asyncio
     async def test_scorer_returns_error_flag_on_success(self):
         """Successful score has error=False."""
-        mock_client = _make_mock_gemini_client(
+        mock_client = _make_mock_claude_client(
             '{"score": 5.0, "reasoning": "Legitimately scored 5.0"}'
         )
         paper = {"title": "Test", "abstract": "Test"}
@@ -142,12 +139,21 @@ class TestScorer:
         assert result["error"] is False
 
     @pytest.mark.asyncio
+    async def test_scorer_tolerates_prose_around_json(self):
+        """Claude may wrap the JSON in a fence or a lead-in sentence."""
+        mock_client = _make_mock_claude_client(
+            'Here is the score:\n```json\n{"score": 6.0, "reasoning": "ok"}\n```'
+        )
+        paper = {"title": "Test", "abstract": "Test"}
+        user = {"full_name": "Test", "interest_keywords": [], "interest_categories": []}
+        result = await score_paper_for_user(paper, user, client=mock_client)
+        assert result["score"] == 6.0
+
+    @pytest.mark.asyncio
     async def test_scorer_returns_error_on_raise(self):
-        """When Gemini client raises, scorer returns score=None, error=True."""
-        mock_aio = MagicMock()
-        mock_aio.models.generate_content = AsyncMock(side_effect=RuntimeError("API down"))
+        """When Claude client raises, scorer returns score=None, error=True."""
         mock_client = MagicMock()
-        mock_client.aio = mock_aio
+        mock_client.messages.create = AsyncMock(side_effect=RuntimeError("API down"))
 
         paper = {"title": "Test", "abstract": "Test"}
         user = {"full_name": "Test", "interest_keywords": [], "interest_categories": []}

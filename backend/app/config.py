@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     # Claude models (update these when new versions release)
     claude_model_fast: str = "claude-haiku-4-5"
     claude_model_smart: str = "claude-sonnet-4-6"
-    gemini_model_fast: str = "gemini-2.5-flash"
 
     # App
     secret_key: str = ""

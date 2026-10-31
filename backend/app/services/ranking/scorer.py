@@ -4,7 +4,7 @@ import logging
 import time
 from typing import Any
 
-from google import genai
+import anthropic
 
 from app.config import get_settings
 
@@ -20,8 +20,8 @@ Return ONLY valid JSON in this exact format:
 
 IMPORTANT: Keep the reasoning field under 30 words. Be concise."""
 
-# Gemini free tier: 10 RPM, 250 RPD.
-# We use a token-bucket rate limiter to stay under 9 RPM.
+# Originally sized for the Gemini free tier (10 RPM); kept as a gentle
+# throttle now that scoring runs on Claude.
 _RPM_LIMIT = 9
 _INTERVAL = 60.0 / _RPM_LIMIT  # ~6.67 seconds between requests
 _MAX_RETRIES = 3
@@ -51,15 +51,15 @@ _rate_limiter = _RateLimiter()
 async def score_paper_for_user(
     paper: dict[str, Any],
     user: dict[str, Any],
-    client: genai.Client | None = None,
+    client: anthropic.AsyncAnthropic | None = None,
     custom_prompt: str | None = None,
 ) -> dict[str, Any]:
-    """Score a single paper's relevance to a single user using Gemini Flash.
+    """Score a single paper's relevance to a single user using Claude (fast model).
 
     Args:
         paper: Dict with 'title' and 'abstract'.
         user: Dict with 'full_name', 'interest_keywords', 'interest_categories'.
-        client: Reusable Google GenAI client (created if not provided).
+        client: Reusable Anthropic client (created if not provided).
 
     Returns:
         Dict with 'score' (float|None), 'reasoning' (str), 'error' (bool).
@@ -67,11 +67,10 @@ async def score_paper_for_user(
     """
     settings = get_settings()
     if client is None:
-        if not settings.gemini_api_key:
-            logger.warning("GEMINI_API_KEY not set, returning error")
+        if not settings.anthropic_api_key:
+            logger.warning("ANTHROPIC_API_KEY not set, returning error")
             return {"score": None, "reasoning": "API key not configured", "error": True}
-        from app.services.gemini_client import make_genai_client
-        client = make_genai_client()
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     paper_keywords = ', '.join(paper.get('keywords', [])) if paper.get('keywords') else 'None provided'
 
@@ -109,34 +108,19 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
         await _rate_limiter.acquire()
         try:
             response = await asyncio.wait_for(
-                client.aio.models.generate_content(
-                    model=settings.gemini_model_fast,
-                    contents=user_message,
-                    config=genai.types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        max_output_tokens=1024,
-                        response_mime_type="application/json",
-                        response_schema={
-                            "type": "object",
-                            "properties": {
-                                "score": {"type": "number"},
-                                "reasoning": {"type": "string"},
-                            },
-                            "required": ["score", "reasoning"],
-                        },
-                    ),
+                client.messages.create(
+                    model=settings.claude_model_fast,
+                    max_tokens=1024,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_message}],
                 ),
                 timeout=60,
             )
 
-            raw_text = response.text
+            raw_text = response.content[0].text if response.content else ""
             if not raw_text:
-                # Safety filter or empty completion. Surface the finish reason.
-                finish_reason = None
-                try:
-                    finish_reason = response.candidates[0].finish_reason  # type: ignore[attr-defined]
-                except Exception:
-                    pass
+                # Refusal or empty completion. Surface the stop reason.
+                finish_reason = response.stop_reason
                 logger.error(
                     f"Scorer got empty response (finish_reason={finish_reason}) "
                     f"for paper '{paper.get('title', '')[:60]}'"
@@ -144,9 +128,11 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
                 return {"score": None, "reasoning": f"Empty AI response ({finish_reason})", "error": True}
 
             text = raw_text.strip()
-            # Strip markdown code blocks if present
-            if text.startswith("```"):
-                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            # Claude has no enforced JSON mode here; take the outermost {...}
+            # so stray prose or markdown fences don't break parsing.
+            start, end = text.find("{"), text.rfind("}")
+            if start != -1 and end > start:
+                text = text[start:end + 1]
             result = json.loads(text)
 
             score = float(result.get("score", 5.0))
@@ -157,7 +143,7 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
             return {"score": score, "reasoning": reasoning, "error": False}
 
         except TimeoutError:
-            logger.warning(f"Gemini scoring timed out for '{paper.get('title', '')[:60]}' (attempt {attempt}/{_MAX_RETRIES})")
+            logger.warning(f"Claude scoring timed out for '{paper.get('title', '')[:60]}' (attempt {attempt}/{_MAX_RETRIES})")
             if attempt == _MAX_RETRIES:
                 return {"score": None, "reasoning": "Scoring timed out", "error": True}
             continue
@@ -183,7 +169,7 @@ Research focus areas: {', '.join(user.get('interest_categories', []))}{learned_l
                     logger.error(f"Rate limit exceeded after {_MAX_RETRIES} retries")
                     return {"score": None, "reasoning": "Rate limit exceeded", "error": True}
             else:
-                logger.error(f"Gemini API error during scoring: {e}")
+                logger.error(f"Claude API error during scoring: {e}")
                 return {"score": None, "reasoning": "API error during scoring", "error": True}
 
     return {"score": None, "reasoning": "Scoring failed after retries", "error": True}
@@ -193,13 +179,12 @@ async def score_paper_for_all_users(
     paper: dict[str, Any],
     users: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Score a single paper for all users, rate-limited to stay within free tier.
+    """Score a single paper for all users, rate-limited.
 
     Returns:
         List of dicts with 'user_id', 'score', 'reasoning'.
     """
-    from app.services.gemini_client import make_genai_client
-    client = make_genai_client()
+    client = anthropic.AsyncAnthropic(api_key=get_settings().anthropic_api_key)
 
     # Run all tasks concurrently — the rate limiter serialises API calls
     tasks = [
