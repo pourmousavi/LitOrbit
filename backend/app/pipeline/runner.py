@@ -260,11 +260,10 @@ async def score_and_summarise_papers(
         (row[0], row[1]) for row in existing_scores_result.all()
     }
 
-    # Embeddings are deferred by default; undefer here because the scoring
-    # path below reads p.embedding into paper_dicts.
-    all_papers_result = await db.execute(
-        select(Paper).options(undefer(Paper.embedding))
-    )
+    # Embeddings stay deferred here: undeferring them for every paper pulled
+    # ~176 MB of JSON per run (2.6k papers × 3072 floats) and OOM-killed the
+    # 512 MB cron. They're fetched below only for papers that need scoring.
+    all_papers_result = await db.execute(select(Paper))
     all_papers = all_papers_result.scalars().all()
 
     # Find papers that need scoring for at least one user
@@ -281,6 +280,13 @@ async def score_and_summarise_papers(
 
     logger.info(f"{len(papers_needing_scores)} papers need scoring for at least one user")
 
+    emb_rows = await db.execute(
+        select(Paper.id, Paper.embedding).where(
+            Paper.id.in_([p.id for p in papers_needing_scores])
+        )
+    )
+    embedding_by_id = {row[0]: row[1] for row in emb_rows.all()}
+
     # Convert to dicts for scoring
     paper_dicts = [
         {
@@ -290,7 +296,7 @@ async def score_and_summarise_papers(
             "authors": p.authors,
             "journal": p.journal,
             "keywords": p.keywords or [],
-            "embedding": p.embedding,
+            "embedding": embedding_by_id.get(p.id),
         }
         for p in papers_needing_scores
     ]
