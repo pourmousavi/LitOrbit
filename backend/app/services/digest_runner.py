@@ -116,14 +116,16 @@ async def _get_digest_papers(
     )
     sent_paper_ids = {row[0] for row in sent_result.all()}
 
-    # Top scored papers from the lookback window
+    # Top papers *scored* in the lookback window. Filtering on scored_at rather
+    # than Paper.created_at means papers whose scoring was delayed (LLM outage,
+    # crashed run) still reach the next digest instead of silently aging out.
     query = (
         select(Paper, PaperScore.relevance_score)
         .join(PaperScore, PaperScore.paper_id == Paper.id)
         .where(
             PaperScore.user_id == user_id,
             PaperScore.relevance_score >= 5.0,
-            Paper.created_at >= cutoff,
+            PaperScore.scored_at >= cutoff,
         )
         .order_by(PaperScore.relevance_score.desc())
     )

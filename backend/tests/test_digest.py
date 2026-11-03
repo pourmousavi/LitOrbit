@@ -239,6 +239,25 @@ class TestDigestRunner:
         assert scores == sorted(scores, reverse=True)  # Ordered by score desc
 
     @pytest.mark.asyncio
+    async def test_old_paper_scored_late_is_included(self, db_session):
+        """A paper discovered days ago but only scored now (e.g. after a scoring
+        outage) must still reach the next daily digest."""
+        from app.services.digest_runner import _get_digest_papers
+
+        user = UserProfile(id=uuid.uuid4(), full_name="Late", email="late@example.com", role="researcher")
+        paper = Paper(
+            id=uuid.uuid4(), title="Backlog paper", authors=["A"], journal="J", journal_source="rss",
+            created_at=datetime.now(timezone.utc) - timedelta(days=5),
+        )
+        db_session.add_all([user, paper])
+        await db_session.flush()
+        db_session.add(PaperScore(id=uuid.uuid4(), paper_id=paper.id, user_id=user.id, relevance_score=8.0))
+        await db_session.commit()
+
+        result = await _get_digest_papers(db_session, user.id, "daily", top_n=10, source="email")
+        assert [p.id for p, _ in result] == [paper.id]
+
+    @pytest.mark.asyncio
     async def test_digest_deduplication(self, db_session, setup_data):
         """Papers already sent in a previous digest are excluded."""
         from app.services.digest_runner import _get_digest_papers
